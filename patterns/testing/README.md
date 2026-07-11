@@ -38,10 +38,37 @@ Comprehensive guide to testing strategies, Test-Driven Development (TDD), and te
 - Fix inherited failures (even if from others)
 - Pre-PR verification steps
 - Definition of done
+- **FOR WEB UI: Playwright tests with screenshot verification required**
 
 **Work is NOT done until all items pass.**
 
+### [PLAYWRIGHT_UI_TESTING.md](./PLAYWRIGHT_UI_TESTING.md) – Mandatory UI Testing Framework
+**Complete Playwright guide for web UI development**
+
+- Playwright is MANDATORY for all web UI work
+- Screenshot verification is REQUIRED
+- Agent must review and approve all screenshots
+- Testing multiple browsers (Chrome, Firefox, Safari, mobile)
+- Responsive design testing
+- Visual regression detection
+- CI/CD integration for UI tests
+- Cannot mark UI work complete without screenshot approval
+
+**ALL WEB UI WORK MUST USE PLAYWRIGHT WITH SCREENSHOT VERIFICATION**
+
 ## 🚨 Critical Requirements
+
+### 0. Web UI Testing with Playwright (MANDATORY FOR WEB UI)
+
+**ALL web UI work MUST use Playwright:**
+- ✅ Write tests BEFORE building UI (TDD)
+- ✅ Screenshot verification in every test (visual regression detection)
+- ✅ Agent MUST review and approve screenshots (non-negotiable)
+- ✅ Test multiple browsers (Chrome, Firefox, Safari, mobile)
+- ✅ Test responsive design (all screen sizes)
+- ✅ No visual regressions (screenshots match expected appearance)
+
+**UI work without Playwright + screenshot approval WILL NOT MERGE.**
 
 ### 1. Minimum 80% Test Coverage (MANDATORY)
 

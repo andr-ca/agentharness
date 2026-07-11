@@ -418,6 +418,38 @@ Work is DONE when:
 - CI/CD passes
 - No blockers
 
+## Special Requirements for Web UI Work
+
+### ALL Web UI Development MUST Use Playwright
+
+**Mandatory for ANY UI work:**
+- ✅ Use Playwright (not optional alternative)
+- ✅ Write tests BEFORE building UI (TDD)
+- ✅ Include screenshot verification in every test
+- ✅ Test multiple browsers (Chrome, Firefox, Safari, mobile)
+- ✅ Test responsive design
+- ✅ Agent/human MUST verify screenshots visually
+- ✅ No visual regressions accepted
+- ✅ Screenshots must match expected appearance
+
+### UI Work Cannot Be Complete Without:
+- [ ] All Playwright tests written
+- [ ] All tests PASS
+- [ ] Coverage >= 80%
+- [ ] Screenshots taken and verified
+- [ ] Agent has reviewed and approved screenshots
+- [ ] No visual regressions detected
+- [ ] Responsive design verified
+- [ ] Cross-browser tested (at minimum: Chrome, Firefox, Safari)
+- [ ] Mobile responsiveness confirmed
+- [ ] Accessibility verified
+
+**Screenshots are MANDATORY - visual verification is REQUIRED**
+
+See: `PLAYWRIGHT_UI_TESTING.md` for complete UI testing guide
+
+---
+
 ## Never Claim Work Complete If:
 
 ❌ Tests are failing
@@ -429,6 +461,9 @@ Work is DONE when:
 ❌ There are code TODOs
 ❌ Type checking fails
 ❌ Other tests are broken
+❌ **UI work without Playwright tests** (WEB UI ONLY)
+❌ **UI screenshots not reviewed and approved** (WEB UI ONLY)
+❌ **Visual regressions present** (WEB UI ONLY)
 
 ---
 

@@ -33,8 +33,23 @@ Work is NOT done until:
 3. ✅ All linting passes (no errors)
 4. ✅ All edge cases tested
 5. ✅ All inherited test failures fixed
+6. ✅ **For Web UI: Playwright tests with screenshot verification completed**
 
-**See:** `patterns/testing/` for complete TDD, coverage, and completion guidance
+### Web UI Testing Requirement (MANDATORY)
+
+**ALL WEB UI WORK MUST USE PLAYWRIGHT:**
+- ✅ **Write UI tests BEFORE building UI** (TDD)
+- ✅ **Screenshot verification in every test** (visual regression detection)
+- ✅ **Agent MUST review and approve all screenshots** (no approval = not done)
+- ✅ **Test multiple browsers** (Chrome, Firefox, Safari, mobile)
+- ✅ **Test responsive design** (mobile, tablet, desktop)
+- ✅ **No visual regressions** (screenshots must match expected appearance)
+
+**UI work without Playwright + screenshot verification WILL NOT MERGE.**
+
+See: `patterns/testing/PLAYWRIGHT_UI_TESTING.md` for complete Playwright guide
+
+**See:** `patterns/testing/` for complete TDD, coverage, completion, and UI testing guidance
 
 ---
 
