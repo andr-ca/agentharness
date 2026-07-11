@@ -7,6 +7,37 @@ applyTo: all projects using awesome-harness
 
 Core principles for writing clear, maintainable, and consistent code across all languages and frameworks.
 
+## 🚨 CRITICAL: Test-Driven Development & 80% Coverage Requirement
+
+**THESE ARE NON-NEGOTIABLE REQUIREMENTS:**
+
+### TDD is Mandatory
+- ✅ Write tests BEFORE code (always Red-Green-Refactor)
+- ✅ Code without tests is incomplete code
+- ✅ All behavior must be verified by tests
+- ✅ Never skip testing because you're "in a hurry"
+
+### 80% Test Coverage is Mandatory
+- ✅ **Minimum 80% coverage required** – NOT optional, NOT negotiable
+- ✅ **All tests must PASS** – No skipped, no broken tests
+- ✅ **Edge cases must be tested** – Empty, null, min/max, error conditions
+- ✅ **Lint must pass** – No errors, no suppressions without justification
+- ✅ **Fix inherited failures** – Even if someone else broke a test, YOU fix it
+
+**Code with coverage < 80% WILL NOT MERGE. This is a hard requirement.**
+
+### Definition of "Done"
+Work is NOT done until:
+1. ✅ All tests pass (every single test)
+2. ✅ Coverage >= 80% (verified by report)
+3. ✅ All linting passes (no errors)
+4. ✅ All edge cases tested
+5. ✅ All inherited test failures fixed
+
+**See:** `patterns/testing/` for complete TDD, coverage, and completion guidance
+
+---
+
 ## Naming Conventions
 
 - **Types/Classes:** PascalCase
