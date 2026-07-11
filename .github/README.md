@@ -22,10 +22,33 @@ This directory contains repository-wide configuration files, guidelines, and bes
   - Good/bad commit message examples
   - CI/CD implications
 
+- **[BRANCHING_STRATEGY.md](./BRANCHING_STRATEGY.md)** – Git branching discipline and workflow
+  - Never commit to trunk branches (main, master, develop)
+  - Branch naming conventions with consistent prefixes
+  - Git worktree usage and best practices
+  - Comprehensive .gitignore configuration
+  - Branch protection and pre-commit hooks
+  - Complete lifecycle examples
+
 - **[pull_request_template.md](./pull_request_template.md)** – PR template for consistency
   - Summary, changes, motivation sections
   - Testing checklist
   - Links to related guidelines
+
+### Tools & Templates
+
+- **[.gitignore.template](./.gitignore.template)** – Comprehensive gitignore template
+  - Worktrees, IDE files, OS files
+  - Dependencies, build artifacts
+  - Environment variables and secrets (CRITICAL!)
+  - Language and framework-specific sections
+  - Copy and customize for your project
+
+- **[hooks/](./hooks/)** – Reusable git hooks
+  - `prevent-trunk-commit` – Block commits to main/master branches
+  - Hook setup instructions (manual and Husky)
+  - Custom hook templates
+  - Troubleshooting guide
 
 ### Configuration Files
 
@@ -37,20 +60,27 @@ This directory contains repository-wide configuration files, guidelines, and bes
 
 ### For Contributors
 
-1. **Before writing code:** Read [CODING_GUIDELINES.md](./CODING_GUIDELINES.md)
+1. **Before starting work:** Read [BRANCHING_STRATEGY.md](./BRANCHING_STRATEGY.md)
+   - Never commit directly to main/master/trunk
+   - Create a feature branch with proper naming
+   - Understand worktrees for complex work
+   - Configure .gitignore to protect secrets
+
+2. **Before writing code:** Read [CODING_GUIDELINES.md](./CODING_GUIDELINES.md)
    - Understand naming conventions for your language
    - Review comment rules (especially the hard limits)
    - Check code quality principles
 
-2. **Before committing:** Read [COMMITTING_GUIDELINES.md](./COMMITTING_GUIDELINES.md)
+3. **Before committing:** Read [COMMITTING_GUIDELINES.md](./COMMITTING_GUIDELINES.md)
    - Ensure commits are atomic and meaningful
    - Write clear commit messages
    - Don't bypass hooks
 
-3. **When creating a PR:**
+4. **When creating a PR:**
    - PR template is auto-populated — fill it out carefully
    - Reference the guidelines in your PR description
    - Link to related issues
+   - Ensure branch is up-to-date with main
 
 ### For Code Reviewers
 
@@ -114,6 +144,11 @@ These guidelines are designed to:
 
 ## ❓ Questions?
 
+- **About branching and workflows?** Check `BRANCHING_STRATEGY.md`
+- **About branch naming?** See prefix conventions in `BRANCHING_STRATEGY.md`
+- **About git worktrees?** Check `BRANCHING_STRATEGY.md` for when/how to use
+- **About .gitignore?** Use the template in `.gitignore.template`
+- **About pre-commit hooks?** See `hooks/README.md`
 - **About code style?** Check `CODING_GUIDELINES.md`
 - **About committing?** Check `COMMITTING_GUIDELINES.md`
 - **About PR process?** Use the PR template and reference guidelines

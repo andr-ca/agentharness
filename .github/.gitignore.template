@@ -1,0 +1,473 @@
+# ============================================================================
+# COMPREHENSIVE .gitignore TEMPLATE
+# ============================================================================
+# This is a comprehensive template for .gitignore configuration.
+# Copy to your project and customize for your specific needs.
+#
+# Remove sections that don't apply to your project.
+# Keep the structure and comments for clarity.
+#
+# DO NOT commit secrets, API keys, passwords, or sensitive data!
+# ============================================================================
+
+# ============================================================================
+# WORKTREES
+# ============================================================================
+# Git worktrees (working directories for parallel branches)
+.worktrees/
+*.worktree
+
+# ============================================================================
+# IDE & EDITORS
+# ============================================================================
+
+# VSCode
+.vscode/
+*.code-workspace
+.history/
+.editorconfig.local
+
+# JetBrains IDEs (IntelliJ, PyCharm, WebStorm, etc.)
+.idea/
+*.iml
+*.iws
+*.ipr
+*.iml
+out/
+target/
+.gradle/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+.vim/
+.swp
+.swo
+*~
+.*.swp
+*.swp
+.ctags
+.ltags
+
+# Emacs
+*~
+\#*\#
+.\#*
+.emacs.desktop
+.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# Nano
+.nano_history
+
+# Visual Studio
+.vs/
+.visualstudiocode/
+*.sln.docstates
+
+# Atom
+.atom/
+.packages/
+
+# ============================================================================
+# OPERATING SYSTEM
+# ============================================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.fseventsd
+.TemporaryItems
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+.windows-terminal-settings.json
+
+# Linux
+.directory
+.nfs*
+.cache/
+
+# ============================================================================
+# DEPENDENCY MANAGEMENT
+# ============================================================================
+
+# Node.js / npm / Yarn / pnpm
+node_modules/
+npm-debug.log*
+npm-debug*.log*
+yarn-debug.log*
+yarn-error.log*
+yarn.lock              # Commit if using yarn exclusively
+pnpm-lock.yaml        # Commit if using pnpm exclusively
+.npm
+.eslintcache
+.stylelintcache
+.pnp
+.pnp.js
+.cache/
+.parcel-cache
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.venv
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.ruff_cache/
+
+# Ruby
+Gemfile.lock
+vendor/bundle/
+.bundle/
+.gem/
+
+# Java
+target/
+*.jar
+*.class
+*.war
+*.ear
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+pom.xml.bak
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.maven.metadata.xml
+*.o
+*.a
+*.so
+
+# Go
+vendor/
+go.sum
+*.o
+*.a
+*.so
+*.dylib
+
+# C/C++
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
+*.app
+
+# Rust
+target/
+Cargo.lock
+**/*.rs.bk
+
+# Gradle
+.gradle/
+build/
+
+# Maven
+target/
+
+# .NET
+bin/
+obj/
+.vs/
+.vscode/
+
+# PHP / Composer
+vendor/
+composer.lock
+
+# ============================================================================
+# BUILD & COMPILATION OUTPUT
+# ============================================================================
+dist/
+build/
+out/
+.build/
+.dist/
+obj/
+bin/
+*.o
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Web builds
+.next/
+.nuxt/
+.cache/
+.vuepress/dist/
+.docusaurus/
+site/
+_site/
+public/    # Be careful with this depending on project
+
+# Language-specific builds
+*.pyc
+*.pyo
+
+# ============================================================================
+# ENVIRONMENT & SECRETS (CRITICAL!)
+# ============================================================================
+
+# Environment variables (NEVER commit!)
+.env
+.env.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+.env.production
+.env.production.local
+.env.*.local
+env-local.js
+
+# Secret files and credentials (NEVER commit!)
+*.pem
+*.key
+*.key.pub
+*.crt
+*.pfx
+*.p12
+*.p8
+id_rsa*
+id_dsa*
+id_ed25519*
+id_ecdsa*
+known_hosts
+secrets.json
+credentials.json
+google-credentials.json
+firebase-config.json
+
+# AWS
+.aws/
+.aws/credentials
+.aws/config
+AWS_ACCESS_KEY_ID
+AWS_SECRET_ACCESS_KEY
+
+# Google Cloud
+.gcloud/
+.google/
+google-cloud-key.json
+
+# Azure
+.azure/
+
+# Kubernetes
+.kube/
+kubeconfig
+
+# ============================================================================
+# TEMPORARY & CACHE FILES
+# ============================================================================
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
+.tmp/
+.temp/
+*.bak
+*.swp
+*.swo
+*~
+
+# Cache directories
+.cache/
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+.eslintcache/
+.stylelintcache/
+.babel_cache/
+.babel_cache.json
+
+# Coverage
+.coverage
+.coverage.*
+coverage/
+htmlcov/
+.nyc_output/
+dist-info/
+
+# Generated files
+__generated__/
+generated/
+codegen/
+
+# ============================================================================
+# DATABASE & DATA
+# ============================================================================
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+
+# Data files
+*.csv
+*.xlsx
+*.xls
+# Be careful uncommenting these - you might want to commit data
+# *.json
+# *.yaml
+
+# Migrations (project-specific)
+migrations/versions/    # SQLAlchemy example
+
+# ============================================================================
+# LOGS
+# ============================================================================
+
+logs/
+*.log
+npm-debug.log*
+npm-debug*.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+debug.log
+out.log
+error.log
+
+# ============================================================================
+# TESTING & CI/CD
+# ============================================================================
+
+# Test outputs
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.mocha.json
+.nyc_output/
+
+# CI/CD logs
+.github/artifacts/
+.gitlab-ci/
+.circleci/
+
+# ============================================================================
+# DOCUMENTATION BUILDS
+# ============================================================================
+
+site/
+docs/_build/
+docs/.vuepress/dist/
+.docusaurus/
+
+# ============================================================================
+# MISC & PROJECT-SPECIFIC
+# ============================================================================
+
+# System files
+.DS_Store
+.AppleDouble
+Thumbs.db
+
+# IDE artifacts
+.metadata/
+.classpath
+.project
+.settings/
+
+# Version managers
+.ruby-version
+.node-version
+.nvmrc
+.python-version
+.phpversion
+
+# Misc
+.turbo/
+.env.vault
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+
+# ============================================================================
+# PROJECT-SPECIFIC ADDITIONS
+# ============================================================================
+# Add project-specific ignores below this line
+#
+# Example for Python:
+# *.egg-info/
+# .tox/
+#
+# Example for Node.js:
+# .next/
+# .nuxt/
+#
+# Example for Go:
+# bin/
+#
+# Example for Web:
+# dist/
+# build/
+
