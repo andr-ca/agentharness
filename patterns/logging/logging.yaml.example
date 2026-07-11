@@ -1,0 +1,305 @@
+# logging.yaml.example
+# Copy to config/logging.yaml and customize for your project
+# Environment variables override all settings here
+# Format: ${ENV_VAR_NAME:-default_value}
+
+logging:
+  # Default log level (TRACE, DEBUG, INFO, WARN, ERROR, CRITICAL)
+  level: ${LOG_LEVEL:-INFO}
+
+  # Log format (json, text)
+  format: ${LOG_FORMAT:-json}
+
+  # Global context added to every log
+  context:
+    environment: ${ENVIRONMENT:-development}
+    service: ${SERVICE_NAME:-my-service}
+    version: ${APP_VERSION:-1.0.0}
+    hostname: ${HOSTNAME:-unknown}
+    region: ${REGION:-us-east-1}
+
+  # Logging backends configuration
+  backends:
+    # Local file logging (highly recommended)
+    file:
+      enabled: true
+      path: ${LOG_PATH:-./logs}
+
+      # Filename pattern with date/time placeholders
+      # Available: {date}, {time}, {datetime}, {increment}
+      filename_pattern: "${LOG_FILENAME:-app-{date}.log}"
+
+      # File rotation strategy
+      rotation:
+        # Type: daily, size, combined
+        type: daily
+
+        # For size-based rotation
+        max_size_mb: 100
+
+        # For time-based rotation
+        max_age_days: 30
+
+        # Max number of backup files to keep
+        max_backups: 10
+
+        # Compress rotated files (gzip)
+        compress: true
+
+      # Permissions for log files (Unix)
+      permissions: "0644"
+
+    # OpenTelemetry (OTEL) export
+    otel:
+      enabled: ${OTEL_ENABLED:-false}
+
+      # OTEL collector endpoint
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:-localhost:4317}
+
+      # Protocol: grpc or http/protobuf
+      protocol: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+
+      # Batch settings
+      batch_size: 1024
+      export_interval_ms: 5000
+      max_queue_size: 2048
+
+      # Headers for authentication
+      headers: {}
+        # Authorization: "Bearer ${OTEL_AUTH_TOKEN}"
+
+    # Console/Terminal logging
+    console:
+      enabled: ${LOG_CONSOLE:-true}
+
+      # Console-specific log level
+      level: ${LOG_CONSOLE_LEVEL:-DEBUG}
+
+      # Colorize output (useful for development)
+      colorize: ${LOG_COLORIZE:-true}
+
+      # Pretty print JSON in console
+      pretty_print: true
+
+    # Cloud logging providers
+    cloud:
+      enabled: ${CLOUD_LOGGING_ENABLED:-false}
+
+      # Provider: gcp, aws, azure
+      provider: ${CLOUD_PROVIDER:-gcp}
+
+      # GCP Cloud Logging
+      gcp:
+        enabled: ${GCP_LOGGING_ENABLED:-false}
+        project_id: ${GCP_PROJECT_ID}
+        log_name: ${SERVICE_NAME}
+        # Uses Application Default Credentials
+        # Set GOOGLE_APPLICATION_CREDENTIALS env var
+
+      # AWS CloudWatch Logs
+      aws:
+        enabled: ${AWS_LOGGING_ENABLED:-false}
+        log_group: ${LOG_GROUP:-/aws/lambda/my-function}
+        log_stream: ${LOG_STREAM:-latest}
+        region: ${AWS_REGION:-us-east-1}
+
+      # Azure Application Insights
+      azure:
+        enabled: ${AZURE_LOGGING_ENABLED:-false}
+        instrumentation_key: ${APPINSIGHTS_INSTRUMENTATION_KEY}
+
+    # Elasticsearch (via Logstash/Filebeat)
+    elasticsearch:
+      enabled: ${ELASTICSEARCH_ENABLED:-false}
+      endpoint: ${ELASTICSEARCH_ENDPOINT:-http://localhost:9200}
+      index_pattern: ${ELASTICSEARCH_INDEX:-logs-{date}}
+
+  # Logger configuration by module/functionality
+  # More specific loggers override global settings
+  loggers:
+    # Authentication & Security (HIGH CRITICALITY)
+    auth:
+      level: DEBUG
+      backends: [file, otel, cloud]
+      retention_days: 90  # Compliance requirement
+      include_fields:
+        - user_id
+        - ip_address
+        - method
+        - result
+        - timestamp
+
+    # Database operations (HIGH CRITICALITY)
+    database:
+      level: INFO
+      backends: [file, otel]
+      retention_days: 30
+      include_fields:
+        - query
+        - query_time_ms
+        - rows_affected
+        - error
+
+    # API/HTTP handlers (MEDIUM CRITICALITY)
+    api:
+      level: INFO
+      backends: [file, console]
+      retention_days: 7
+      include_fields:
+        - method
+        - path
+        - status_code
+        - response_time_ms
+        - error
+
+    # Business logic (MEDIUM CRITICALITY)
+    business:
+      level: INFO
+      backends: [file, console]
+      retention_days: 30
+      include_fields:
+        - operation
+        - status
+        - result
+        - user_id
+        - duration_ms
+
+    # Payment processing (HIGH CRITICALITY)
+    payment:
+      level: DEBUG
+      backends: [file, otel, cloud]
+      retention_days: 90
+      include_fields:
+        - transaction_id
+        - amount
+        - currency
+        - status
+        - error
+        - retry_count
+
+    # Cache operations (LOW CRITICALITY)
+    cache:
+      level: DEBUG
+      backends: [file]
+      retention_days: 7
+      include_fields:
+        - key
+        - hit_miss
+        - latency_ms
+
+    # Third-party integrations (LOW CRITICALITY)
+    external:
+      level: WARN
+      backends: [file]
+      retention_days: 7
+      include_fields:
+        - service_name
+        - endpoint
+        - status
+        - error
+
+  # Metrics and Telemetry configuration
+  metrics:
+    enabled: true
+
+    # Export backend (otel, prometheus, etc.)
+    backend: otel
+
+    # Collection interval
+    interval_seconds: 60
+
+    # Metrics to collect
+    include:
+      # Request metrics
+      - http_requests_total
+      - http_request_duration_seconds
+      - http_request_size_bytes
+      - http_response_size_bytes
+      - http_errors_total
+
+      # Database metrics
+      - database_connections_active
+      - database_connections_idle
+      - database_query_duration_seconds
+      - database_queries_total
+      - database_errors_total
+
+      # Business metrics
+      - operations_total
+      - operations_failed_total
+      - operations_duration_seconds
+
+      # System metrics
+      - process_cpu_usage
+      - process_memory_usage_bytes
+      - system_memory_available_bytes
+      - disk_io_read_bytes
+      - disk_io_write_bytes
+
+  # Trace configuration (distributed tracing)
+  tracing:
+    enabled: ${TRACING_ENABLED:-false}
+
+    # Trace sampler: always, never, probabilistic, ratio
+    sampler:
+      type: ${TRACE_SAMPLER:-probabilistic}
+      # For probabilistic sampler: 0.0 to 1.0
+      sampling_probability: ${TRACE_SAMPLING_PROBABILITY:-0.1}
+
+    # Exporter
+    exporter: otel
+
+  # Security settings
+  security:
+    # Redact patterns (regex patterns to redact sensitive data)
+    redact_patterns:
+      - password
+      - secret
+      - token
+      - api_key
+      - credit_card
+      - ssn
+
+    # Fields to completely exclude from logs
+    exclude_fields:
+      - raw_password
+      - private_key
+
+    # PII handling (pii-safe, redact-pii, allow)
+    pii_handling: ${PII_HANDLING:-redact-pii}
+
+  # Performance settings
+  performance:
+    # Async logging (non-blocking)
+    async: true
+
+    # Buffer size for async logging
+    buffer_size: 10000
+
+    # Flush interval (milliseconds)
+    flush_interval_ms: 1000
+
+    # Maximum queue size before blocking
+    max_queue_size: 50000
+
+  # Development settings
+  development:
+    # Log at startup (useful for debugging config)
+    log_config: true
+
+    # Include file & line number in logs
+    include_location: true
+
+    # Include stack trace for all errors
+    include_stacktrace: true
+
+# Default values if not specified in environment
+defaults:
+  log_level: INFO
+  log_format: json
+  log_path: ./logs
+  log_retention_days: 30
+  console_enabled: true
+  file_enabled: true
+  otel_enabled: false
+  cloud_enabled: false

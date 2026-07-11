@@ -219,6 +219,36 @@ You: "Ready to review, also fixed validate_email issue in PR description"
 - ❌ "It's flaky" - Make it deterministic
 - ❌ "It's slow" - Optimize it
 
+## Logging & Telemetry Requirements (MANDATORY)
+
+**All code MUST have proper logging and telemetry.**
+
+- [ ] Centralized logging configuration created (logging.yaml or equivalent)
+- [ ] All settings configurable via environment variables
+- [ ] Sensible defaults work without configuration
+- [ ] Multiple backends configured (file, OTEL, console, cloud)
+- [ ] Log rotation configured (daily or size-based)
+- [ ] Retention policies set (by severity and functionality)
+- [ ] All critical events logged (auth, operations, errors)
+- [ ] All errors logged with full context
+- [ ] All external API calls logged
+- [ ] Structured logging used (JSON format)
+- [ ] Sensitive data NOT logged (passwords, secrets, PII)
+- [ ] Trace IDs used for distributed tracing
+- [ ] Telemetry/metrics configured and exported
+- [ ] Key metrics identified and being collected
+- [ ] Logs tested in development (output visible)
+- [ ] Log files created and rotation working
+- [ ] OTEL export tested (if configured)
+- [ ] Log parsing verified (valid JSON)
+- [ ] Documentation: How to configure logging
+- [ ] Documentation: How to access logs
+- [ ] Documentation: How to debug using logs
+
+**Logging is NOT optional. Code without proper logging WILL NOT MERGE.**
+
+---
+
 ## Complete Work Checklist
 
 Use this before saying "work is done":

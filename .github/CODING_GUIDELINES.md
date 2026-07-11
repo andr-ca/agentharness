@@ -49,7 +49,24 @@ Work is NOT done until:
 
 See: `patterns/testing/PLAYWRIGHT_UI_TESTING.md` for complete Playwright guide
 
-**See:** `patterns/testing/` for complete TDD, coverage, completion, and UI testing guidance
+### Logging & Telemetry Requirement (MANDATORY)
+
+**ALL CODE MUST HAVE PROPER LOGGING AND TELEMETRY:**
+- ✅ **Centralized configuration** (logging.yaml or equivalent)
+- ✅ **Structured logging** (JSON, not printf-style)
+- ✅ **Multiple backends** (files, OTEL, console, cloud)
+- ✅ **All critical events logged** (authentication, operations, errors)
+- ✅ **Full error context** (stack traces, user context, request ID)
+- ✅ **Proper rotation & retention** (daily rotation, 30-day retention)
+- ✅ **Telemetry & metrics** (performance, errors, business metrics)
+- ✅ **No sensitive data** (passwords, secrets, PII removed/redacted)
+- ✅ **Accessible for debugging** (logs must enable root cause analysis)
+
+**Code without proper logging WILL NOT MERGE.**
+
+See: `patterns/logging/` for complete logging framework
+
+**See:** `patterns/testing/` and `patterns/logging/` for complete TDD, coverage, logging, and UI testing guidance
 
 ---
 
