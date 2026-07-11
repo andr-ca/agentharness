@@ -173,6 +173,49 @@ metadata:
 - Patterns include before/after comparisons
 - Framework harnesses document required dependencies
 
+## 📋 Operational Documents
+
+Temporary, working, and operational documents must be stored in **`docs/operational/`** to keep the core repository clean and focused on persistent harnesses.
+
+### What Goes in `docs/operational/`
+- Work-in-progress documentation
+- Temporary research or exploration notes
+- Agent execution logs and transcripts
+- Task planning and tracking documents
+- Experiment results and findings
+- Meeting notes related to harness decisions
+- Iteration history and drafts
+
+### Structure
+```
+docs/operational/
+├── CURRENT_TASKS.md          # Active tasks and priorities
+├── research/                 # Temporary research documents
+│   └── {topic}/              # By topic (e.g., react-patterns, python-conventions)
+├── experiments/              # Tests and explorations
+├── agent-logs/               # Claude agent execution logs
+├── planning/                 # Planning documents and brainstorms
+└── archives/                 # Old operational docs (for reference)
+```
+
+### Key Rules
+1. **Persistent content goes in main harness** – Only move to root structure when content is stable and reusable
+2. **Regular cleanup** – Archive or delete outdated operational docs
+3. **Not version-critical** – These documents don't need to be tracked as closely in git history
+4. **Indexed for retrieval** – Keep an index/manifest of active documents
+5. **Temporary only** – If it's still useful after stabilizing, move to permanent location
+
+### Workflow
+```
+Claude agent creates temporary doc → stored in docs/operational/{type}/
+↓
+Review and validate content
+↓
+If reusable & stable → move to appropriate permanent location
+If temporary only → archive in docs/operational/archives/
+If obsolete → delete
+```
+
 ## 🚀 Best Practices
 
 ### When Adding New Content
