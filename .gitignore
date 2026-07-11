@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+vendor/
+Gemfile.lock
+
+# Build artifacts
+dist/
+build/
+*.o
+*.a
+*.so
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Testing
+coverage/
+.nyc_output/
+htmlcov/
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+
+# Tool outputs
+.tool-cache/
