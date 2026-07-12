@@ -65,6 +65,8 @@ generator script yet (see ROADMAP.md).
 | Committing | `.claude/skills/committing/SKILL.md` | skill | Loads on demand for commit-related work |
 | Branching | `.claude/skills/branching/SKILL.md` | skill | Loads on demand for branch/worktree work |
 | Python conventions | `.claude/skills/python-conventions/SKILL.md` | skill | Loads on demand when writing Python |
+| Error handling | `.claude/skills/error-handling/SKILL.md` | skill | Loads on demand for error recovery, resilience patterns |
+| Agentic loops | `.claude/skills/agentic-loops/SKILL.md` | skill | Loads on demand for multi-turn agents, tool calling |
 
 ## Setup
 
