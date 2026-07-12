@@ -8,15 +8,16 @@ languages: all
 
 # Test-Driven Development (TDD)
 
-Complete guide to Test-Driven Development as a foundational practice for all code in agentharness projects.
+Complete guide to Test-Driven Development. Full TDD + 80% coverage is
+required at the **Production** rigor tier — see
+`.github/CODING_GUIDELINES.md#rigor-tiers` and `COVERAGE_REQUIREMENTS.md`
+for the exact number and what it applies to. Prototypes can skip TDD
+entirely; internal tools cover what's expensive to get wrong. The rest of
+this guide — the red/green/refactor workflow, patterns, examples — is
+useful at any tier where you're writing tests at all; only the "you must
+do this" framing below is Production-tier-specific.
 
-## 🚨 CRITICAL REQUIREMENT
-
-**Minimum 80% test coverage is MANDATORY for all code.**
-
-This is not optional, not negotiable, not "nice to have." Code without adequate test coverage is considered incomplete and will not be merged.
-
-## Why TDD Is Non-Negotiable
+## Why TDD Is Worth Doing
 
 ### The Problem We're Solving
 
@@ -732,5 +733,5 @@ second copy here that can drift out of sync.
 
 ---
 
-**Minimum Coverage Requirement:** 80% (mandatory, not negotiable)  
+**At Production tier:** 80% coverage minimum — see `COVERAGE_REQUIREMENTS.md`.
 **See Also:** `patterns/testing/`, `languages/{language}/CONVENTIONS.md`

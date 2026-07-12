@@ -8,11 +8,17 @@ languages: all
 
 # Test Coverage Requirements
 
-Mandatory test coverage standards for all code in agentharness projects.
+This applies at the **Production** rigor tier — see
+`.github/CODING_GUIDELINES.md#rigor-tiers` and `patterns/profiles/`.
+Prototypes have no coverage requirement; internal tools cover what's
+expensive to get wrong and skip pure glue, with no numeric floor. Nothing
+below assumes otherwise — every "mandatory"/"no exceptions" statement in
+this doc is scoped to Production-tier code, the same tier the 80% number
+itself belongs to.
 
-## 🚨 CRITICAL REQUIREMENT
+## The requirement
 
-**MINIMUM 80% TEST COVERAGE IS MANDATORY**
+**At Production tier: minimum 80% test coverage.**
 
 This applies to:
 - ✅ ALL production code
@@ -363,58 +369,25 @@ If your code is hard to test:
    - Make preconditions explicit
    - Handle edge cases explicitly
 
-## Coverage Targets by Module Type
+## Aiming above the floor
 
-### Core Libraries
+The 80% number is the floor, not a target — the actual enforced minimum
+is the single flat number from `patterns/profiles/production.yaml`, not a
+per-module breakdown (there isn't a mechanically-checked one). Where you
+choose to aim higher is a project call, but as a rule of thumb, risk goes
+up with these categories, in roughly this order:
 
-**Target: 95%+ coverage**
+- **Core/shared libraries** — the foundation; a bug here affects everything
+  that imports it, so push toward 95%+
+- **Business logic** — the part of the app that's actually worth
+  protecting; aim for 90%+
+- **Integrations & APIs** — external failure modes are numerous and easy
+  to miss; 85%+ with mocked success/failure paths
+- **Configuration & utilities** — still real code with real bugs; the
+  80% floor applies same as anywhere else
 
-These are the foundation. Must be bulletproof.
-
-```python
-# src/utils/string_utils.py
-# MUST be near 100% coverage
-# Every function, every edge case tested
-```
-
-### Business Logic
-
-**Target: 90%+ coverage**
-
-Heart of the application. Thoroughly tested.
-
-```python
-# src/user/authentication.py
-# MUST have comprehensive test suite
-# All paths through auth logic tested
-```
-
-### Integrations & APIs
-
-**Target: 85%+ coverage**
-
-Integration points need testing (with mocks).
-
-```python
-# src/integrations/payment_gateway.py
-# MUST test success and failure paths
-# MUST mock external API calls
-```
-
-### Configuration & Utilities
-
-**Target: 80%+ coverage**
-
-Even configuration needs testing.
-
-```python
-# src/config.py
-# MUST test loading, validation, defaults
-```
-
-### Never Below 80%
-
-There are no exceptions. No module goes below 80%.
+This ordering is guidance for where to spend extra effort, not a second
+set of mandates layered on top of the one enforced number.
 
 ## Exception: Impossible Code Paths
 
@@ -496,7 +469,6 @@ When reviewing code, verify:
 
 ---
 
-**REMEMBER:** 80% is the MINIMUM. Strive for 95%+.
-
-**Requirement Status:** MANDATORY, NON-NEGOTIABLE  
-**See Also:** TDD.md, testing patterns
+**At Production tier:** 80% is the floor, not the target — see
+`.github/CODING_GUIDELINES.md#rigor-tiers` for what this requirement does
+and doesn't apply to. See also `TDD.md`.

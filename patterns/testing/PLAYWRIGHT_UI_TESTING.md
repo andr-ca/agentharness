@@ -750,7 +750,7 @@ await page.waitForSelector('data-loaded', { timeout: 5000 });
 
 ## Summary
 
-**ALL WEB UI WORK MUST:**
+**At Production tier, web UI work must:**
 1. ✅ Use Playwright (mandatory)
 2. ✅ Include screenshot verification (every test)
 3. ✅ Test on multiple browsers
@@ -758,13 +758,7 @@ await page.waitForSelector('data-loaded', { timeout: 5000 });
 5. ✅ Have >= 80% test coverage
 6. ✅ Pass all tests before marking complete
 
-**VISUAL VERIFICATION IS MANDATORY**
-- Screenshots must be reviewed
-- No visual regressions accepted
-- UI work incomplete without approval
+Prototype/Internal-tier UI work can use manual verification instead — see
+`.github/CODING_GUIDELINES.md#rigor-tiers`.
 
----
-
-**Requirement Status:** MANDATORY FOR ALL WEB UI WORK  
-**Screenshot Verification:** REQUIRED BEFORE COMPLETION  
 **See Also:** TDD.md, COMPLETION_CHECKLIST.md
