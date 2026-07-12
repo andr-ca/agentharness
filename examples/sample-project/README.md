@@ -2,10 +2,16 @@
 
 Minimal example project that demonstrates how to integrate the agentharness into your project.
 
-This sample validates all three integration methods documented in `docs/INTEGRATION.md`:
-1. **Symlink** — Link skills and hooks from the harness (lightweight, immediate updates)
-2. **Copy** — Copy guidelines, patterns, hooks into your project (independent, one-time)
-3. **Submodule** — Git submodule for shared history and versioning (full control, more overhead)
+This sample documents all three integration methods from `docs/INTEGRATION.md`,
+but only Method 1 is checked by CI — the `sample-project-integration` job in
+`.github/workflows/ci.yml` runs `harness-link.sh --with-hook` against a
+scratch copy of this directory on every push. Methods 2 and 3 below are
+accurate as written but not automatically re-verified; treat them as
+documentation, not as continuously tested.
+
+1. **Symlink** — Link skills and hooks from the harness (lightweight, immediate updates) — **CI-verified**
+2. **Copy** — Copy guidelines, patterns, hooks into your project (independent, one-time) — documented, not CI-checked
+3. **Submodule** — Git submodule for shared history and versioning (full control, more overhead) — documented, not CI-checked
 
 ---
 

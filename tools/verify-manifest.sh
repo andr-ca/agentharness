@@ -55,31 +55,6 @@ grep '|' "$MANIFEST_FILE" | \
 
 echo ""
 
-# Final count
-found=0
-missing=0
-
-grep '|' "$MANIFEST_FILE" | \
-    grep -v '^---' | \
-    grep -v '^ *$' | \
-    grep -v 'Asset\|Path\|Type' | \
-    grep -o '`[^`]*`' | \
-    sed 's/^`//;s/`$//' | \
-    sort -u | \
-    while read -r fullpath; do
-        [ -z "$fullpath" ] && continue
-        path="${fullpath%#*}"
-        [ "${path#http}" != "$path" ] && continue
-        [ "${path#\#}" != "$path" ] && continue
-        [ -z "$path" ] && continue
-
-        if [ -e "$path" ]; then
-            found=$((found + 1))
-        else
-            missing=$((missing + 1))
-        fi
-    done
-
 # Count missing entries
 missing_count=$(grep '|' "$MANIFEST_FILE" | \
     grep -v '^---' | \
