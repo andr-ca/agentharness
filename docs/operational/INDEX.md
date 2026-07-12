@@ -45,5 +45,3 @@ When creating a new operational document:
 - **Monthly review** – Update this index, archive completed items
 - **Quarterly review** – Consolidate findings, promote to harness
 - **Yearly archive** – Move old logs and obsolete docs to archives/
-
-**Last Updated:** 2026-07-11

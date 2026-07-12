@@ -156,5 +156,3 @@ These guidelines are designed to:
 ---
 
 **Remember:** Guidelines exist to help, not hinder. They're based on real lessons learned and should make your work easier, not harder.
-
-**Last Updated:** 2026-07-11

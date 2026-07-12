@@ -249,5 +249,4 @@ Then run the hook manually to see what's happening.
 
 ---
 
-**Last Updated:** 2026-07-11  
 **See Also:** BRANCHING_STRATEGY.md, COMMITTING_GUIDELINES.md

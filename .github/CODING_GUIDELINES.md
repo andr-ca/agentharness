@@ -289,5 +289,3 @@ When you discover a violation of these guidelines:
 ---
 
 **Philosophy:** These guidelines aim for code that is clear, maintainable, and consistent. When in doubt, choose clarity. When guidelines conflict, defer to your language's idioms and your project's established patterns.
-
-**Last Updated:** 2026-07-11

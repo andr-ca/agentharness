@@ -71,7 +71,6 @@ reviewed — go review them.
 - ✅ Screenshot comparison detects visual bugs
 - ✅ Document expected behavior with screenshots
 
-
 ---
 
 ## Playwright Project Setup
@@ -766,7 +765,6 @@ await page.waitForSelector('data-loaded', { timeout: 5000 });
 
 ---
 
-**Last Updated:** 2026-07-11  
 **Requirement Status:** MANDATORY FOR ALL WEB UI WORK  
 **Screenshot Verification:** REQUIRED BEFORE COMPLETION  
 **See Also:** TDD.md, COMPLETION_CHECKLIST.md

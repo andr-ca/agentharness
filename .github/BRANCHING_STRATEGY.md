@@ -570,5 +570,4 @@ A: Yes (usually). Lock files (`package-lock.json`, `poetry.lock`, etc.) ensure r
 
 ---
 
-**Last Updated:** 2026-07-11  
 **See Also:** COMMITTING_GUIDELINES.md, CODING_GUIDELINES.md

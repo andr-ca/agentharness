@@ -732,6 +732,5 @@ second copy here that can drift out of sync.
 
 ---
 
-**Last Updated:** 2026-07-11  
 **Minimum Coverage Requirement:** 80% (mandatory, not negotiable)  
 **See Also:** `patterns/testing/`, `languages/{language}/CONVENTIONS.md`

@@ -333,5 +333,4 @@ Before declaring work complete:
 
 ---
 
-**Last Updated:** 2026-07-11  
 **Reference:** See `languages/python/CONVENTIONS.md` for additional Python-specific guidelines

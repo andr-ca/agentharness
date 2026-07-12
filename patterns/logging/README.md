@@ -519,7 +519,6 @@ See `LOGGING_STANDARDS.md` for:
 
 ---
 
-**Last Updated:** 2026-07-11  
 **Requirement Status:** MANDATORY FOR ALL CODE  
 **Verification:** REQUIRED BEFORE COMPLETING WORK  
 **See Also:** LOGGING_STANDARDS.md, COMPLETION_CHECKLIST.md

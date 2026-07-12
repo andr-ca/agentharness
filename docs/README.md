@@ -202,5 +202,4 @@ A: Add to harness (if applicable to multiple projects) or document in project CL
 
 ---
 
-**Last Updated:** 2026-07-11  
 **Start Here:** [README.md](../README.md) → [CLAUDE.md](../CLAUDE.md) → [INTEGRATION.md](./INTEGRATION.md)

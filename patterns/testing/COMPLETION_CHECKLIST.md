@@ -496,6 +496,5 @@ See: `PLAYWRIGHT_UI_TESTING.md` for complete UI testing guide
 
 **If work doesn't pass these checks, it's not done. No exceptions.**
 
-**Last Updated:** 2026-07-11  
 **Status:** MANDATORY REQUIREMENTS  
 **See Also:** TDD.md, COVERAGE_REQUIREMENTS.md, CODING_GUIDELINES.md

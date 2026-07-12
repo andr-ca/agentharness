@@ -300,5 +300,4 @@ A: For I/O-bound operations (network, file, database). Not needed for CPU-bound 
 
 ---
 
-**Last Updated:** 2026-07-11  
 **Author:** agentharness contributors
