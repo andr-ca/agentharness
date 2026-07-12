@@ -15,6 +15,63 @@ single source of truth for that shared context — read once here, referenced
 today and [ROADMAP.md](ROADMAP.md) for what's planned but not built. Don't
 trust a directory tree in prose — trust the manifest.
 
+## Product Contract
+
+**Target users:** teams or individuals running multiple projects with a
+coding agent, who want git/testing/logging/language conventions written
+once and referenced everywhere instead of re-authored (and drifting) per
+project.
+
+**Supported clients:** Claude-first. The skills under `.claude/skills/`
+and the `CLAUDE.md` router are built for and tested with Claude Code. The
+language/pattern guides under `languages/` and `patterns/` are plain
+Markdown and usable by any agent or human that can read a file, but no
+other agent's skill/tool-loading mechanism has been tested against this
+repo yet — don't assume Cursor, Copilot, or another harness picks up
+`.claude/skills/` the same way Claude Code does.
+
+**Supported platforms:** Linux and macOS (Bash scripts, POSIX shell
+conditionals, `bats-core` for shell tests). Windows is untested; WSL
+should work but hasn't been verified.
+
+**What gets installed** by `tools/setup/harness-link.sh` into a consuming
+project:
+- Symlinks for selected (or all) `.claude/skills/<name>` directories.
+- A merge of `.github/.gitignore.template` into the project's `.gitignore`
+  (additive — never overwrites existing entries).
+- With `--with-hook`: `core.hooksPath` pointed at this repo's
+  `.github/hooks/` (refuses to overwrite an existing, different
+  `core.hooksPath` unless `--force` is passed — see
+  `tools/tests/harness-link.bats`).
+
+Nothing else is installed. No network calls, no telemetry, no background
+processes.
+
+**Advisory vs. enforced:**
+- *Advisory* (a convention the agent is expected to follow, not something
+  that blocks anything): `CLAUDE.md`, the skill files under
+  `.claude/skills/`, and every guide under `languages/` and `patterns/`.
+  An agent (or a human) can ignore these; nothing stops them mechanically.
+- *Enforced* (a script that actually blocks an action): the
+  `prevent-trunk-commit` pre-commit hook (blocks direct commits to trunk
+  branches) and the `pre-push` hook (blocks a push below 80% test
+  coverage or a failing test suite) — both only apply once a project
+  opts in via `--with-hook`, and both only test *this* repo's own
+  suites when pushing to *this* repo (see `.github/hooks/pre-push`'s
+  own comments for how it detects and no-ops for a borrowing consumer).
+
+**Non-goals** — this project deliberately does not:
+- Orchestrate or run agents itself (no agent loop, scheduler, or runtime
+  lives here beyond the one tested reference example in
+  `patterns/agentic-loops/`).
+- Replace language-specific linters, formatters, or CI systems — it
+  documents conventions for using them, not a competing implementation.
+- Guarantee behavior on any agent harness other than Claude Code today
+  (see "Supported clients" above).
+- Auto-update a consuming project. The symlink mode means a project
+  picks up changes when this repo's checkout changes, but nothing here
+  pushes updates or reaches into a consumer uninvited.
+
 ## What's here today
 
 ```
