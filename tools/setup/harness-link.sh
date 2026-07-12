@@ -13,7 +13,10 @@
 #   2. Copies .github/.gitignore.template into the target's .gitignore,
 #      merging with any existing .gitignore rather than overwriting it
 #   3. With --with-hook: sets core.hooksPath in the target repo to this
-#      harness's .github/hooks/ (requires the target to be a git repo)
+#      harness's .github/hooks/ (requires the target to be a git repo).
+#      This wires up both hooks git finds there by filename:
+#        - pre-commit: blocks direct commits to trunk branches
+#        - pre-push: runs the test suite and blocks push below 80% coverage
 #
 # This script is idempotent — running it again re-syncs symlinks and skips
 # gitignore lines that are already present.
@@ -28,8 +31,9 @@ usage() {
 Usage: $(basename "$0") <target-project-dir> [OPTIONS]
 
 Options:
-  --with-hook          Install the prevent-trunk-commit hook in the target
-                        repo via 'git config core.hooksPath'
+  --with-hook          Install the prevent-trunk-commit (pre-commit) and
+                        test/coverage (pre-push) hooks in the target repo
+                        via 'git config core.hooksPath'
   --skills a,b,c        Comma-separated list of skills to link (default: all)
   -h, --help            Show this help
 

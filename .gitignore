@@ -33,9 +33,12 @@ Thumbs.db
 .DS_Store
 
 # Testing
+.coverage
+.coverage.*
 coverage/
 .nyc_output/
 htmlcov/
+.pytest_cache/
 
 # Temporary files
 *.tmp
