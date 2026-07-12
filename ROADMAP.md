@@ -71,6 +71,3 @@ skill status.
   via each integration method (symlink/copy/submodule), kept green by CI,
   so every command in `docs/INTEGRATION.md` is validated automatically
   rather than hand-verified. Meaningful effort; not started.
-- **Version tagging (`v0.1.0`, CHANGELOG-driven releases)** — deferred
-  until the P0/P1 accuracy and consistency fixes have landed, so the first
-  tagged version isn't tagging known-broken content.

@@ -255,9 +255,7 @@ As the harness grows:
 
 **Harness Repository**
 - Store all harnesses in git
-- Tag releases once the repo has enough stable, accurate content that a
-  version number means something (see CHANGELOG.md — first tag is
-  deliberately deferred until then, not cut prematurely)
+- Tag releases in git (v0.1.0 onward — see [CHANGELOG.md](../CHANGELOG.md))
 - Keep git history clean
 - Document breaking changes in CHANGELOG
 

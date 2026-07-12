@@ -1,12 +1,8 @@
 # Changelog
 
-No version has been tagged yet — see "Why no v0.1.0 yet" below. This file
-tracks notable changes in the meantime so the eventual first tag has a
-real history behind it instead of a single squashed "initial" commit.
-
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.1.0] - 2026-07-11
 
 ### Fixed
 - `prevent-trunk-commit` hook: blocked the first commit of every fresh
@@ -73,12 +69,3 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   this, and the hand-maintained dates had all drifted to the same value
   regardless of actual last edit.
 
-## Why no v0.1.0 yet
-
-A version tag is a promise: "this is what agentharness looked like at a
-point worth remembering." Tagging before the P0/P1 accuracy and
-consistency fixes above would have meant the first tagged version was
-known-broken — phantom directories in the docs, a hook that blocked
-every fresh repo's first commit, contradictory coverage thresholds. The
-first tag will land once this file's Unreleased section reflects a
-state worth pinning to, not before.
