@@ -150,6 +150,62 @@ Round 2 (all local, hosted CI re-run pending push):
 - `tools/verify-manifest.sh`, `bats`, `shellcheck -S warning`: all still
   pass after these changes.
 
+## Also landed in this PR: pre-push hook + 80% coverage enforcement
+
+**Timestamp:** 2026-07-12T15:41:00Z. Not a review-comment fix — a direct
+follow-up request ("add hooks to run unit test and don't complete the work
+until unit test run is clean and 80%+") landed on the same branch/PR.
+Recorded here rather than a separate file since it's the same PR and the
+same "don't claim done without verification" spirit as everything above.
+
+- `patterns/logging/config_loader.py` was at 68% coverage — below the
+  80% floor it was about to be gated on. Raised to **100%** by testing
+  the two genuinely-testable gaps (a malformed-placeholder error path,
+  and the CLI entrypoint — refactored from an `if __name__` block into a
+  `main(argv=None)` function so tests can call it in-process) and using
+  the narrow, doc-sanctioned pragma exception from this repo's own
+  `COVERAGE_REQUIREMENTS.md` for the two truly-defensive/entry-point
+  lines that can't be meaningfully unit tested.
+- Added `.github/hooks/pre-push`: runs all bats suites plus
+  `pytest --cov-fail-under=80`, blocking the push if anything fails,
+  coverage drops below 80%, or the tooling itself isn't installed
+  (fails closed rather than silently skipping). No dispatcher needed
+  the way `pre-commit`/`prevent-trunk-commit` needed one — git looks
+  for a file named exactly `pre-push`, and this already has that name.
+- **Caught live, not in review:** the hook's own bats sweep includes
+  `pre-push.bats`, whose tests invoke the hook itself — this recursed
+  forever the first time it ran, and had to be killed with `pkill`
+  before it consumed real resources. Fixed with an
+  `AGENTHARNESS_PRE_PUSH_RUNNING` guard the hook sets before running bats,
+  which `pre-push.bats`'s `setup()` checks and skips on.
+- **Caught by hosted CI, not local testing:** the "fails when bats is
+  missing" test passed locally but failed on GitHub's runner, because
+  bats-core prepends its own internal `libexec/bats-core` to PATH while
+  running tests — so two directories contain a real `bats` executable
+  simultaneously, and excluding only the first one `command -v` finds
+  left the second one reachable. Fixed by excluding every PATH entry
+  that actually contains an executable `bats`, not just one.
+- This repo's own push to land these commits was itself blocked and
+  re-run once by the newly-installed hook (bats wasn't on the pushing
+  shell's default PATH the first time) — the enforcement mechanism
+  proved itself on a real push, not just a manual dry run.
+- Wired into CI: `shellcheck` was missing `pre-commit`/`pre-push` from
+  its file list entirely (only `prevent-trunk-commit` was named), so
+  neither had ever actually been linted; `hook-tests` gained Python so
+  `pre-push.bats` can genuinely invoke the hook; `python-tests` gained
+  the same `--cov-fail-under=80` gate.
+- Also fixed while touching this: root `.gitignore` didn't ignore
+  `.coverage`/`.pytest_cache/` even though the template already did —
+  same class of template-vs-repo drift as the `vendor/`/lock-file fix
+  earlier in this branch, just not caught until coverage tooling was
+  actually run.
+
+All claims above are backed by an actual command run, not just code
+inspection — see the commit messages on `chore/add-remaining-components`
+from `b64d099` through `3546743` for the exact verification transcripts
+(deliberately broken assertions, deliberately gutted coverage, the live
+recursion, the CI-only PATH bug).
+
 ## Links
 
 - PR: https://github.com/andr-ca/agentharness/pull/4
