@@ -46,6 +46,23 @@ class TestInterpolateEnvVars:
         result = interpolate_env_vars("${VAR1}/${VAR2}")
         assert result == "a/b"
 
+    def test_default_containing_braces_is_not_truncated(self):
+        """${VAR:-app-{date}.log} keeps the literal braces in the default.
+
+        Regression test: a naive non-greedy regex stops at the first '}',
+        which truncates this to "app-{date" and leaves ".log}" dangling —
+        exactly the pattern logging.yaml.example uses for its filename.
+        """
+        os.environ.pop("LOG_FILENAME", None)
+        result = interpolate_env_vars("${LOG_FILENAME:-app-{date}.log}")
+        assert result == "app-{date}.log"
+
+    def test_env_var_overrides_default_containing_braces(self):
+        """A set env var still wins over a brace-containing default."""
+        os.environ["LOG_FILENAME"] = "custom.log"
+        result = interpolate_env_vars("${LOG_FILENAME:-app-{date}.log}")
+        assert result == "custom.log"
+
     def test_missing_required_var_raises_error(self):
         """${VAR} without default raises error if var not set."""
         os.environ.pop("UNDEFINED_VAR", None)
