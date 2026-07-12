@@ -35,14 +35,18 @@ Documents ready to be promoted to harness or archived:
   2026-07-11; kept as the historical baseline for its completion audit.
 - `reviews/gpt-5.6-review-status.md` — independent re-validation at
   `43604a7`, recorded 2026-07-12T15:47:00Z: 1 of 30 items verified
-  complete at that snapshot. Substantial further work against its P1
-  backlog (P1-06 through at least P1-12) has landed since that snapshot
-  on `chore/add-remaining-components`; the 1-of-30/5.2-10 figures in that
-  doc describe the state as of `43604a7`, not current `HEAD` — a fresh
-  re-validation pass is owed once the current backlog finishes, rather
-  than hand-editing that dated document's tally mid-stream.
+  complete at that snapshot. Superseded for current-state purposes by
+  `reviews/gpt-5.6-p1-p2-followup-status.md` below; kept as the
+  historical snapshot it's dated as.
 - `reviews/pr4-comments-status.md` — disposition and verification record for
   PR #4's review-comment fixes and later coverage/pre-push work.
+- `reviews/gpt-5.6-p1-p2-followup-status.md` — completion status for the
+  entire P1 backlog (P1-06 through P1-14) plus the confirmed-scope half
+  of the P2 batch, recorded 2026-07-12T19:24:10Z. Includes an options
+  memo for the four P2 items that are product-direction decisions
+  (P2-02, P2-03, P2-04, P2-06) rather than scoped fixes — active until
+  the user picks an option for each, or explicitly defers them to
+  ROADMAP.md.
 
 ## 📚 Archives
 
