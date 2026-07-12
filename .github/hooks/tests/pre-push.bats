@@ -25,9 +25,20 @@ setup() {
 }
 
 @test "pre-push: fails clearly when bats is not on PATH" {
-    # Strip bats's directory from PATH without removing anything else the
-    # hook needs (python3, git, etc. all live under /usr or /bin).
-    stripped_path=$(printf '%s' "$PATH" | tr ':' '\n' | grep -v -i bats | paste -sd ':' -)
+    # Exclude every PATH directory that actually contains a `bats`
+    # executable — not just pattern-matching "bats" in the directory name
+    # (bats-core installs to /usr/local/bin in CI, no "bats" in that
+    # name), and not just the first hit from `command -v` (bats-core
+    # itself prepends its own libexec/bats-core to PATH while running
+    # tests, so there can be two real "bats" directories on PATH at once:
+    # that prepended one and wherever it was actually installed).
+    stripped_path=""
+    IFS=':' read -ra path_entries <<< "$PATH"
+    for entry in "${path_entries[@]}"; do
+        [ -x "$entry/bats" ] && continue
+        stripped_path="${stripped_path:+$stripped_path:}$entry"
+    done
+
     run env PATH="$stripped_path" bash "$HOOK"
     [ "$status" -ne 0 ]
     [[ "$output" =~ "bats not installed" ]]
@@ -36,14 +47,18 @@ setup() {
 @test "pre-push: fails clearly when pytest is not available" {
     # Shadow python3 earlier in PATH with a stub that fails "-m pytest
     # --version" the same way a real interpreter without pytest installed
-    # would, without disturbing the real python3 or bats.
+    # would, without disturbing the real python3 or bats. Falls back to
+    # the real python3's resolved path (not a hardcoded /usr/bin/python3,
+    # which may not be the interpreter actions/setup-python put pytest
+    # into) for anything else.
+    real_python3="$(command -v python3)"
     stub_dir="$(mktemp -d)"
-    cat > "$stub_dir/python3" <<'STUB'
+    cat > "$stub_dir/python3" <<STUB
 #!/bin/bash
-if [ "$1" = "-m" ] && [ "$2" = "pytest" ]; then
+if [ "\$1" = "-m" ] && [ "\$2" = "pytest" ]; then
     exit 1
 fi
-exec /usr/bin/python3 "$@"
+exec "$real_python3" "\$@"
 STUB
     chmod +x "$stub_dir/python3"
 
