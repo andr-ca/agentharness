@@ -7,19 +7,43 @@ this repo today — see [MANIFEST.md](../MANIFEST.md) for the inventory.
 ## The Fast Path
 
 ```bash
-~/agentharness/tools/setup/harness-link.sh /path/to/your-project
+~/agentharness/tools/setup/harness-link.sh init /path/to/your-project --mode link
 ```
 
-This symlinks `.claude/skills/`, copies `.github/.gitignore.template` to
-`.gitignore` (merging if one exists), and optionally installs the
-trunk-protection hook. See the script's `--help` for flags. Everything
-below is the manual, step-by-step version of what that script does.
+This is `harness-link.sh`'s lifecycle CLI: `init` symlinks (or copies, or
+adds a submodule and symlinks from it — see Method 1/2/3 below) skills,
+merges `.github/.gitignore.template` into `.gitignore`, optionally
+installs the trunk-protection + coverage hooks (`--with-hook`), and
+records everything in `<project>/.agentharness-state.json` so the other
+subcommands can act on it later:
+
+| Subcommand | What it does |
+|---|---|
+| `init` | Install (see modes below). `--dry-run` (or the `plan` alias) shows what would happen without changing anything. |
+| `status` | What's installed, from where, and whether the source has moved on since. |
+| `doctor` | Validate the install is healthy (skills present, bundled resources resolve, hook configured); nonzero exit if not — usable as a CI check. |
+| `audit` | Report drift: skills available upstream but not installed, installed skills no longer available, commits since your recorded revision. |
+| `update` | Re-sync to the current harness state; shows a diff and asks for confirmation (`--yes` to skip it) before changing anything. |
+| `uninstall` | Reverse everything `init` recorded — skills, gitignore block, hook, profile file, state file (and the submodule, in that mode). |
+
+`harness-link.sh /path/to/your-project [options]` (no subcommand) still
+works — it's sugar for `init` with those same options, kept for anything
+that already calls it that way.
+
+Everything below is the manual, step-by-step version of what `--mode`
+does, useful for understanding what's actually happening or for
+integrating a single component by hand instead of everything at once.
 
 ## Integration Methods
 
 ### Method 1: Symlinks (recommended for active development)
 
 Keep your project in sync with harness updates automatically.
+
+Automated: `harness-link.sh init ~/my-project --mode link` (the default —
+`--mode` can be omitted).
+
+Manual, what that does under the hood:
 
 ```bash
 cd ~/my-project
@@ -39,6 +63,13 @@ Symlink into the *project's* `.claude/`, not your home directory.
 Lock to a specific snapshot of harness components — no drift, no
 dependency on the harness being checked out locally.
 
+Automated: `harness-link.sh init ~/my-project --mode copy`. Run
+`harness-link.sh update ~/my-project` later to see (and, after
+confirming) apply upstream changes — it diffs your copy against the
+current source first, so local edits aren't silently overwritten.
+
+Manual, what that does under the hood:
+
 ```bash
 cd ~/my-project
 mkdir -p .claude
@@ -54,9 +85,17 @@ EOF
 ```
 
 **Pros:** Independent of harness changes. **Cons:** Manual sync when the
-harness improves.
+harness improves (`harness-link.sh update` automates the sync itself, but
+you still decide when to run it).
 
 ### Method 3: Git Submodule (for teams, or heavier integrations)
+
+Automated: `harness-link.sh init ~/my-project --mode submodule` — adds
+this harness as a submodule at `~/my-project/.agentharness` (pinned via
+the submodule's own commit, not a mutable external path) and symlinks
+skills from there.
+
+Manual, what that does under the hood:
 
 ```bash
 cd ~/my-project
@@ -145,20 +184,23 @@ Last synced: 2026-07-12 (commit abc1234)
 
 ## Keeping Projects Updated
 
-**Symlinks:** automatic — always current.
+All three modes: `harness-link.sh update ~/my-project` — shows what
+changed (skills added/removed upstream; for copy mode, which files
+diverged) and asks for confirmation before applying. `--yes` skips the
+prompt for non-interactive use.
 
-**Copies:**
-```bash
-cp ~/agentharness/patterns/logging/logging.yaml.example ./config/logging.yaml
-git commit -am "Update logging config template from agentharness"
-```
+**Symlinks:** content is always current automatically; `update` only
+matters here for picking up newly-added skills or a widened/narrowed
+`--skills` filter.
 
-**Submodules:**
-```bash
-git submodule update --remote .agentharness
-git add .agentharness
-git commit -m "Update agentharness submodule"
-```
+**Copies:** `update` diffs your copy against the current source per
+skill and only touches ones that actually changed.
+
+**Submodules:** `update` re-syncs the skill symlinks the same way as
+link mode; to also pull the submodule itself to the harness's latest
+commit, run `git -C ~/my-project submodule update --remote .agentharness`
+first (deliberately manual — the CLI won't move your pinned commit for
+you without being asked).
 
 ## Troubleshooting
 
@@ -174,6 +216,18 @@ git commit -m "Update agentharness submodule"
 - Only one `core.hooksPath` can be active. Either copy the harness hook's
   logic into your existing hook manager's config, or drop the other
   manager for this repo.
+
+**Issue:** not sure what's actually installed, or whether it's still working
+- `harness-link.sh status ~/my-project` shows what's recorded.
+- `harness-link.sh doctor ~/my-project` validates it against reality
+  (nonzero exit on any problem) — run this after moving the harness
+  checkout, after a manual edit to `.claude/skills/`, or in your own CI.
+
+**Issue:** integrated by hand (not via `harness-link.sh`) and want to switch to it
+- There's no import path for a manual integration's state — run
+  `harness-link.sh init` fresh; it's safe to re-run over an existing
+  manual symlink setup that matches its own layout, but check `status`
+  and `doctor` afterward rather than assuming it merged cleanly.
 
 ---
 

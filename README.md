@@ -34,18 +34,28 @@ repo yet — don't assume Cursor, Copilot, or another harness picks up
 conditionals, `bats-core` for shell tests). Windows is untested; WSL
 should work but hasn't been verified.
 
-**What gets installed** by `tools/setup/harness-link.sh` into a consuming
-project:
-- Symlinks for selected (or all) `.claude/skills/<name>` directories.
+**What gets installed** by `tools/setup/harness-link.sh init` (a
+lifecycle CLI — also exposes `plan`/`status`/`doctor`/`audit`/`update`/
+`uninstall`; see [docs/INTEGRATION.md](docs/INTEGRATION.md)) into a
+consuming project:
+- Selected (or all) `.claude/skills/<name>` directories, symlinked
+  (`--mode link`, default), physically copied (`--mode copy`), or
+  symlinked from a git submodule this creates at `.agentharness`
+  (`--mode submodule` — the one mode that does reach the network, to add
+  that submodule).
 - A merge of `.github/.gitignore.template` into the project's `.gitignore`
   (additive — never overwrites existing entries).
 - With `--with-hook`: `core.hooksPath` pointed at this repo's
   `.github/hooks/` (refuses to overwrite an existing, different
   `core.hooksPath` unless `--force` is passed — see
   `tools/tests/harness-link.bats`).
+- A `.agentharness-state.json` recording mode, source revision, and
+  installed skills, so `status`/`doctor`/`update`/`uninstall` know what
+  they're working with.
 
-Nothing else is installed. No network calls, no telemetry, no background
-processes.
+Nothing else is installed. No telemetry, no background processes; no
+network calls except the one submodule-mode clone above, which only
+happens if you asked for that mode.
 
 **Advisory vs. enforced:**
 - *Advisory* (a convention the agent is expected to follow, not something

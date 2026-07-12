@@ -81,7 +81,7 @@ generator script yet (see ROADMAP.md).
 
 | Asset | Path | Type | When to use |
 |---|---|---|---|
-| Harness link script | `tools/setup/harness-link.sh` | script | One-command integration into a consuming project |
+| Harness lifecycle CLI | `tools/setup/harness-link.sh` | script | init/plan/status/doctor/audit/update/uninstall; link/copy/submodule modes; state tracked in `<project>/.agentharness-state.json` |
 | Sample project | `examples/sample-project/` | project | Demonstrates harness integration; validates INTEGRATION.md commands work |
 | Integration verification | `examples/sample-project/verify.sh` | script | Checks that skills, hooks, and guidelines are properly integrated |
 

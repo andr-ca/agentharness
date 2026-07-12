@@ -1,0 +1,264 @@
+#!/usr/bin/env bats
+#
+# Tests for the lifecycle subcommands (init/plan/status/doctor/audit/update/
+# uninstall) added to tools/setup/harness-link.sh for P1-04. The pre-existing
+# legacy-invocation behavior (harness-link.sh <target> [options]) is covered
+# by tools/tests/harness-link.bats and is unchanged by this file.
+#
+# The submodule-mode tests clone this repo's real 'origin' remote (a public
+# GitHub repo) and therefore need outbound network access — consistent with
+# this repo's existing CI, which already clones bats-core from GitHub and
+# pip-installs packages.
+
+setup() {
+    SCRIPT="$BATS_TEST_DIRNAME/../setup/harness-link.sh"
+    TEST_PROJECT=$(mktemp -d)
+    cd "$TEST_PROJECT"
+}
+
+teardown() {
+    cd /
+    rm -rf "$TEST_PROJECT"
+}
+
+@test "lifecycle: init writes a state file with mode, source, and skills" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing,branching
+
+    [ -f "$TEST_PROJECT/.agentharness-state.json" ]
+    run python3 -c "
+import json
+with open('$TEST_PROJECT/.agentharness-state.json') as f:
+    d = json.load(f)
+print(d['mode'])
+print(sorted(d['skills']))
+print(d['with_hook'])
+"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "link" ]]
+    [[ "$output" =~ "branching" ]]
+    [[ "$output" =~ "committing" ]]
+    [[ "$output" =~ "False" ]]
+}
+
+@test "lifecycle: legacy invocation (no subcommand) also writes a state file" {
+    bash "$SCRIPT" "$TEST_PROJECT" --skills committing
+    [ -f "$TEST_PROJECT/.agentharness-state.json" ]
+}
+
+@test "lifecycle: plan makes no filesystem changes" {
+    run bash "$SCRIPT" plan "$TEST_PROJECT" --skills committing
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "dry run" ]]
+    [ -z "$(ls -A "$TEST_PROJECT")" ]
+}
+
+@test "lifecycle: init --dry-run is equivalent to plan" {
+    run bash "$SCRIPT" init "$TEST_PROJECT" --skills committing --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "dry run" ]]
+    [ -z "$(ls -A "$TEST_PROJECT")" ]
+}
+
+@test "lifecycle: status reports mode, skills, and hook state" {
+    git -C "$TEST_PROJECT" init --quiet
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing --with-hook
+
+    run bash "$SCRIPT" status "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "mode:          link" ]]
+    [[ "$output" =~ "skills:        committing" ]]
+    [[ "$output" =~ "with_hook:     true" ]]
+}
+
+@test "lifecycle: status fails clearly when never initialized" {
+    run bash "$SCRIPT" status "$TEST_PROJECT"
+    [ "$status" -ne 0 ]
+    [[ "$output" =~ "no .agentharness-state.json found" ]]
+}
+
+@test "lifecycle: doctor passes for a healthy install" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing,agentic-loops
+
+    run bash "$SCRIPT" doctor "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "all checks passed" ]]
+}
+
+@test "lifecycle: doctor fails when a bundled resource link is broken" {
+    # --mode copy, deliberately: in --mode link, .claude/skills/<name> in
+    # $TEST_PROJECT is itself a symlink to *this actual repo's* skill
+    # directory — rm/ln through that path would mutate this repo's own
+    # tracked files, not a disposable copy. copy mode gives us a real,
+    # independent file to safely break.
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills agentic-loops
+    rm "$TEST_PROJECT/.claude/skills/agentic-loops/agent_loop.py"
+    ln -s /nonexistent/agent_loop.py "$TEST_PROJECT/.claude/skills/agentic-loops/agent_loop.py"
+
+    run bash "$SCRIPT" doctor "$TEST_PROJECT"
+    [ "$status" -ne 0 ]
+    [[ "$output" =~ "broken bundled-resource link" ]]
+}
+
+@test "lifecycle: doctor fails when a skill directory is deleted out from under it" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing
+    rm -rf "$TEST_PROJECT/.claude/skills/committing"
+
+    run bash "$SCRIPT" doctor "$TEST_PROJECT"
+    [ "$status" -ne 0 ]
+    [[ "$output" =~ "SKILL.md not found" ]]
+}
+
+@test "lifecycle: audit reports skills available upstream but not installed" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing
+
+    run bash "$SCRIPT" audit "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "available upstream, not installed: branching" ]]
+}
+
+@test "lifecycle: update adds newly-in-scope skills and refreshes the state file" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing
+    # Simulate "install was set to track all skills, and a new one has since
+    # been added upstream" by widening the recorded filter to null (no filter).
+    python3 -c "
+import json
+p = '$TEST_PROJECT/.agentharness-state.json'
+with open(p) as f: d = json.load(f)
+d['skills_filter'] = None
+with open(p, 'w') as f: json.dump(d, f, indent=2)
+"
+
+    run bash "$SCRIPT" update "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "+ add: branching" ]]
+    [ -e "$TEST_PROJECT/.claude/skills/branching" ]
+}
+
+@test "lifecycle: update removes skills no longer in scope" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing,branching
+    python3 -c "
+import json
+p = '$TEST_PROJECT/.agentharness-state.json'
+with open(p) as f: d = json.load(f)
+d['skills_filter'] = 'committing'
+with open(p, 'w') as f: json.dump(d, f, indent=2)
+"
+
+    run bash "$SCRIPT" update "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "- remove: branching" ]]
+    [ ! -e "$TEST_PROJECT/.claude/skills/branching" ]
+    [ -e "$TEST_PROJECT/.claude/skills/committing" ]
+}
+
+@test "lifecycle: update declines to apply without confirmation" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing
+    python3 -c "
+import json
+p = '$TEST_PROJECT/.agentharness-state.json'
+with open(p) as f: d = json.load(f)
+d['skills_filter'] = None
+with open(p, 'w') as f: json.dump(d, f, indent=2)
+"
+
+    run bash "$SCRIPT" update "$TEST_PROJECT" <<< "n"
+    [ "$status" -ne 0 ]
+    [[ "$output" =~ "Aborted" ]]
+    [ ! -e "$TEST_PROJECT/.claude/skills/branching" ]
+}
+
+@test "lifecycle: update reports nothing-to-do when scope is unchanged" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing
+
+    run bash "$SCRIPT" update "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "nothing to do" ]]
+}
+
+@test "lifecycle: uninstall reverses everything init recorded" {
+    git -C "$TEST_PROJECT" init --quiet
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing,branching --with-hook --profile internal
+
+    run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Uninstalled" ]]
+
+    [ ! -e "$TEST_PROJECT/.claude/skills/committing" ]
+    [ ! -e "$TEST_PROJECT/.claude/skills/branching" ]
+    [ ! -f "$TEST_PROJECT/.agentharness-profile" ]
+    [ ! -f "$TEST_PROJECT/.agentharness-state.json" ]
+    run git -C "$TEST_PROJECT" config core.hooksPath
+    [ "$status" -ne 0 ]
+}
+
+@test "lifecycle: uninstall declines without confirmation" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing
+
+    run bash "$SCRIPT" uninstall "$TEST_PROJECT" <<< "n"
+    [ "$status" -ne 0 ]
+    [[ "$output" =~ "Aborted" ]]
+    [ -e "$TEST_PROJECT/.claude/skills/committing" ]
+}
+
+@test "lifecycle: uninstall fails clearly when never initialized" {
+    run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
+    [ "$status" -ne 0 ]
+    [[ "$output" =~ "no .agentharness-state.json found" ]]
+}
+
+@test "lifecycle: --mode copy physically copies skill files, not symlinks" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+
+    [ -f "$TEST_PROJECT/.claude/skills/committing/SKILL.md" ]
+    [ ! -L "$TEST_PROJECT/.claude/skills/committing" ]
+    [ ! -L "$TEST_PROJECT/.claude/skills/committing/SKILL.md" ]
+}
+
+@test "lifecycle: --mode copy update reports no drift when content is unchanged" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+
+    run bash "$SCRIPT" update "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "nothing to do" ]]
+}
+
+@test "lifecycle: --mode copy update detects when the copied content has diverged from source" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    # 'update' diffs the copy against the current source regardless of
+    # which side actually changed — editing the consumer's copy is the
+    # simplest way to produce a real divergence without touching this
+    # repo's own tracked files.
+    echo "local edit" >> "$TEST_PROJECT/.claude/skills/committing/SKILL.md"
+
+    run bash "$SCRIPT" update "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "content changed upstream: committing" ]]
+    # --yes applied the refresh, so the local edit is gone (overwritten from source).
+    ! grep -q "local edit" "$TEST_PROJECT/.claude/skills/committing/SKILL.md"
+}
+
+@test "lifecycle: --mode submodule adds this harness as a real submodule and symlinks from it" {
+    git -C "$TEST_PROJECT" init --quiet
+    git -C "$TEST_PROJECT" commit --quiet --allow-empty -m "init"
+
+    run bash "$SCRIPT" init "$TEST_PROJECT" --mode submodule --skills committing
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Added agentharness as a submodule" ]]
+
+    [ -e "$TEST_PROJECT/.agentharness/.git" ]
+    target=$(readlink "$TEST_PROJECT/.claude/skills/committing")
+    [[ "$target" == *".agentharness/.claude/skills/committing" ]]
+    [ -f "$TEST_PROJECT/.claude/skills/committing/SKILL.md" ]
+}
+
+@test "lifecycle: --mode submodule uninstall removes the submodule cleanly" {
+    git -C "$TEST_PROJECT" init --quiet
+    git -C "$TEST_PROJECT" commit --quiet --allow-empty -m "init"
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode submodule --skills committing
+
+    run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+    [ ! -e "$TEST_PROJECT/.agentharness" ]
+    run git -C "$TEST_PROJECT" submodule status
+    [ -z "$output" ]
+}

@@ -41,6 +41,8 @@ jobs:
         run: bats .github/hooks/tests/
       - name: Run harness-link tests
         run: bats tools/tests/harness-link.bats
+      - name: Run harness lifecycle CLI tests
+        run: bats tools/tests/harness-lifecycle.bats
 
   python-tests:
     runs-on: ubuntu-latest
