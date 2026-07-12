@@ -24,6 +24,24 @@ setup() {
     [[ "$output" =~ "All pre-push checks passed" ]]
 }
 
+@test "pre-push: no-ops for a consumer repo that merely borrows core.hooksPath" {
+    # Regression test: this hook must never run agentharness's own test
+    # suite against a *different* repo's push just because that repo's
+    # core.hooksPath happens to point at .github/hooks here (exactly what
+    # tools/setup/harness-link.sh --with-hook does for every consumer).
+    # See docs/operational/reviews/gpt-5.6-review-status.md, finding 1,
+    # for the original reproduction of this as a live bug.
+    consumer_repo="$(mktemp -d)"
+    git -C "$consumer_repo" init --quiet
+
+    run bash -c "cd '$consumer_repo' && bash '$HOOK'"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "not to agentharness itself" ]]
+    [[ "$output" != *"pytest:"* ]]
+
+    rm -rf "$consumer_repo"
+}
+
 @test "pre-push: fails clearly when bats is not on PATH" {
     # Exclude every PATH directory that actually contains a `bats`
     # executable — not just pattern-matching "bats" in the directory name
