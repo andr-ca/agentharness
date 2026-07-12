@@ -3,10 +3,10 @@
 # Verify Manifest — Check MANIFEST.md claims against actual files
 # ============================================================================
 #
-# Extracts asset paths from MANIFEST.md and verifies each one exists.
-# Catches regressions where docs reference phantom files.
+# Extracts asset paths from MANIFEST.md's Path column and verifies each
+# one actually exists. Catches regressions where docs reference phantom files.
 #
-# Exit code: 0 = all entries exist, 1 = missing entries
+# Exit codes: 0 = all entries exist, 1 = missing entries
 #
 # ============================================================================
 
@@ -20,76 +20,85 @@ fi
 echo "Verifying manifest entries..."
 echo ""
 
-# Extract backtick-quoted paths and verify each exists
-# Pattern: lines with pipes, containing backticks, extract content between backticks
+# Extract backtick-quoted paths from manifest tables
+# These are typically in format: | Asset Name | `path/to/file` | type | description |
+# Only extract from pipe-delimited lines, skip headers and separators
 grep '|' "$MANIFEST_FILE" | \
     grep -v '^---' | \
+    grep -v '^ *$' | \
+    grep -v 'Asset\|Path\|Type' | \
+    sed 's/|/\n|/g' | \
     grep '`' | \
     grep -o '`[^`]*`' | \
     sed 's/^`//;s/`$//' | \
-    grep / | \
-    sort -u | while read -r fullpath; do
+    # Only process paths (contain / or start with .)
+    grep -E '^\.?[^:]*/' | \
+    while read -r fullpath; do
+        # Skip empty entries
+        [ -z "$fullpath" ] && continue
 
-    # Skip empty entries
-    if [ -z "$fullpath" ]; then
-        continue
-    fi
+        # Strip anchor references (file.md#section → file.md)
+        path="${fullpath%#*}"
 
-    # Strip anchor references (file.md#section → file.md)
-    path="${fullpath%#*}"
+        # Skip non-filesystem entries
+        [ "${path#http}" != "$path" ] && continue
+        [ "${path##}" != "$path" ] && continue
+        [ -z "$path" ] && continue
 
-    # Skip non-filesystem entries (URLs, etc.)
-    case "$path" in
-        http*) continue ;;
-        https*) continue ;;
-        \#*) continue ;;
-    esac
-
-    # Skip empty after stripping anchors
-    if [ -z "$path" ]; then
-        continue
-    fi
-
-    # Check if path exists
-    if [ -e "$path" ]; then
-        echo "  ✓ $path"
-    else
-        echo "  ✗ MISSING: $path"
-    fi
-done
+        # Check if path exists
+        if [ -e "$path" ]; then
+            echo "  ✓ $path"
+        else
+            echo "  ✗ MISSING: $path"
+        fi
+    done
 
 echo ""
 
-# Count missing entries by re-running the extraction
-# and counting those that don't exist
-missing_count=$(
-    grep '|' "$MANIFEST_FILE" | \
-        grep -v '^---' | \
-        grep '`' | \
-        grep -o '`[^`]*`' | \
-        sed 's/^`//;s/`$//' | \
-        grep / | \
-        sort -u | while read -r fullpath; do
+# Final count
+found=0
+missing=0
 
-        if [ -z "$fullpath" ]; then
-            continue
-        fi
-
+grep '|' "$MANIFEST_FILE" | \
+    grep -v '^---' | \
+    grep -v '^ *$' | \
+    grep -v 'Asset\|Path\|Type' | \
+    grep -o '`[^`]*`' | \
+    sed 's/^`//;s/`$//' | \
+    sort -u | \
+    while read -r fullpath; do
+        [ -z "$fullpath" ] && continue
         path="${fullpath%#*}"
+        [ "${path#http}" != "$path" ] && continue
+        [ "${path##}" != "$path" ] && continue
+        [ -z "$path" ] && continue
 
-        case "$path" in
-            http*|https*|\#*) continue ;;
-        esac
-
-        if [ -z "$path" ]; then
-            continue
+        if [ -e "$path" ]; then
+            ((found++))
+        else
+            ((missing++))
         fi
+    done
 
-        if [ ! -e "$path" ]; then
-            echo "$path"
-        fi
-    done | wc -l
-)
+# Count missing entries
+missing_count=$(grep '|' "$MANIFEST_FILE" | \
+    grep -v '^---' | \
+    grep -v '^ *$' | \
+    grep -v 'Asset\|Path\|Type' | \
+    sed 's/|/\n|/g' | \
+    grep '`' | \
+    grep -o '`[^`]*`' | \
+    sed 's/^`//;s/`$//' | \
+    grep -E '^\.?[^:]*/' | \
+    sort -u | \
+    while read -r fullpath; do
+        [ -z "$fullpath" ] && continue
+        path="${fullpath%#*}"
+        [ "${path#http}" != "$path" ] && continue
+        [ "${path##}" != "$path" ] && continue
+        [ -z "$path" ] && continue
+        [ ! -e "$path" ] && echo "$path"
+    done | wc -l)
 
 if [ "$missing_count" -eq 0 ]; then
     echo "✅ All manifest entries exist."
