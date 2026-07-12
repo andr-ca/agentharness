@@ -47,8 +47,8 @@ git commit -m "test"  # ✓ Will succeed
 # 1. Create hooks directory if it doesn't exist
 mkdir -p .git/hooks
 
-# 2. Copy hooks from awesome-harness
-cp ~/awesome-harness/.github/hooks/* .git/hooks/
+# 2. Copy hooks from agentharness
+cp ~/agentharness/.github/hooks/* .git/hooks/
 
 # 3. Make them executable
 chmod +x .git/hooks/*
@@ -249,5 +249,4 @@ Then run the hook manually to see what's happening.
 
 ---
 
-**Last Updated:** 2026-07-11  
 **See Also:** BRANCHING_STRATEGY.md, COMMITTING_GUIDELINES.md

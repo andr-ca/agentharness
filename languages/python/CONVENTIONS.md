@@ -547,5 +547,4 @@ poetry run pytest
 
 ---
 
-**Last Updated:** 2026-07-11  
 **See Also:** COPILOT_INSTRUCTIONS.md for AI-specific guidance

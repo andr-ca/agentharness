@@ -1,6 +1,6 @@
 # .github – Repository Configuration & Guidelines
 
-This directory contains repository-wide configuration files, guidelines, and best practices for awesome-harness and projects that reference it.
+This directory contains repository-wide configuration files, guidelines, and best practices for agentharness and projects that reference it.
 
 ## 📋 Files Overview
 
@@ -111,9 +111,9 @@ Projects can reference these guidelines in their own `.github/` or `CLAUDE.md`:
 ```markdown
 ## Guidelines
 
-This project follows awesome-harness guidelines:
-- [Coding Guidelines](https://github.com/andrey/awesome-harness/.github/CODING_GUIDELINES.md)
-- [Committing Guidelines](https://github.com/andrey/awesome-harness/.github/COMMITTING_GUIDELINES.md)
+This project follows agentharness guidelines:
+- [Coding Guidelines](https://github.com/andrey/agentharness/.github/CODING_GUIDELINES.md)
+- [Committing Guidelines](https://github.com/andrey/agentharness/.github/COMMITTING_GUIDELINES.md)
 
 See `.github/` in this project for project-specific customizations.
 ```
@@ -122,7 +122,7 @@ Or create your own extensions:
 
 ```
 your-project/.github/
-├── CODING_GUIDELINES.md (extends awesome-harness)
+├── CODING_GUIDELINES.md (extends agentharness)
 └── CUSTOM_GUIDELINES.md
 ```
 
@@ -156,5 +156,3 @@ These guidelines are designed to:
 ---
 
 **Remember:** Guidelines exist to help, not hinder. They're based on real lessons learned and should make your work easier, not harder.
-
-**Last Updated:** 2026-07-11

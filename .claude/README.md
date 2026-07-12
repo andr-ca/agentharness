@@ -1,34 +1,43 @@
 # .claude – Claude Code Assets
 
-This directory contains Claude Code-specific configurations, skills, agents, and hooks.
+This directory contains Claude Code-specific skills.
 
-## 📁 Structure
+## Structure
 
-- **agents/** – Custom agent definitions and configurations
-- **skills/** – Claude Code superpowers/skills for specialized tasks
-- **hooks/** – Event handlers and automation scripts
+- **skills/** – Claude Code skills, loaded on demand (see `MANIFEST.md` at
+  repo root for the current list)
 
-## 🚀 Quick Setup
+`agents/` and `hooks/` are planned but not built yet — see
+[ROADMAP.md](../ROADMAP.md).
 
-When using this in a project:
+## Quick Setup
+
+In a **project** (not your home directory — see the warning below):
 
 ```bash
-# Symlink to project
-ln -s ~/awesome-harness/.claude ~/.claude
-
-# Or selectively:
-ln -s ~/awesome-harness/.claude/skills ~/.claude/skills
+cd ~/my-project
+mkdir -p .claude/skills
+ln -s ~/agentharness/.claude/skills/committing .claude/skills/committing
+ln -s ~/agentharness/.claude/skills/branching .claude/skills/branching
+ln -s ~/agentharness/.claude/skills/python-conventions .claude/skills/python-conventions
 ```
 
-## 📝 How to Add Content
+⚠️ **Never** `ln -s ~/agentharness/.claude ~/.claude` — that replaces or
+fights with your global Claude Code configuration, which almost certainly
+has settings unrelated to this harness. Symlink into the project's
+`.claude/`, one skill at a time or the whole `skills/` directory, not your
+home directory.
+
+## How to Add Content
 
 ### Adding a Skill
-Place a new skill in `skills/` with frontmatter metadata:
+
+Place a new skill in `skills/{skill-name}/SKILL.md` with frontmatter:
 
 ```yaml
 ---
-name: my-skill-name
-description: Brief description of what this skill does
+name: skill-name
+description: Brief description of what this skill does and when it triggers
 metadata:
   type: skills
   complexity: medium
@@ -37,12 +46,9 @@ metadata:
 <skill content and instructions>
 ```
 
-### Adding an Agent
-Create agent definition in `agents/` following Claude Agent SDK structure.
-
-### Adding a Hook
-Place hook scripts in `hooks/` subdirectories (`pre-commit/`, `post-merge/`, etc.) with clear documentation.
+See any existing skill under `skills/` for a working example.
 
 ---
 
-See parent CLAUDE.md for integration instructions.
+See root [CLAUDE.md](../CLAUDE.md) for repo-wide rules and
+[MANIFEST.md](../MANIFEST.md) for the current asset index.

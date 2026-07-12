@@ -8,7 +8,7 @@ languages: all
 
 # Test-Driven Development (TDD)
 
-Complete guide to Test-Driven Development as a foundational practice for all code in awesome-harness projects.
+Complete guide to Test-Driven Development as a foundational practice for all code in agentharness projects.
 
 ## 🚨 CRITICAL REQUIREMENT
 
@@ -35,20 +35,6 @@ With TDD:
 - ✅ Most time spent writing tests (prevents bugs upfront)
 - ✅ Technical debt is prevented (tests enforce contracts)
 - ✅ New developers can change code with confidence
-
-### Real-World Impact
-
-**Before TDD:**
-- 10 bugs per 1000 lines of code
-- 2 weeks fixing production issues
-- 3 failed deployments per month
-- Fear of changing code
-
-**After TDD:**
-- <1 bug per 1000 lines of code
-- 2 hours fixing issues (quick feedback from tests)
-- 0 failed deployments (tests catch issues first)
-- Confidence in changes
 
 ## The TDD Cycle (Red-Green-Refactor)
 
@@ -97,8 +83,7 @@ class User:
         self.email = email
 
 def authenticate(email, password):
-    # Check credentials against database
-    if self._validate_credentials(email, password):
+    if _validate_credentials(email, password):
         return User(email)
     return None
 
@@ -233,16 +218,14 @@ def test_discount_calculation():
 
 ### Minimum 80% Coverage Requirement
 
-**This is a hard requirement, not a guideline.**
+**This is a hard requirement, not a guideline.** For the coverage tiers,
+what counts, and per-language measurement commands, see
+`COVERAGE_REQUIREMENTS.md` — that file owns this policy; it's not
+restated here to avoid the two versions drifting apart.
 
-```
-Coverage:        Status:
-100%            ⭐ Excellent (bonus points!)
-95-99%          ✅ Excellent
-80-94%          ✅ Acceptable (minimum requirement)
-75-79%          ⚠️  Below minimum (will not merge)
-<75%            ❌ Unacceptable (must be rewritten)
-```
+This section (and this file generally) applies at the **Production**
+rigor tier. See `.github/CODING_GUIDELINES.md#rigor-tiers` for what
+applies to prototypes and internal tools instead.
 
 ### What Counts Toward Coverage
 
@@ -547,8 +530,15 @@ def test_cache_retrieves_stored_user():
 
 ### ❌ Mistake 2: Testing Multiple Things at Once
 
+The fields below (`id`, `email`, `password_hash`, `created_at`,
+`is_active`) aren't independent behaviors — they're all part of the same
+outcome: "creating a user produces a correctly-populated user." That's one
+behavior, so it should be one test with one snapshot-style assertion, not
+five assertions and definitely not five separate tests.
+
 ```python
-# BAD: Too many assertions
+# BAD: Five assertions for one behavior — if one fails, the failure
+# message doesn't tell you which without reading the whole test
 def test_user_creation():
     user = User.create(email="test@example.com", password="secret")
     assert user.id is not None
@@ -557,14 +547,34 @@ def test_user_creation():
     assert user.created_at is not None
     assert user.is_active == True
 
-# GOOD: One test, one behavior
-def test_user_creation_generates_id():
+# GOOD: one behavior, one assertion — the diff on failure shows exactly
+# which field(s) were wrong
+def test_user_creation_populates_all_fields():
+    user = User.create(email="test@example.com", password="secret")
+    assert_that(user).matches({
+        "id": IsNotNone(),
+        "email": "test@example.com",
+        "password_hash": IsNotNone(),
+        "created_at": IsNotNone(),
+        "is_active": True,
+    })  # or assert.deepStrictEqual against a fully-specified expected object
+```
+
+Splitting into separate tests is correct when the assertions verify
+**genuinely independent behaviors** that could reasonably fail for
+unrelated reasons — e.g. "creation succeeds with valid input" vs.
+"creation rejects a duplicate email" are two different behaviors and
+belong in two different tests, each with its own single assertion:
+
+```python
+def test_create_succeeds_with_valid_input():
     user = User.create(email="test@example.com", password="secret")
     assert user.id is not None
 
-def test_user_creation_stores_email():
-    user = User.create(email="test@example.com", password="secret")
-    assert user.email == "test@example.com"
+def test_create_rejects_duplicate_email():
+    User.create(email="test@example.com", password="secret")
+    with pytest.raises(DuplicateEmailError):
+        User.create(email="test@example.com", password="other")
 ```
 
 ### ❌ Mistake 3: Slow Tests
@@ -644,7 +654,7 @@ When reviewing PRs, check:
 
 | Benefit | Impact |
 |---------|--------|
-| **Fewer bugs** | Ship with ~99% fewer critical bugs |
+| **Fewer bugs** | Regressions caught by tests before merge |
 | **Faster development** | Catch bugs during dev, not in production |
 | **Better design** | Code must be testable = clean architecture |
 | **Confidence** | Safe refactoring, safe changes |
@@ -707,15 +717,11 @@ addopts = [
 
 ### Go
 
-```bash
-#!/bin/bash
-# scripts/test.sh
-go test ./... -cover -coverprofile=coverage.out
-if [ $(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//') -lt 80 ]; then
-    echo "Coverage below 80%"
-    exit 1
-fi
-```
+Coverage percentages from `go tool cover` are floats (e.g. `87.5%`), so a
+plain `-lt` integer comparison breaks with "integer expression expected".
+See `COVERAGE_REQUIREMENTS.md#measuring-coverage` for the working
+`bc`-based comparison — that's the canonical version; don't duplicate a
+second copy here that can drift out of sync.
 
 ## Resources
 
@@ -726,6 +732,5 @@ fi
 
 ---
 
-**Last Updated:** 2026-07-11  
 **Minimum Coverage Requirement:** 80% (mandatory, not negotiable)  
 **See Also:** `patterns/testing/`, `languages/{language}/CONVENTIONS.md`

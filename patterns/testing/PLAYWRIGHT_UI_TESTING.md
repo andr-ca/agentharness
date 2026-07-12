@@ -8,11 +8,13 @@ languages: typescript, javascript
 
 # Playwright UI Testing
 
-Mandatory testing framework for all web UI development. All UI work MUST use Playwright with visual verification.
+This applies at the **Production** rigor tier — see
+`.github/CODING_GUIDELINES.md#rigor-tiers`. Internal tools and prototypes
+can skip this; manual verification is fine there.
 
-## 🚨 CRITICAL REQUIREMENT
+## 🚨 CRITICAL REQUIREMENT (Production tier)
 
-**ALL WEB UI WORK IS MANDATORY PLAYWRIGHT + SCREENSHOT VERIFICATION**
+**ALL PRODUCTION-TIER WEB UI WORK IS MANDATORY PLAYWRIGHT + SCREENSHOT VERIFICATION**
 
 This means:
 - ✅ UI work STARTS with Playwright setup (not added later)
@@ -21,7 +23,31 @@ This means:
 - ✅ Screenshots MUST be reviewed by agent/human before approval
 - ✅ Visual regressions are caught during development, not production
 
-**UI work WITHOUT Playwright tests and screenshot verification WILL NOT MERGE.**
+**At Production tier, UI work WITHOUT Playwright tests and screenshot verification WILL NOT MERGE.**
+
+### What "Screenshot Approval" Actually Means
+
+"Agent MUST review and approve screenshots" is meaningless without a
+concrete mechanism. Here's the mechanism:
+
+1. Playwright writes screenshots to `test-results/screenshots/` (or your
+   configured path) as part of the normal test run.
+2. Before marking the task complete, the agent (or human) opens each new
+   or changed screenshot and states, in the PR description or commit
+   message, what was checked and what was seen — e.g. "Reviewed
+   `login-success.png`: form renders correctly, no layout shift, matches
+   the design spec." A screenshot that was generated but never looked at
+   does not count as reviewed.
+3. If comparing against a baseline (`--update-snapshots` workflow), the
+   diff output itself (pass/fail per snapshot) is the evidence — link or
+   paste it.
+4. CI enforces the mechanical part: the Playwright test suite (including
+   snapshot comparison) must pass. CI cannot enforce that a human actually
+   looked at a screenshot; that's why step 2's written statement exists —
+   it's the audit trail for the part CI can't check.
+
+If you can't produce that written statement, the screenshots weren't
+reviewed — go review them.
 
 ---
 
@@ -38,26 +64,12 @@ This means:
 
 ### What Playwright Solves
 
-- ✅ Test actual browser behavior (real Chrome, Firefox, Safari)
+- ✅ Test actual browser engines (Chromium, Firefox, WebKit — the engine behind Safari)
 - ✅ Catch visual regressions automatically
 - ✅ Verify responsiveness across screen sizes
 - ✅ Test user workflows end-to-end
 - ✅ Screenshot comparison detects visual bugs
 - ✅ Document expected behavior with screenshots
-
-### Real-World Impact
-
-**Without Playwright:**
-- 10 UI bugs per release
-- 2 weeks debugging visual issues
-- 5 emergency UI hotfixes per month
-- Users report broken layouts
-
-**With Playwright:**
-- <1 UI bug per release
-- 1 hour investigating any issues
-- 0 emergency UI fixes (caught in testing)
-- Screenshot diffs catch problems immediately
 
 ---
 
@@ -69,11 +81,11 @@ This means:
 # Install Playwright
 npm install --save-dev @playwright/test
 
-# Install browsers
+# Install browser binaries (Chromium, Firefox, WebKit)
 npx playwright install
 
-# Initialize Playwright config
-npx playwright install
+# Scaffold playwright.config.ts, example tests, and CI workflow
+npm init playwright@latest
 ```
 
 ### Project Structure
@@ -613,7 +625,7 @@ npx playwright show-report
 ✅ **Before Starting UI Work:**
 - [ ] Playwright is set up in project
 - [ ] playwright.config.ts is configured
-- [ ] Browser support list defined (Chrome, Firefox, Safari, mobile)
+- [ ] Browser support list defined (Chromium, Firefox, WebKit, mobile viewports)
 - [ ] Screenshot directory configured
 
 ✅ **During UI Development:**
@@ -630,7 +642,7 @@ npx playwright show-report
 - [ ] All screenshots reviewed and approved
 - [ ] No visual regressions
 - [ ] Mobile responsiveness verified
-- [ ] Cross-browser tested (Chrome, Firefox, Safari)
+- [ ] Cross-browser tested (Chromium, Firefox, WebKit)
 - [ ] Baseline screenshots committed
 - [ ] Test coverage >= 80%
 - [ ] HTML report shows all tests passing
@@ -753,7 +765,6 @@ await page.waitForSelector('data-loaded', { timeout: 5000 });
 
 ---
 
-**Last Updated:** 2026-07-11  
 **Requirement Status:** MANDATORY FOR ALL WEB UI WORK  
 **Screenshot Verification:** REQUIRED BEFORE COMPLETION  
 **See Also:** TDD.md, COMPLETION_CHECKLIST.md

@@ -1,6 +1,13 @@
-# Architecture – awesome-harness Design
+# Architecture – agentharness Design
 
-Technical architecture and design philosophy of the awesome-harness repository.
+Technical architecture and design philosophy of the agentharness repository.
+
+**This document describes the target architecture, not current inventory.**
+Several component categories below (frameworks, most languages, most
+pattern categories, `.claude/agents/`) don't have content yet — see
+[MANIFEST.md](../MANIFEST.md) for what exists and [ROADMAP.md](../ROADMAP.md)
+for what's planned. The layering and design principles are already the
+policy for whatever gets built next.
 
 ## 🎯 Design Philosophy
 
@@ -106,14 +113,16 @@ The harness is organized in conceptual layers:
 **Design:** Independent, installable, cross-project usable
 **Usage:** Symlink, copy, or add to PATH
 
-### 6. Hooks (`hooks/`)
+### 6. Hooks (`.github/hooks/`)
 **Purpose:** Automation triggered by events
 
-- **Structure:** Hook type subdirectories (pre-commit, post-merge, etc.)
+- **Structure:** Flat directory of hook scripts (currently just
+  `prevent-trunk-commit`)
 - **Content:** Shell scripts, README, integration instructions
 
 **Design:** Minimal, focused, composable
-**Usage:** Copy into .git/hooks, .husky, or equivalent
+**Usage:** `git config core.hooksPath .github/hooks` (this repo does this
+for itself)
 
 ### 7. Documentation (`docs/`)
 **Purpose:** Guides and architectural documentation
@@ -202,7 +211,7 @@ Each component includes frontmatter/metadata:
 ## ⚙️ Integration Architecture
 
 ```
-awesome-harness (source)
+agentharness (source)
       ↓
    symlink ├─→ .claude/skills (auto-loaded)
    or copy ├─→ Framework config files
@@ -246,7 +255,7 @@ As the harness grows:
 
 **Harness Repository**
 - Store all harnesses in git
-- Tag releases (v1.0, v1.1, etc.)
+- Tag releases in git (v0.1.0 onward — see [CHANGELOG.md](../CHANGELOG.md))
 - Keep git history clean
 - Document breaking changes in CHANGELOG
 

@@ -8,7 +8,7 @@ languages: all
 
 # Test Coverage Requirements
 
-Mandatory test coverage standards for all code in awesome-harness projects.
+Mandatory test coverage standards for all code in agentharness projects.
 
 ## 🚨 CRITICAL REQUIREMENT
 
@@ -478,7 +478,7 @@ When reviewing code, verify:
 
 | Aspect | Benefit |
 |--------|---------|
-| **Bug Prevention** | ~95% of bugs prevented before production |
+| **Bug Prevention** | Regressions caught before merge instead of in production |
 | **Refactoring Safety** | Can confidently change code |
 | **Documentation** | Tests show how code works |
 | **Design Quality** | Testable code is better designed |
@@ -498,6 +498,5 @@ When reviewing code, verify:
 
 **REMEMBER:** 80% is the MINIMUM. Strive for 95%+.
 
-**Last Updated:** 2026-07-11  
 **Requirement Status:** MANDATORY, NON-NEGOTIABLE  
 **See Also:** TDD.md, testing patterns

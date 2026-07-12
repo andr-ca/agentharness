@@ -43,11 +43,17 @@ TRUNK_BRANCHES=(
 # GET CURRENT BRANCH
 # ============================================================================
 
-CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+# `git symbolic-ref` reads the branch name straight out of .git/HEAD and
+# works even before the first commit exists (an "unborn" branch).
+# `git rev-parse --abbrev-ref HEAD` requires a resolvable commit and fails
+# on a brand-new repo, which incorrectly let the very first commit slip
+# through unchecked.
+CURRENT_BRANCH=$(git symbolic-ref --short -q HEAD)
 
 if [ -z "$CURRENT_BRANCH" ]; then
-    echo -e "${RED}✗ Error: Could not determine current branch${NC}"
-    exit 1
+    # Detached HEAD (e.g. mid-rebase, or checked out a specific commit).
+    # Not on any named branch, so trunk protection doesn't apply here.
+    exit 0
 fi
 
 # ============================================================================
@@ -57,7 +63,9 @@ fi
 IS_TRUNK=false
 
 for trunk in "${TRUNK_BRANCHES[@]}"; do
-    if [ "$CURRENT_BRANCH" = "$trunk" ]; then
+    # Exact match ("main") or prefix match for release lines ("release/1.2"),
+    # matching BRANCHING_STRATEGY.md's documented `release/*` convention.
+    if [ "$CURRENT_BRANCH" = "$trunk" ] || [[ "$CURRENT_BRANCH" == "$trunk/"* ]]; then
         IS_TRUNK=true
         break
     fi

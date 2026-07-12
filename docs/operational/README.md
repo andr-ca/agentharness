@@ -1,6 +1,6 @@
 # docs/operational – Temporary & Working Documents
 
-This directory contains temporary, transient, and operational documents that support the development and maintenance of awesome-harness. Content here is **not permanent** and follows different lifecycle rules than the main harness components.
+This directory contains temporary, transient, and operational documents that support the development and maintenance of agentharness. Content here is **not permanent** and follows different lifecycle rules than the main harness components.
 
 ## 📁 Structure
 
@@ -15,6 +15,10 @@ docs/operational/
 ├── planning/                    # Planning docs, brainstorms, strategies
 └── archives/                    # Older operational docs for reference
 ```
+
+Only `README.md` and `INDEX.md` exist yet — the subdirectories above are
+created on demand, the first time something actually goes in them. Don't
+pre-create empty directories; git doesn't track them anyway.
 
 ## 🎯 Purpose
 
@@ -263,7 +267,10 @@ See archives/ for historical documents and superseded research
 ## ⚠️ Important Notes
 
 - **Not for secrets** – Never commit sensitive information here
-- **Git tracking optional** – Can exclude from git if desired
+- **Tracked in git, like everything else in this repo** – see
+  `CLAUDE.md`'s Version Control principle. "Temporary" describes the
+  content's expected lifespan and promote/archive/delete workflow, not
+  whether it's version-controlled — it always is.
 - **Confidentiality** – Ensure no private project details
 - **Size limits** – Keep individual docs under 50KB if possible
 - **No binary files** – Keep everything text-based for git efficiency
@@ -281,5 +288,3 @@ See archives/ for historical documents and superseded research
 ---
 
 **Remember:** This is a working space. Keep it clean, organized, and purposeful. When something becomes stable and reusable, graduate it to the main harness structure.
-
-**Last Updated:** 2026-07-11

@@ -1,6 +1,6 @@
 ---
 description: Guidelines for creating clean, meaningful git commits across projects
-applyTo: all projects using awesome-harness
+applyTo: all projects using agentharness
 ---
 
 # Committing Guidelines
@@ -8,6 +8,24 @@ applyTo: all projects using awesome-harness
 Standards for git commits that maintain clean history, respect project configuration, and communicate intent clearly.
 
 ## Core Rules
+
+### For Agents: Workflow Completion is MANDATORY
+
+**An agent must always complete the full workflow—no partial work.**
+
+- ✅ Work is NOT done until pushed to remote with a PR created
+- ✅ Every task ends with: commit → push → PR (in that order)
+- ✅ Never claim work is complete without a PR link in the response
+- ✅ Commits must be on a feature branch, never directly on trunk
+- ✅ PR must have clear title, body, and reference to the task/issue
+
+If an agent says "work is complete" but there's no PR, the work is incomplete.
+
+**When implementing recommendations:**
+- Create a `{recommendations}-status.md` file documenting what was implemented
+- Include timestamp, summary of changes, rationale, and PR link
+- Commit this status report alongside the implementation
+- Push everything in a single coordinated PR or series of PRs
 
 ### Security & Verification
 
@@ -63,7 +81,7 @@ Co-Authored-By: Name <email> (if applicable)
 ### What NOT to Commit
 
 - **Secrets** – Never commit API keys, tokens, passwords, or private credentials
-- **Environment variables** (unless `.env.example` with sanitized defaults)
+- **Environment variables** (unless `.env.sample` with sanitized defaults)
 - **Temporary files** – Build artifacts, node_modules, .DS_Store, etc.
 - **Debug code** – `console.log()`, debugger statements, commented-out code
 - **Large binary files** – Use appropriate storage for images, data files
@@ -246,5 +264,3 @@ git push --force-with-lease
 ---
 
 **Remember:** A commit is permanent history. Write it as if you'll be reading it months from now trying to understand why a decision was made.
-
-**Last Updated:** 2026-07-11

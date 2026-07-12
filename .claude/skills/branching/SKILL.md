@@ -1,0 +1,60 @@
+---
+name: branching
+description: Use when creating a branch, naming it, deciding whether to use a worktree, or handling secrets accidentally committed to history — branch naming convention, trunk protection, and secrets-removal procedure.
+metadata:
+  type: skills
+  complexity: low
+---
+
+# Branching
+
+Full reference: `.github/BRANCHING_STRATEGY.md` (worktree deep-dive,
+`.gitignore` policy, lifecycle walkthrough). This skill is the actionable
+summary.
+
+## The core rule
+
+**Never commit directly to `main`/`master`/`trunk`/`develop`/`production`/
+`release/*`.** Always: branch → commit → push → PR → merge. This repo
+enforces it locally via `git config core.hooksPath .github/hooks`
+(already set here) — don't rely on the admin bypass.
+
+## Branch naming
+
+`{type}/{description}`, lowercase, hyphens not underscores, short and
+specific.
+
+| Type | Purpose |
+|---|---|
+| `feature/` | New feature or enhancement |
+| `fix/` | Bug fix |
+| `refactor/` | No behavior change |
+| `test/` | Testing improvements |
+| `docs/` | Documentation only |
+| `chore/` | Maintenance, deps, config |
+| `perf/` | Performance improvement |
+| `ci/` | CI/CD changes |
+
+Good: `feature/user-authentication`, `fix/email-validation-crash`.
+Bad: `update`, `Feature/UserAuth`, `fix_everything`.
+
+## Worktrees
+
+Use when you need two branches checked out simultaneously (comparing
+versions, running tests on one branch while coding another). Skip for a
+single quick edit. Keep them in `.worktrees/{branch-name}/`, one branch
+per worktree directory, and `git worktree remove` when done.
+
+## If a secret was committed
+
+Act immediately — **rotate the secret regardless of whether history
+cleanup succeeds**; treat anything that touched git history as
+compromised.
+
+1. Preferred: [BFG Repo Cleaner](https://rtyley.github.io/bfg-repo-cleaner/)
+   on a fresh mirror clone: `bfg --delete-files .env` then
+   `git push --force`. See `.github/BRANCHING_STRATEGY.md` for the full
+   command sequence.
+2. Fallback: `git filter-repo --path .env --invert-paths` (the modern,
+   maintained replacement for `filter-branch`).
+3. Rotate the secret. Tell everyone with a clone to re-clone, not pull.

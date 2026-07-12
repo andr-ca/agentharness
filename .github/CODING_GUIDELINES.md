@@ -1,15 +1,43 @@
 ---
 description: Universal coding guidelines for quality and consistency across projects
-applyTo: all projects using awesome-harness
+applyTo: all projects using agentharness
 ---
 
 # Coding Guidelines
 
 Core principles for writing clear, maintainable, and consistent code across all languages and frameworks.
 
-## 🚨 CRITICAL: Test-Driven Development & 80% Coverage Requirement
+## Rigor Tiers
 
-**THESE ARE NON-NEGOTIABLE REQUIREMENTS:**
+The mandates below (TDD, 80% coverage, Playwright, OTEL-grade logging)
+apply in full at the **Production** tier. Applying them uniformly to
+every script or prototype produces unfollowable rules, and unfollowable
+rules teach agents (and humans) to discount all rules, including the ones
+that matter. Pick a tier before writing code, state it in the PR
+description if it's not obvious, and apply the matching column.
+
+| | Prototype / Exploration | Internal Tool | Production Service |
+|---|---|---|---|
+| **Examples** | Spike, notebook, one-off script, "does this API even work" | Internal dashboard, CLI used by the team, migration script run once | Anything customer-facing, anything another service depends on, anything that handles user data |
+| **Tests** | Optional | Cover the logic that would be expensive to get wrong; skip pure glue | Full TDD, 80% coverage minimum (see `COVERAGE_REQUIREMENTS.md`) |
+| **UI testing** | Manual is fine | Manual is fine unless it's shared broadly | Playwright + screenshot verification mandatory (see `patterns/testing/PLAYWRIGHT_UI_TESTING.md`) |
+| **Logging** | `print`/`console.log` is fine | Structured logs for anything you'll need to debug later | Full logging/telemetry standard (see `patterns/logging/`) |
+| **Error handling** | Let it crash | Handle errors at boundaries you actually hit | Handle all documented failure modes; still don't handle the impossible ones |
+| **Review** | None required | Self-review | PR + the full checklist in `COMPLETION_CHECKLIST.md` |
+
+If you're not sure which tier you're in, ask: "if this breaks at 3am, does
+it page someone who isn't me?" If yes, it's Production tier regardless of
+how small the change looks.
+
+The minimalism principles elsewhere in this doc ("trust internal code,"
+"don't add error handling for scenarios that can't happen," "three
+similar lines don't need an abstraction") apply at every tier — rigor
+tiers control *how much verification* you add, not whether you're allowed
+to over-engineer the solution itself.
+
+## 🚨 CRITICAL: Test-Driven Development & 80% Coverage Requirement (Production tier)
+
+**THESE ARE NON-NEGOTIABLE REQUIREMENTS AT THE PRODUCTION TIER:**
 
 ### TDD is Mandatory
 - ✅ Write tests BEFORE code (always Red-Green-Refactor)
@@ -24,7 +52,7 @@ Core principles for writing clear, maintainable, and consistent code across all 
 - ✅ **Lint must pass** – No errors, no suppressions without justification
 - ✅ **Fix inherited failures** – Even if someone else broke a test, YOU fix it
 
-**Code with coverage < 80% WILL NOT MERGE. This is a hard requirement.**
+**At Production tier, code with coverage < 80% WILL NOT MERGE. This is a hard requirement at that tier — see Rigor Tiers above.**
 
 ### Definition of "Done"
 Work is NOT done until:
@@ -34,6 +62,10 @@ Work is NOT done until:
 4. ✅ All edge cases tested
 5. ✅ All inherited test failures fixed
 6. ✅ **For Web UI: Playwright tests with screenshot verification completed**
+7. ✅ **All work committed to a feature branch** (never trunk)
+8. ✅ **Branch pushed to remote** with tracking (`git push -u origin branch-name`)
+9. ✅ **Pull request created** with clear title, body, and checklist
+10. ✅ **PR link is provided** — no work is complete without a PR
 
 ### Web UI Testing Requirement (MANDATORY)
 
@@ -45,7 +77,7 @@ Work is NOT done until:
 - ✅ **Test responsive design** (mobile, tablet, desktop)
 - ✅ **No visual regressions** (screenshots must match expected appearance)
 
-**UI work without Playwright + screenshot verification WILL NOT MERGE.**
+**At Production tier, UI work without Playwright + screenshot verification WILL NOT MERGE. See Rigor Tiers above.**
 
 See: `patterns/testing/PLAYWRIGHT_UI_TESTING.md` for complete Playwright guide
 
@@ -62,7 +94,7 @@ See: `patterns/testing/PLAYWRIGHT_UI_TESTING.md` for complete Playwright guide
 - ✅ **No sensitive data** (passwords, secrets, PII removed/redacted)
 - ✅ **Accessible for debugging** (logs must enable root cause analysis)
 
-**Code without proper logging WILL NOT MERGE.**
+**At Production tier, code without proper logging WILL NOT MERGE. See Rigor Tiers in `.github/CODING_GUIDELINES.md`.**
 
 See: `patterns/logging/` for complete logging framework
 
@@ -116,10 +148,10 @@ If yes, do that instead. Comments are a code smell pointing to unclear logic.
 
 ### Specific Practices
 
-- **Avoid `any` or `unknown` types** – Use proper types; if you can't type something, the code design needs improvement.
+- **Avoid `any`** – Use proper types; if you can't type something, the code design needs improvement. `unknown` is not the same problem as `any` — it's TypeScript's type-safe alternative (forces a check/narrow before use) and is the *correct* tool when a value's type genuinely can't be known at the call site (e.g. parsing untrusted JSON). Don't ban it alongside `any`.
 - **Import management** – Never duplicate imports; reuse existing ones if available. Don't leave blank lines where imports were removed.
 - **Use idiomatic patterns** – Before creating new structures, look for existing test patterns and utilities in the codebase.
-- **One assertion per test** – Prefer snapshot-style assertions (`assert.deepStrictEqual`) over multiple precise assertions—they're easier to understand and update.
+- **One behavior per test, one assertion where possible** – When a test's expected outcome is a single composite value (e.g. an object with several fields), assert it in one snapshot-style comparison (`assert.deepStrictEqual`) rather than one `assert` per field — same behavior, one assertion, easier to update. When two checks verify genuinely independent behaviors (e.g. "creation succeeds" vs. "duplicate email is rejected"), that's two tests, not one test with two assertions. See `patterns/testing/TDD.md`'s "Testing Multiple Things at Once" example for the worked case.
 - **Prefer standard async patterns** – Use `async`/`await` over `.then()`/`.catch()` chains in languages that support both.
 
 ## Type Safety
@@ -201,12 +233,24 @@ for (let i = 0; i < n; i++) doSomething();
 
 ### Lifecycle Management
 
-For languages with explicit resource management (Rust, C++, or languages with GC):
-- **Register disposables immediately** after creation
-- Use helpers like `DisposableStore`, `MutableDisposable`, or `this._register()`
-- **Never register a disposable to containing class** if the object is created in a repeatedly-called method (causes memory leaks)
-  - Return `IDisposable` and let caller register it
-- **File watching:** Prefer correlated file watchers (via service) to shared ones
+For resources that need explicit cleanup (file handles, sockets, timers,
+subscriptions, watchers — not memory, which the GC/borrow checker already
+handles):
+- **Tie cleanup to a scope, not to manual bookkeeping.** Use your
+  language's native mechanism: `with` / context managers (Python),
+  `using` / `IDisposable` (C#), RAII destructors (C++/Rust), `defer`
+  (Go), `try-with-resources` (Java). Prefer these over a hand-rolled
+  registry of things to clean up later.
+- **If you do need a registry** (e.g. a component that owns several
+  subscriptions with the same lifetime), create it in the constructor and
+  dispose it in one place — don't scatter cleanup calls across the class.
+- **Never accumulate disposables on a long-lived owner** for objects
+  created inside a method that runs repeatedly (a request handler, a
+  render loop) — that's a leak. Return the resource/handle to the caller
+  that actually owns its lifetime instead.
+- **File watching:** prefer one watcher instance shared/injected via a
+  service over each component creating its own — cheaper and avoids
+  duplicate events.
 
 ## Refactoring & Code Review Guidelines
 
@@ -232,7 +276,7 @@ For languages with explicit resource management (Rust, C++, or languages with GC
 
 ## Language-Specific Guidelines
 
-For detailed language-specific conventions, see `languages/{language-name}/CONVENTIONS.md` in awesome-harness.
+For detailed language-specific conventions, see `languages/{language-name}/CONVENTIONS.md` in agentharness.
 
 ## Learning & Iteration
 
@@ -245,5 +289,3 @@ When you discover a violation of these guidelines:
 ---
 
 **Philosophy:** These guidelines aim for code that is clear, maintainable, and consistent. When in doubt, choose clarity. When guidelines conflict, defer to your language's idioms and your project's established patterns.
-
-**Last Updated:** 2026-07-11
