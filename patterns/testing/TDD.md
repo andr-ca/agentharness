@@ -36,20 +36,6 @@ With TDD:
 - ✅ Technical debt is prevented (tests enforce contracts)
 - ✅ New developers can change code with confidence
 
-### Real-World Impact
-
-**Before TDD:**
-- 10 bugs per 1000 lines of code
-- 2 weeks fixing production issues
-- 3 failed deployments per month
-- Fear of changing code
-
-**After TDD:**
-- <1 bug per 1000 lines of code
-- 2 hours fixing issues (quick feedback from tests)
-- 0 failed deployments (tests catch issues first)
-- Confidence in changes
-
 ## The TDD Cycle (Red-Green-Refactor)
 
 ### Step 1: RED – Write Failing Test
@@ -97,8 +83,7 @@ class User:
         self.email = email
 
 def authenticate(email, password):
-    # Check credentials against database
-    if self._validate_credentials(email, password):
+    if _validate_credentials(email, password):
         return User(email)
     return None
 
@@ -644,7 +629,7 @@ When reviewing PRs, check:
 
 | Benefit | Impact |
 |---------|--------|
-| **Fewer bugs** | Ship with ~99% fewer critical bugs |
+| **Fewer bugs** | Regressions caught by tests before merge |
 | **Faster development** | Catch bugs during dev, not in production |
 | **Better design** | Code must be testable = clean architecture |
 | **Confidence** | Safe refactoring, safe changes |
@@ -707,15 +692,11 @@ addopts = [
 
 ### Go
 
-```bash
-#!/bin/bash
-# scripts/test.sh
-go test ./... -cover -coverprofile=coverage.out
-if [ $(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//') -lt 80 ]; then
-    echo "Coverage below 80%"
-    exit 1
-fi
-```
+Coverage percentages from `go tool cover` are floats (e.g. `87.5%`), so a
+plain `-lt` integer comparison breaks with "integer expression expected".
+See `COVERAGE_REQUIREMENTS.md#measuring-coverage` for the working
+`bc`-based comparison — that's the canonical version; don't duplicate a
+second copy here that can drift out of sync.
 
 ## Resources
 

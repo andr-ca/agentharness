@@ -48,20 +48,6 @@ This is non-negotiable:
 - ✅ User issues verifiable (activity logs)
 - ✅ System health monitored (telemetry)
 
-### Real-World Impact
-
-**Without Logging:**
-- 8 hours debugging production issue
-- Root cause never found
-- Same issue happens again next month
-- Users lose trust
-
-**With Logging:**
-- 15 minutes to find root cause
-- Fixed immediately
-- Prevention prevents recurrence
-- Users have confidence
-
 ---
 
 ## Logging Architecture

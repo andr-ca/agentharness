@@ -38,26 +38,13 @@ This means:
 
 ### What Playwright Solves
 
-- ✅ Test actual browser behavior (real Chrome, Firefox, Safari)
+- ✅ Test actual browser engines (Chromium, Firefox, WebKit — the engine behind Safari)
 - ✅ Catch visual regressions automatically
 - ✅ Verify responsiveness across screen sizes
 - ✅ Test user workflows end-to-end
 - ✅ Screenshot comparison detects visual bugs
 - ✅ Document expected behavior with screenshots
 
-### Real-World Impact
-
-**Without Playwright:**
-- 10 UI bugs per release
-- 2 weeks debugging visual issues
-- 5 emergency UI hotfixes per month
-- Users report broken layouts
-
-**With Playwright:**
-- <1 UI bug per release
-- 1 hour investigating any issues
-- 0 emergency UI fixes (caught in testing)
-- Screenshot diffs catch problems immediately
 
 ---
 
@@ -69,11 +56,11 @@ This means:
 # Install Playwright
 npm install --save-dev @playwright/test
 
-# Install browsers
+# Install browser binaries (Chromium, Firefox, WebKit)
 npx playwright install
 
-# Initialize Playwright config
-npx playwright install
+# Scaffold playwright.config.ts, example tests, and CI workflow
+npm init playwright@latest
 ```
 
 ### Project Structure
@@ -613,7 +600,7 @@ npx playwright show-report
 ✅ **Before Starting UI Work:**
 - [ ] Playwright is set up in project
 - [ ] playwright.config.ts is configured
-- [ ] Browser support list defined (Chrome, Firefox, Safari, mobile)
+- [ ] Browser support list defined (Chromium, Firefox, WebKit, mobile viewports)
 - [ ] Screenshot directory configured
 
 ✅ **During UI Development:**
@@ -630,7 +617,7 @@ npx playwright show-report
 - [ ] All screenshots reviewed and approved
 - [ ] No visual regressions
 - [ ] Mobile responsiveness verified
-- [ ] Cross-browser tested (Chrome, Firefox, Safari)
+- [ ] Cross-browser tested (Chromium, Firefox, WebKit)
 - [ ] Baseline screenshots committed
 - [ ] Test coverage >= 80%
 - [ ] HTML report shows all tests passing

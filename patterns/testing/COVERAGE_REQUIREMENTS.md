@@ -478,7 +478,7 @@ When reviewing code, verify:
 
 | Aspect | Benefit |
 |--------|---------|
-| **Bug Prevention** | ~95% of bugs prevented before production |
+| **Bug Prevention** | Regressions caught before merge instead of in production |
 | **Refactoring Safety** | Can confidently change code |
 | **Documentation** | Tests show how code works |
 | **Design Quality** | Testable code is better designed |
