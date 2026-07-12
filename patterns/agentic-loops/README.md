@@ -35,7 +35,7 @@ def agentic_loop(task: str, max_iterations: int = 10):
         
         # 4. Check: are we done?
         if is_complete(state):
-            return state["result"]
+            return state["last_result"]
     
     raise TimeoutError("Agent did not complete within max iterations")
 ```
@@ -44,21 +44,17 @@ def agentic_loop(task: str, max_iterations: int = 10):
 
 ```python
 import json
-from typing import Any, Dict, List
-from dataclasses import dataclass
+from typing import Any, Callable, Dict, List, Optional
+from dataclasses import dataclass, field
 
 @dataclass
 class AgentState:
     task: str
-    messages: List[Dict[str, str]]  # Conversation history
-    current_action: str = None
+    messages: List[Dict[str, str]] = field(default_factory=list)  # Conversation history
+    current_action: Optional[str] = None
     iteration: int = 0
     max_iterations: int = 10
-    tools_called: List[str] = None
-    
-    def __post_init__(self):
-        if self.tools_called is None:
-            self.tools_called = []
+    tools_called: List[str] = field(default_factory=list)
 
 class Agent:
     def __init__(self, model, tools: Dict[str, Callable], logger):

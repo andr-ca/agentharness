@@ -134,9 +134,12 @@ from typing import Callable, TypeVar
 
 T = TypeVar('T')
 
-def retry(func: Callable[..., T], max_attempts: int = 3, 
-          backoff_base: float = 1.0) -> T:
+def retry(func: Callable[..., T], max_attempts: int = 3,
+          backoff_base: float = 2.0) -> T:
     """Retry function with exponential backoff."""
+    if max_attempts < 1:
+        raise ValueError("max_attempts must be at least 1")
+
     last_error = None
     
     for attempt in range(max_attempts):
@@ -146,7 +149,7 @@ def retry(func: Callable[..., T], max_attempts: int = 3,
             last_error = e
             if attempt < max_attempts - 1:
                 wait_time = backoff_base ** attempt
-                logger.warn(f"Retry {attempt + 1}/{max_attempts}", 
+                logger.warning(f"Retry {attempt + 1}/{max_attempts}", 
                            extra={"wait_seconds": wait_time})
                 time.sleep(wait_time)
         except (ValueError, KeyError) as e:
