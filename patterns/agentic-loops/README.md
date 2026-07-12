@@ -35,7 +35,7 @@ def agentic_loop(task: str, max_iterations: int = 10):
         
         # 4. Check: are we done?
         if is_complete(state):
-            return state["result"]
+            return state["last_result"]
     
     raise TimeoutError("Agent did not complete within max iterations")
 ```
@@ -43,14 +43,25 @@ def agentic_loop(task: str, max_iterations: int = 10):
 ### Production Loop
 
 ```python
+import inspect
 import json
-from typing import Any, Dict, List
-from dataclasses import dataclass
+from typing import Any, Callable, Dict, List
+from dataclasses import dataclass, field
+
+def _validate_arguments(fn: Callable, arguments: Dict[str, Any]) -> None:
+    """Fail before calling `fn` if a required parameter is missing."""
+    sig = inspect.signature(fn)
+    missing = [
+        name for name, param in sig.parameters.items()
+        if param.default is inspect.Parameter.empty and name not in arguments
+    ]
+    if missing:
+        raise ValueError(f"Missing required arguments: {missing}")
 
 @dataclass
 class AgentState:
     task: str
-    messages: List[Dict[str, str]]  # Conversation history
+    messages: List[Dict[str, Any]] = field(default_factory=list)  # Conversation history
     current_action: str = None
     iteration: int = 0
     max_iterations: int = 10
@@ -68,7 +79,9 @@ class Agent:
     
     def run(self, task: str) -> Dict[str, Any]:
         """Run agent loop with error handling and observability."""
-        state = AgentState(task=task)
+        # Seed the conversation with the task — without this the model
+        # is called with an empty history and never sees what it's for.
+        state = AgentState(task=task, messages=[{"role": "user", "content": task}])
         
         try:
             while state.iteration < state.max_iterations:
@@ -99,6 +112,12 @@ class Agent:
                     }
                 
                 state.current_action = action["name"]
+                # The model's response identifies which call this is
+                # (OpenAI: tool_calls[i].id, Anthropic: content block id).
+                # Without threading it through, a provider that supports
+                # concurrent/parallel tool calls in one turn can't tell
+                # which result answers which call.
+                call_id = action.get("id")
                 
                 # 3. Act: call tool
                 try:
@@ -106,28 +125,42 @@ class Agent:
                     if not tool_fn:
                         raise ValueError(f"Unknown tool: {action['name']}")
                     
-                    tool_result = tool_fn(**action["arguments"])
+                    # Reject missing required arguments against the
+                    # tool's own signature before calling it, rather
+                    # than letting a malformed call surface as a bare
+                    # TypeError from Python's own argument binding.
+                    arguments = action.get("arguments", {})
+                    _validate_arguments(tool_fn, arguments)
+                    
+                    tool_result = tool_fn(**arguments)
                     state.tools_called.append(action["name"])
                     
                 except Exception as e:
-                    self.logger.error(f"Tool error", extra={
+                    self.logger.error("Tool error", extra={
                         "tool": action["name"],
+                        "call_id": call_id,
                         "error": str(e),
                         "iteration": state.iteration,
                     })
                     tool_result = f"Error: {str(e)}"
                 
-                # 4. Observe: add result to conversation
+                # 4. Observe: add result to conversation. Use a "tool"
+                # role with the call id, not a plain "user" message — the
+                # exact shape is provider-specific (OpenAI wants
+                # {"role": "tool", "tool_call_id": ..., "content": ...};
+                # Anthropic wants a "tool_result" content block on a user
+                # message), so translate this generic form at the
+                # self.model boundary rather than hard-coding one API.
                 state.messages.append({
-                    "role": "user",
-                    "content": json.dumps({
-                        "tool": action["name"],
-                        "result": tool_result,
-                    })
+                    "role": "tool",
+                    "tool_call_id": call_id,
+                    "name": action["name"],
+                    "content": tool_result if isinstance(tool_result, str) else json.dumps(tool_result),
                 })
                 
                 self.logger.info("Tool executed", extra={
                     "tool": action["name"],
+                    "call_id": call_id,
                     "iteration": state.iteration,
                 })
         
@@ -236,11 +269,17 @@ tools = {
 Agent observes its own actions and corrects course if needed:
 
 ```python
-def run_with_reflection(agent, task: str):
+def run_with_reflection(agent, task: str, max_iterations: int = 5, max_attempts: int = 15):
     """Run agent with per-iteration reflection."""
-    state = {"task": task, "reflections": []}
+    state = {"task": task, "reflections": [], "iteration": 0}
+    attempts = 0
     
-    while state["iteration"] < 5:
+    # Loop on `attempts`, not `iteration` — iteration only advances on
+    # progress, so gating the loop on it alone never stops a reflection
+    # that keeps reporting is_progress=False.
+    while state["iteration"] < max_iterations and attempts < max_attempts:
+        attempts += 1
+        
         # Execute action
         action = agent.plan(state)
         result = execute(action)
@@ -308,7 +347,12 @@ def run_with_branching(agent, task: str):
 
 ### Pattern: Consensus / Voting
 
-Multiple agents vote on next action:
+Multiple agents vote on next action. This is majority voting, not
+independent validation — if the agents share a model, prompt, or
+training data bias, they tend to make the *same* mistake together, and
+a unanimous wrong vote looks identical to a unanimous right one. Don't
+present this as a correctness guarantee; it catches independent,
+uncorrelated errors, not systematic ones.
 
 ```python
 def multi_agent_consensus(agents: List[Agent], task: str):
@@ -377,7 +421,9 @@ class LoggingAgent(Agent):
 
 ## Further Reading
 
-- OpenAI Assistants API: Tool use and function calling
+- OpenAI Responses API: Tool use and function calling (the Assistants
+  API is deprecated, with a sunset scheduled for August 26, 2026 — see
+  OpenAI's [migration guide](https://developers.openai.com/api/docs/guides/migrate-to-responses))
 - LangChain: Agent orchestration frameworks
 - ReAct: Reasoning and Acting in Language Models (Yao et al.)
 - Anthropic Agents: Building agentic systems with Claude
