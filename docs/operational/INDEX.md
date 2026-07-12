@@ -20,7 +20,13 @@ Items currently under development:
 
 Documents ready to be promoted to harness or archived:
 
-- (none yet)
+- `reviews/fable-review.md` — full repo review, 2026-07-11. Findings
+  consolidated into MANIFEST.md/ROADMAP.md/CHANGELOG.md and the P0/P1/P2
+  fixes across the repo; kept here as the historical record rather than
+  archived, since `reviews/fable-review-status.md` actively references it.
+- `reviews/fable-review-status.md` — disposition of all 30 review
+  recommendations. Stays active until the two partial items (logging
+  config loader, sample integration project) are picked up.
 
 ## 📚 Archives
 

@@ -28,7 +28,7 @@ jobs:
       - name: Install bats-core
         run: |
           git clone --depth 1 https://github.com/bats-core/bats-core.git /tmp/bats-core
-          /tmp/bats-core/install.sh /usr/local
+          sudo /tmp/bats-core/install.sh /usr/local
       - name: Run hook tests
         run: bats .github/hooks/tests/
 
@@ -37,8 +37,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check internal markdown links
-        uses: gaurav-nelson/github-action-markdown-link-check@v1
+        uses: lycheeverse/lychee-action@v2
         with:
-          use-quiet-mode: 'yes'
-          use-verbose-mode: 'yes'
-          config-file: '.github/workflows/markdown-link-check-config.json'
+          args: >-
+            --no-progress
+            --offline
+            --exclude-mail
+            '**/*.md'
+          fail: true
