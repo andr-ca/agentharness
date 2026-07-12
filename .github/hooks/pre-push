@@ -1,0 +1,92 @@
+#!/bin/bash
+# ============================================================================
+# Pre-push Hook: Run the test suite and enforce >=80% coverage
+# ============================================================================
+#
+# Installed the same way as prevent-trunk-commit: via
+#   git config core.hooksPath .github/hooks
+# or `tools/setup/harness-link.sh <target> --with-hook` in a consuming
+# project. git invokes this file (named exactly `pre-push`) directly —
+# no dispatcher needed, unlike the pre-commit hook.
+#
+# Blocks the push if any test suite fails, or if Python coverage drops
+# below 80% (this repo's own CODING_GUIDELINES.md Production-tier bar —
+# see patterns/testing/COVERAGE_REQUIREMENTS.md).
+#
+# Missing tooling (bats/pytest) fails the push rather than silently
+# skipping — the point of this hook is enforcement, not a best-effort
+# reminder. Install instructions are printed when something's missing.
+# ============================================================================
+
+set -euo pipefail
+
+HOOKS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$HOOKS_DIR/../.." && pwd)"
+cd "$REPO_ROOT"
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+NC='\033[0m'
+
+COVERAGE_MIN=80
+FAILED=0
+
+echo "Running pre-push checks (test suite + ${COVERAGE_MIN}%+ coverage)..."
+echo ""
+
+# ----------------------------------------------------------------------------
+# Bats test suites
+# ----------------------------------------------------------------------------
+# .github/hooks/tests/ includes pre-push.bats, which tests this very script
+# — guard against it recursively re-invoking itself forever.
+export AGENTHARNESS_PRE_PUSH_RUNNING=1
+
+if command -v bats >/dev/null 2>&1; then
+    for suite in .github/hooks/tests/ tools/tests/harness-link.bats; do
+        [ -e "$suite" ] || continue
+        echo "-> bats: $suite"
+        if ! bats "$suite"; then
+            FAILED=1
+        fi
+    done
+else
+    echo -e "${RED}✗ bats not installed — cannot run shell test suites.${NC}"
+    echo "  Install: git clone --depth 1 https://github.com/bats-core/bats-core.git /tmp/bats-core && sudo /tmp/bats-core/install.sh /usr/local"
+    FAILED=1
+fi
+
+echo ""
+
+# ----------------------------------------------------------------------------
+# Python unit tests with coverage gate
+# ----------------------------------------------------------------------------
+# New Python test suites should be added to this list as they're created.
+PYTHON_SUITES=(
+    "patterns/logging:test_config_loader.py:config_loader"
+)
+
+if command -v python3 >/dev/null 2>&1 && python3 -m pytest --version >/dev/null 2>&1; then
+    for entry in "${PYTHON_SUITES[@]}"; do
+        IFS=':' read -r dir test_file module <<< "$entry"
+        [ -e "$REPO_ROOT/$dir/$test_file" ] || continue
+        echo "-> pytest: $dir/$test_file (>=${COVERAGE_MIN}% coverage required)"
+        if ! (cd "$dir" && python3 -m pytest "$test_file" --cov="$module" --cov-fail-under="$COVERAGE_MIN" -q); then
+            FAILED=1
+        fi
+    done
+else
+    echo -e "${RED}✗ pytest not installed — cannot run Python test suite.${NC}"
+    echo "  Install: pip install pytest pytest-cov pyyaml"
+    FAILED=1
+fi
+
+echo ""
+
+if [ "$FAILED" -ne 0 ]; then
+    echo -e "${RED}✗ Pre-push checks failed. Push blocked.${NC}"
+    echo "Fix the failures above. Don't bypass with --no-verify — see COMMITTING_GUIDELINES.md."
+    exit 1
+fi
+
+echo -e "${GREEN}✓ All pre-push checks passed (tests clean, coverage >= ${COVERAGE_MIN}%).${NC}"
+exit 0
