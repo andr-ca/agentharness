@@ -78,7 +78,7 @@ exit 0
 ### Format
 
 ```
-{type}/{scope}/{description}
+{type}/{description}
 ```
 
 ### Branch Type Prefixes

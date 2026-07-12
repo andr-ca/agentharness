@@ -24,13 +24,19 @@ wrong." Still, two things are worth stating explicitly.
 
 ## If you find a bug in the hook script or setup script
 
-`.github/hooks/prevent-trunk-commit` and `tools/setup/harness-link.sh`
-are the only executables in this repo. Neither has elevated privileges
-or network access, but a bug in either could still do the wrong thing to
+The executables that get installed into a consuming project are
+`.github/hooks/{prevent-trunk-commit,pre-commit,pre-push}` and
+`tools/setup/harness-link.sh` (see [MANIFEST.md](MANIFEST.md) for the
+complete current list, including this repo's own `tools/check.sh`,
+`tools/verify-manifest.sh`, and `tools/verify-content-quality.py`, which
+never leave this repo). None has elevated privileges, and only
+`harness-link.sh --mode submodule` ever reaches the network (to add the
+submodule) — but a bug in any of them could still do the wrong thing to
 a repo it's installed into (e.g. blocking legitimate commits, or
 mis-merging a `.gitignore`). Open an issue or PR; there's no formal
 disclosure process needed for a repo at this scale — just fix it and
-add a test to `.github/hooks/tests/` covering the case that broke.
+add a test to `.github/hooks/tests/` or `tools/tests/` covering the case
+that broke.
 
 ## Reporting
 

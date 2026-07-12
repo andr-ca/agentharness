@@ -31,13 +31,15 @@ for these frameworks. `frameworks/react/CONVENTIONS.md` is implemented
 `languages/typescript/CONVENTIONS.md` so the language guide isn't
 React-specific.
 
-### `languages/{typescript,go,rust,...}/`
-Additional language convention guides, following the shape of the existing
-`languages/python/`. Only Python exists today.
+### `languages/{rust,java,...}/`
+Additional language convention guides, following the shape of the
+existing `languages/{python,typescript,go}/`. Python, TypeScript, and Go
+are implemented; Rust and others are not started.
 
-### `patterns/{agentic-loops,error-handling,api-design,accessibility}/`
+### `patterns/{api-design,accessibility}/`
 Additional pattern categories, following the shape of the existing
-`patterns/testing/` and `patterns/logging/`. Only those two exist today.
+`patterns/{testing,logging,agentic-loops,error-handling,profiles}/`.
+Those five exist today; API design and accessibility are not started.
 
 A genuine cross-framework accessibility pattern doc is a real gap — an
 earlier draft (`accessibility.instructions.md`) was removed because it
@@ -48,9 +50,12 @@ written from ARIA/WCAG fundamentals, not adapted from one codebase's
 internal APIs.
 
 ### `tools/{lint,build,deploy}/`
-Standalone utility scripts. Only the category README exists today; no
-tools have been built. The one real script in the repo is
-`.github/hooks/prevent-trunk-commit` and `tools/setup/harness-link.sh`.
+Standalone per-language lint/build/deploy utility scripts — not started.
+This repo's own tooling is implemented, though: `tools/setup/harness-link.sh`
+(lifecycle CLI), `tools/check.sh` (single local verification entrypoint),
+`tools/verify-manifest.sh`, and `tools/verify-content-quality.py`, plus
+`.github/hooks/{prevent-trunk-commit,pre-push}`. See
+[MANIFEST.md](MANIFEST.md) for the complete, current list.
 
 ### `.github/workflows/`
 Reusable CI workflows for consuming projects. Not started. This repo's own
@@ -61,9 +66,10 @@ Implemented: `.github/dependabot.yml` (Go modules + GitHub Actions updates)
 and `.github/CODEOWNERS` (review routing for framework/GitHub config areas).
 
 ### Claude Code Skills (`.claude/skills/`)
-Implemented: `committing`, `branching`, `python-conventions` with full
-frontmatter, loading on demand. These are the initial high-value skills; more
-language/pattern skills can follow the same template.
+Implemented: `committing`, `branching`, `python-conventions`,
+`error-handling`, `agentic-loops`, `audit-review-followup`, each with
+full frontmatter, loading on demand. More language/pattern skills can
+follow the same template.
 
 ## Explicitly Deferred / Needs a Decision
 
