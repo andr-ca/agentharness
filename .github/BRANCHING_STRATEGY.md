@@ -1,6 +1,6 @@
 ---
 description: Comprehensive git branching strategy, prefixes, worktrees, and gitignore guidelines
-applyTo: all projects using awesome-harness
+applyTo: all projects using agentharness
 ---
 
 # Branching Strategy
@@ -334,303 +334,45 @@ Your `.gitignore` should exclude:
 1. **Worktree directories** (if kept at project root)
 2. **IDE and editor files**
 3. **OS files**
-4. **Dependencies**
+4. **Installed dependencies** (`node_modules/`, `venv/`, etc. — not lock files)
 5. **Build artifacts**
-6. **Environment variables**
+6. **Environment variables** (`.env` and its variants — not `.env.sample`)
 7. **Temporary files**
-8. **Lock files** (project-specific choice)
+
+Lock files (`package-lock.json`, `Gemfile.lock`, `go.sum`, …) and version-pin
+files (`.nvmrc`, `.python-version`, …) are **committed**, not ignored — they
+make builds reproducible across machines and CI.
 
 ### Comprehensive .gitignore Template
 
-```gitignore
-# ============================================================================
-# WORKTREES
-# ============================================================================
-# Git worktrees (if stored in project)
-.worktrees/
-*.worktree
+Don't duplicate the template here — it drifts. The canonical, maintained
+version lives at `.github/.gitignore.template`. Copy it into your project:
 
-# ============================================================================
-# IDE & EDITORS
-# ============================================================================
-# VSCode
-.vscode/
-*.code-workspace
-.history/
-
-# JetBrains (IntelliJ, PyCharm, etc.)
-.idea/
-*.iml
-*.iws
-*.ipr
-.DS_Store
-
-# Sublime Text
-*.sublime-project
-*.sublime-workspace
-
-# Vim
-.vim/
-*.swp
-*.swo
-*~
-.*.swp
-
-# Emacs
-*~
-\#*\#
-.\#*
-
-# Visual Studio
-.vs/
-.visualstudiocode/
-
-# ============================================================================
-# OPERATING SYSTEM
-# ============================================================================
-# macOS
-.DS_Store
-.AppleDouble
-.LSOverride
-._*
-.Spotlight-V100
-.Trashes
-.VolumeIcon.icns
-.com.apple.timemachine.donotpresent
-
-# Windows
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-$RECYCLE.BIN/
-*.lnk
-
-# Linux
-.directory
-.nfs*
-
-# ============================================================================
-# DEPENDENCIES
-# ============================================================================
-# Node.js
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.npm
-package-lock.json    # Or commit if using npm exclusively
-yarn.lock            # Or commit if using yarn exclusively
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-pip-wheel-metadata/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-venv/
-ENV/
-env/
-.venv
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Ruby
-Gemfile.lock
-vendor/bundle/
-
-# Java
-target/
-*.jar
-*.class
-.gradle/
-
-# Go
-vendor/
-*.o
-*.a
-*.so
-*.dylib
-
-# ============================================================================
-# BUILD & COMPILATION
-# ============================================================================
-dist/
-build/
-out/
-*.o
-*.so
-*.dylib
-*.dll
-*.exe
-
-# Language-specific
-out/
-target/
-.gradle
-build/
-*.pyc
-*.pyo
-
-# ============================================================================
-# ENVIRONMENT & SECRETS
-# ============================================================================
-# Environment variables (ALWAYS .gitignore!)
-.env
-.env.local
-.env.*.local
-.env.development.local
-.env.test.local
-.env.production.local
-.env.*.local
-!.env.example    # Commit the template, not secrets
-
-# Secrets and credentials
-*.pem
-*.key
-*.key.pub
-id_rsa*
-id_dsa*
-*.p8
-*.p12
-*.pfx
-secrets.json
-credentials.json
-
-# API keys and tokens (often in files)
-.aws/
-.ssh/
-.kube/
-.gcloud/
-
-# ============================================================================
-# TEMPORARY & CACHE FILES
-# ============================================================================
-*.tmp
-*.temp
-.tmp/
-tmp/
-.cache/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.coverage
-.nyc_output/
-coverage/
-htmlcov/
-dist-info/
-*.egg-info
-
-# ============================================================================
-# DATABASE
-# ============================================================================
-*.db
-*.sqlite
-*.sqlite3
-*.db-journal
-
-# ============================================================================
-# LOGS
-# ============================================================================
-logs/
-*.log
-npm-debug.log*
-yarn-debug.log*
-debug.log
-
-# ============================================================================
-# MISC
-# ============================================================================
-# System files
-.DS_Store
-*.swp
-*.swo
-*~
-
-# Generated files (project-specific)
-# Uncomment based on your project:
-# out/
-# dist/
-# build/
-# .next/
-# __generated__/
-
-# Platform-specific
-.metal/
-.ruby-version
-.python-version
-.nvmrc
+```bash
+cp .github/.gitignore.template your-project/.gitignore
 ```
 
-### Project-Specific Additions
+See that file for the full template and its policy notes (lock files and
+version-pin files are committed, not ignored; `.env.sample` is committed,
+`.env` is not).
 
-Add project-specific ignores to the template:
-
-```gitignore
-# ============================================================================
-# PROJECT SPECIFIC
-# ============================================================================
-# For web projects
-/dist
-/build
-.next/
-.nuxt/
-.cache/
-.vuepress/dist
-
-# For Python projects
-*.egg-info/
-.tox/
-.coverage
-htmlcov/
-
-# For compiled languages
-bin/
-obj/
-.gradle/
-
-# Generated code
-generated/
-__generated__/
-
-# Database
-*.db
-migrations/versions/  # SQLAlchemy migrations
-```
 
 ### Environment Variable Pattern
 
-Never commit `.env` but DO commit `.env.example`:
+Never commit `.env` but DO commit `.env.sample`:
 
 ```bash
 # Create sanitized example
-cp .env .env.example
+cp .env .env.sample
 
-# Remove all secrets from .env.example
+# Remove all secrets from .env.sample
 # Replace values with placeholders
 # DATABASE_URL=postgresql://localhost/db
 # API_KEY=your_api_key_here
 # SECRET_TOKEN=your_secret_token
 
 # Commit
-git add .env.example
+git add .env.sample
 git commit -m "Add environment variable template"
 
 # Ensure .env is ignored
@@ -662,36 +404,51 @@ git add -f .env  # Only if you really need to (rare)
 ### Before Pushing
 
 ```bash
-# Check for common secret patterns
-git grep -i "password\|api.key\|secret" | grep -v "\.md"
+# Check staged/unstaged diffs for common secret patterns
+git diff | grep -iE "password|api[_-]?key|secret|token" 
+git diff --cached | grep -iE "password|api[_-]?key|secret|token"
 
-# Check for large files (binary secrets)
-git rev-list --all --objects | \
-    sed -n $(git rev-list --objects --all | \
-    cut -f1 | sort -u | while read blob; do \
-    echo -n "-e $blob "; done) | \
-    awk '{print $2}' | sort -u | \
-    while read path; do \
-    git cat-file -s $(git rev-list --all -- "$path" | \
-    head -1):$path 2>/dev/null; done
+# List the 10 largest files in history (binary secrets are often oversized)
+git rev-list --objects --all |
+  git cat-file --batch-check='%(objecttype) %(objectname) %(objectsize) %(rest)' |
+  awk '/^blob/ {print $3, $4}' |
+  sort -rn | head -10
 ```
 
 ### If You Accidentally Committed Secrets
 
-**Act immediately:**
+**Act immediately — and rotate the secret regardless of whether history cleanup succeeds. A secret that touched git history must be treated as compromised.**
+
+**Preferred: BFG Repo Cleaner** (`brew install bfg` or download the jar) — much faster and safer than `filter-branch`:
 
 ```bash
-# Remove from history (BFG Repo Cleaner is easier)
-git filter-branch --tree-filter 'rm -f .env' HEAD
+# 1. Clone a fresh mirror (BFG operates on a bare mirror clone, not your working copy)
+git clone --mirror git@github.com:you/your-repo.git repo-mirror.git
+cd repo-mirror.git
 
-# Or use BFG Repo Cleaner (recommended)
-bfg --delete-files .env .git
+# 2. Delete the file by name from all of history
+bfg --delete-files .env
 
-# Force push (dangerous! coordinate with team)
-git push --force-with-lease origin main
+# 3. Clean up and push the rewritten history to every branch
+git reflog expire --expire=now --all && git gc --prune=now --aggressive
+git push --force
 
-# Rotate all secrets immediately!
+# 4. Everyone with a clone must re-clone or hard-reset — rewritten history
+#    doesn't merge cleanly with old clones.
 ```
+
+**Fallback (no BFG available): `git filter-repo`** (the modern, maintained
+replacement for `filter-branch`, which is slow and easy to misuse):
+
+```bash
+git filter-repo --path .env --invert-paths
+git push --force
+```
+
+**Either way:**
+1. Rotate the leaked secret immediately — assume it's compromised even after cleanup, since caches, forks, and CI logs may still hold the old history.
+2. Notify anyone with a clone to re-clone rather than pull.
+3. Add the file to `.gitignore` (or `!.env.sample`-style negation) so it can't be re-committed.
 
 ## 📊 Branch Lifecycle
 
@@ -758,7 +515,7 @@ git push --force-with-lease origin main
 - ❌ Have multiple worktrees on the same branch
 - ❌ Rebase public/shared branches
 
-## 🔗 Integration with awesome-harness
+## 🔗 Integration with agentharness
 
 Projects should:
 1. Apply this branching strategy to all repositories

@@ -8,7 +8,7 @@ languages: all
 
 # Test Coverage Requirements
 
-Mandatory test coverage standards for all code in awesome-harness projects.
+Mandatory test coverage standards for all code in agentharness projects.
 
 ## 🚨 CRITICAL REQUIREMENT
 

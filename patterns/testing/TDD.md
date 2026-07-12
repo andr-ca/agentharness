@@ -8,7 +8,7 @@ languages: all
 
 # Test-Driven Development (TDD)
 
-Complete guide to Test-Driven Development as a foundational practice for all code in awesome-harness projects.
+Complete guide to Test-Driven Development as a foundational practice for all code in agentharness projects.
 
 ## 🚨 CRITICAL REQUIREMENT
 

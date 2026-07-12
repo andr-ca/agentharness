@@ -1,6 +1,6 @@
 ---
 description: Guidelines for creating clean, meaningful git commits across projects
-applyTo: all projects using awesome-harness
+applyTo: all projects using agentharness
 ---
 
 # Committing Guidelines
@@ -81,7 +81,7 @@ Co-Authored-By: Name <email> (if applicable)
 ### What NOT to Commit
 
 - **Secrets** – Never commit API keys, tokens, passwords, or private credentials
-- **Environment variables** (unless `.env.example` with sanitized defaults)
+- **Environment variables** (unless `.env.sample` with sanitized defaults)
 - **Temporary files** – Build artifacts, node_modules, .DS_Store, etc.
 - **Debug code** – `console.log()`, debugger statements, commented-out code
 - **Large binary files** – Use appropriate storage for images, data files

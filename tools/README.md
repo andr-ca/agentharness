@@ -43,16 +43,16 @@ Tools can be referenced as:
 Example setup:
 ```bash
 # Make available globally
-ln -s ~/awesome-harness/tools/lint/custom-linter /usr/local/bin/lint-custom
+ln -s ~/agentharness/tools/lint/custom-linter /usr/local/bin/lint-custom
 
 # Use in package.json
 "scripts": {
-  "lint": "node ~/awesome-harness/tools/lint/custom-linter"
+  "lint": "node ~/agentharness/tools/lint/custom-linter"
 }
 
 # Use in .husky hooks
 #!/bin/bash
-~/awesome-harness/tools/lint/custom-linter
+~/agentharness/tools/lint/custom-linter
 ```
 
 ## 📝 Adding a New Tool

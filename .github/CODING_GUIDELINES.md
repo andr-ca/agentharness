@@ -1,6 +1,6 @@
 ---
 description: Universal coding guidelines for quality and consistency across projects
-applyTo: all projects using awesome-harness
+applyTo: all projects using agentharness
 ---
 
 # Coding Guidelines
@@ -236,7 +236,7 @@ For languages with explicit resource management (Rust, C++, or languages with GC
 
 ## Language-Specific Guidelines
 
-For detailed language-specific conventions, see `languages/{language-name}/CONVENTIONS.md` in awesome-harness.
+For detailed language-specific conventions, see `languages/{language-name}/CONVENTIONS.md` in agentharness.
 
 ## Learning & Iteration
 

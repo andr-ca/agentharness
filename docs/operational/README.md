@@ -1,6 +1,6 @@
 # docs/operational – Temporary & Working Documents
 
-This directory contains temporary, transient, and operational documents that support the development and maintenance of awesome-harness. Content here is **not permanent** and follows different lifecycle rules than the main harness components.
+This directory contains temporary, transient, and operational documents that support the development and maintenance of agentharness. Content here is **not permanent** and follows different lifecycle rules than the main harness components.
 
 ## 📁 Structure
 

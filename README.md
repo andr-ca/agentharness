@@ -1,137 +1,85 @@
-# awesome-harness
+# agentharness
 
-A centralized repository for maintaining coding agent skills, instructions, tools, agentic loops, hooks, and best practices across all frameworks, languages, and projects.
+A centralized repository for coding-agent instructions, conventions, and
+git/testing/logging guidelines, reused across projects instead of
+duplicated in each one.
 
-## 🎯 Purpose
+## Purpose
 
-This repository serves as a universal harness for:
+Every project accumulates its own CLAUDE.md, commit conventions, and CI
+rituals; drift between projects is real and costly. This repo is the
+single source of truth for that shared context — read once here, referenced
+(not copy-pasted-and-forgotten) from every consuming project.
 
-- **Coding Agent Skills** – Reusable Claude Code skills and agentic tools
-- **Instructions & Guidelines** – Project-agnostic best practices and conventions
-- **Tools & Utilities** – Custom scripts, helpers, and extensions
-- **Agentic Loops** – Autonomous workflows and automation patterns
-- **Hooks** – Pre/post-commit hooks, build hooks, and event handlers
-- **Configurations** – Shared configurations for various tools and frameworks
+**Status:** early. See [MANIFEST.md](MANIFEST.md) for what actually exists
+today and [ROADMAP.md](ROADMAP.md) for what's planned but not built. Don't
+trust a directory tree in prose — trust the manifest.
 
-Instead of duplicating these across multiple projects, maintain them once here and reference them in specific project repositories.
-
-## 📁 Directory Structure
+## What's here today
 
 ```
-awesome-harness/
+agentharness/
 ├── README.md                    # This file
-├── CLAUDE.md                    # Instructions for using this harness
-├── .github/                     # GitHub-specific configurations
-│   ├── workflows/              # CI/CD workflows (reusable)
-│   └── hooks/                  # GitHub hooks and automation
-├── .claude/                     # Claude Code specific assets
-│   ├── agents/                 # Custom agent definitions
-│   ├── skills/                 # Claude Code skills (superpowers)
-│   └── hooks/                  # Claude Code hooks
-├── .codex/                      # Anthropic Codex-specific configs
-├── frameworks/                  # Framework-specific harnesses
-│   ├── react/                  # React/Next.js harness
-│   ├── vue/                    # Vue/Nuxt harness
-│   ├── angular/                # Angular harness
-│   ├── django/                 # Django harness
-│   ├── express/                # Express/Node harness
-│   ├── go/                     # Go/Golang harness
-│   └── ...                     # Other frameworks
-├── languages/                   # Language-specific best practices
-│   ├── typescript/             # TypeScript conventions
-│   ├── python/                 # Python conventions
-│   ├── go/                     # Go conventions
-│   └── ...                     # Other languages
-├── patterns/                    # Architecture & design patterns
-│   ├── agentic-loops/          # Autonomous workflow patterns
-│   ├── error-handling/         # Error handling strategies
-│   ├── testing/                # Testing patterns & fixtures
-│   └── ...
-├── tools/                       # Utility scripts and tools
-│   ├── lint/                   # Custom linters & formatters
-│   ├── build/                  # Build scripts
-│   ├── deploy/                 # Deployment utilities
-│   └── ...
-├── hooks/                       # Reusable hook implementations
-│   ├── pre-commit/             # Pre-commit hook scripts
-│   ├── post-merge/             # Post-merge automations
-│   └── ...
-└── docs/                        # Additional documentation
-    ├── ARCHITECTURE.md         # Harness architecture overview
-    └── INTEGRATION.md          # How to integrate with projects
+├── CLAUDE.md                    # Agent-facing router + mandatory rules
+├── MANIFEST.md                  # Index of every real asset
+├── ROADMAP.md                   # What's planned but not built yet
+├── CHANGELOG.md                 # Release history
+├── SECURITY.md                  # Secrets-in-history procedure
+├── .github/
+│   ├── BRANCHING_STRATEGY.md
+│   ├── COMMITTING_GUIDELINES.md
+│   ├── CODING_GUIDELINES.md
+│   ├── pull_request_template.md
+│   ├── .gitignore.template
+│   ├── workflows/               # CI for this repo
+│   └── hooks/
+│       └── prevent-trunk-commit
+├── .claude/
+│   └── skills/                  # committing, branching, python-conventions
+├── languages/
+│   └── python/                  # CONVENTIONS.md, COPILOT_INSTRUCTIONS.md
+├── patterns/
+│   ├── testing/                 # TDD, coverage, Playwright, completion checklist
+│   └── logging/                 # logging standards + example config
+├── tools/
+│   └── setup/
+│       └── harness-link.sh      # One-command project integration
+└── docs/
+    ├── ARCHITECTURE.md
+    └── INTEGRATION.md
 ```
 
-## 🚀 Quick Start
+Everything else you might expect (frameworks/, more languages, more
+pattern categories, `.claude/agents/`, `.codex/`) is intentionally not
+here yet — see [ROADMAP.md](ROADMAP.md).
 
-1. **Clone this repository** in your development environment:
-   ```bash
-   git clone <repo-url> ~/coding-harness
-   ```
-
-2. **Reference in projects** – Link specific harness components to your projects:
-   - Copy relevant skills to `.claude/skills/`
-   - Import hooks in your `.githooks/` or `.husky/`
-   - Use framework-specific configs as templates
-
-3. **Read CLAUDE.md** – Understand how to effectively use this harness in your workflows
-
-## 📚 Organization by Type
-
-### Skills & Agents
-- Located in `.claude/agents/` and `.claude/skills/`
-- Each skill is self-contained with frontmatter metadata
-- Skills are tagged by domain (auth, testing, deployment, etc.)
-
-### Framework-Specific Harnesses
-- Navigate to `frameworks/{framework-name}/` for:
-  - Recommended project structure
-  - Tool configurations
-  - Common patterns and utilities
-  - Integration guides
-
-### Language-Specific Guidelines
-- Navigate to `languages/{language-name}/` for:
-  - Naming conventions
-  - Code style guidelines
-  - Idiomatic patterns
-  - Library recommendations
-
-### Patterns & Best Practices
-- General architectural patterns applicable across projects
-- Agentic loop implementations
-- Testing strategies
-- Error handling approaches
-
-## 🔗 Integration with Projects
-
-Each project can reference this harness in several ways:
+## Quick Start
 
 ```bash
-# Example: Using skills from this harness in a project
-ln -s ~/coding-harness/.claude/skills ~/.claude/skills
-
-# Example: Using hooks
-ln -s ~/coding-harness/hooks/pre-commit/.git/hooks/pre-commit .git/hooks/pre-commit
+git clone git@github.com:andr-ca/agentharness.git ~/agentharness
 ```
 
-See `docs/INTEGRATION.md` for detailed integration strategies.
+Integrate into a project with the setup script (installs skills, copies
+the gitignore template, and — if you opt in — the branch-protection hook):
 
-## 🎓 Contributing
+```bash
+~/agentharness/tools/setup/harness-link.sh /path/to/your-project
+```
 
-When adding new harnesses, skills, or patterns:
+Or by hand — see [docs/INTEGRATION.md](docs/INTEGRATION.md) for the
+symlink/copy/submodule tradeoffs.
 
-1. Follow the organizational structure above
-2. Include clear documentation and examples
-3. Add metadata/frontmatter to skills
-4. Tag with applicable frameworks/languages
-5. Document dependencies and prerequisites
-6. Create an entry in the relevant index
+## Contributing
 
-## 📝 License
+1. Check [MANIFEST.md](MANIFEST.md) — don't duplicate an existing asset.
+2. New content gets a real usage example, not just a description.
+3. Skills need frontmatter (see any file in `.claude/skills/` for the
+   shape).
+4. Add an entry to MANIFEST.md.
+5. Every change goes through a feature branch and PR — see
+   `.github/BRANCHING_STRATEGY.md`. Branch protection on `main` enforces
+   this for everyone except repo admins.
 
-This harness is maintained for personal use across projects.
+## License
 
----
-
-**Last Updated:** 2026-07-11  
-**Maintainer:** @andrey
+See [LICENSE](LICENSE).

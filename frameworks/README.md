@@ -32,13 +32,13 @@ When starting a new project in a framework:
 
 ```bash
 # Copy configuration files
-cp ~/awesome-harness/frameworks/{framework}/tsconfig.json .
+cp ~/agentharness/frameworks/{framework}/tsconfig.json .
 
 # Review patterns and conventions
-cat ~/awesome-harness/frameworks/{framework}/README.md
+cat ~/agentharness/frameworks/{framework}/README.md
 
 # Use examples as reference
-ls ~/awesome-harness/frameworks/{framework}/examples/
+ls ~/agentharness/frameworks/{framework}/examples/
 ```
 
 ## 📝 Adding a New Framework

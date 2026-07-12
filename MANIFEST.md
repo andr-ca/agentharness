@@ -1,0 +1,70 @@
+# Manifest
+
+Machine-readable-ish index of every real asset in this repo. One line per
+item: what it is, where it lives, when to read it. If it's not listed here,
+it doesn't exist yet — check [ROADMAP.md](ROADMAP.md) for planned work.
+
+Regenerate mentally whenever you add/remove a top-level doc; there's no
+generator script yet (see ROADMAP.md).
+
+## Git / Workflow
+
+| Asset | Path | Type | When to use |
+|---|---|---|---|
+| Branching strategy | `.github/BRANCHING_STRATEGY.md` | guide | Before creating a branch; naming, worktrees, gitignore, secrets cleanup |
+| Committing guidelines | `.github/COMMITTING_GUIDELINES.md` | guide | Before every commit; message format, atomic commits, agent workflow-completion rule |
+| Coding guidelines | `.github/CODING_GUIDELINES.md` | guide | Before writing code in any language; naming, comments, testing mandate, definition of done |
+| PR template | `.github/pull_request_template.md` | template | Auto-populated on PR creation |
+| gitignore template | `.github/.gitignore.template` | template | `cp` into a new project as `.gitignore` |
+| prevent-trunk-commit hook | `.github/hooks/prevent-trunk-commit` | git hook | Installed via `git config core.hooksPath .github/hooks` (done in this repo) |
+
+## Language Conventions
+
+| Asset | Path | Type | When to use |
+|---|---|---|---|
+| Python conventions | `languages/python/CONVENTIONS.md` | guide | Naming, structure, idioms for `.py` files |
+| Python agent instructions | `languages/python/COPILOT_INSTRUCTIONS.md` | guide | General-purpose agent operating principles for Python repos (not harness-specific, portable) |
+
+## Testing & Quality Patterns
+
+| Asset | Path | Type | When to use |
+|---|---|---|---|
+| Rigor tiers | `.github/CODING_GUIDELINES.md#rigor-tiers` | policy | **Read first** — decides which mandates below actually apply to the code you're writing |
+| TDD | `patterns/testing/TDD.md` | guide | Red-green-refactor workflow, one-time-only exceptions |
+| Coverage requirements | `patterns/testing/COVERAGE_REQUIREMENTS.md` | policy | Single source of truth for the 80% coverage tiers — other docs link here, don't restate |
+| Completion checklist | `patterns/testing/COMPLETION_CHECKLIST.md` | checklist | Before marking any task done |
+| Playwright UI testing | `patterns/testing/PLAYWRIGHT_UI_TESTING.md` | guide | Web UI work at Production tier only |
+
+## Logging
+
+| Asset | Path | Type | When to use |
+|---|---|---|---|
+| Logging standards | `patterns/logging/LOGGING_STANDARDS.md` | guide | Structured logging design, levels, what to log/redact |
+| logging.yaml example | `patterns/logging/logging.yaml.example` | template | Copy and adapt if you adopt the structlog-based loader pattern described in the standards doc |
+
+## Claude Code Skills
+
+| Asset | Path | Type | When to use |
+|---|---|---|---|
+| Committing | `.claude/skills/committing/SKILL.md` | skill | Loads on demand for commit-related work |
+| Branching | `.claude/skills/branching/SKILL.md` | skill | Loads on demand for branch/worktree work |
+| Python conventions | `.claude/skills/python-conventions/SKILL.md` | skill | Loads on demand when writing Python |
+
+## Setup
+
+| Asset | Path | Type | When to use |
+|---|---|---|---|
+| Harness link script | `tools/setup/harness-link.sh` | script | One-command integration into a consuming project — replaces hand-typed symlink commands |
+
+## Meta
+
+| Asset | Path | Type |
+|---|---|---|
+| Repo overview | `README.md` | doc |
+| Agent-facing router + mandatory rules | `CLAUDE.md` | doc (loaded every session — kept short on purpose) |
+| Architecture / design philosophy | `docs/ARCHITECTURE.md` | doc |
+| Integration instructions | `docs/INTEGRATION.md` | doc |
+| Planned-but-not-built components | `ROADMAP.md` | doc |
+| Release history | `CHANGELOG.md` | doc |
+| Security / secrets procedure | `SECURITY.md` | doc |
+| Prior full repo review | `fable-review.md` | historical record — dated 2026-07-11, describes the repo as `awesome-harness` before the rename |

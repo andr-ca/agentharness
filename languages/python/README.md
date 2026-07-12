@@ -256,7 +256,7 @@ def fibonacci(n):
     return fibonacci(n-1) + fibonacci(n-2)
 ```
 
-## 🔗 Integration with awesome-harness
+## 🔗 Integration with agentharness
 
 Projects using Python should:
 1. Reference `COPILOT_INSTRUCTIONS.md` in your project's `.github/copilot-instructions.md`
@@ -301,4 +301,4 @@ A: For I/O-bound operations (network, file, database). Not needed for CPU-bound 
 ---
 
 **Last Updated:** 2026-07-11  
-**Author:** awesome-harness contributors
+**Author:** agentharness contributors

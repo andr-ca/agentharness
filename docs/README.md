@@ -1,6 +1,6 @@
-# Documentation – awesome-harness Guides
+# Documentation – agentharness Guides
 
-Comprehensive guides for understanding and using the awesome-harness repository.
+Comprehensive guides for understanding and using the agentharness repository.
 
 ## 📚 Documentation Index
 
@@ -186,7 +186,7 @@ When adding new components:
 ## ❓ FAQ
 
 **Q: Where should I put my custom skills?**
-A: In your project's `.claude/skills/` directory. Reference awesome-harness skills from there.
+A: In your project's `.claude/skills/` directory. Reference agentharness skills from there.
 
 **Q: Can I modify harness components?**
 A: Yes, make copies and customize for projects. Improvements should be contributed back.
