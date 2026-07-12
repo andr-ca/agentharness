@@ -17,14 +17,14 @@ Choose one method below:
 
 ```bash
 # Link harness components into this project
-~/agentharness/tools/setup/harness-link.sh .
+~/agentharness/tools/setup/harness-link.sh . --with-hook
 
 # This creates:
-# - .claude/skills → symlinks to harness skills
-# - .github/hooks → symlinks to harness hooks
+# - .claude/skills/<name> → individual symlinks to each harness skill
+#   (.claude/skills/ itself is a real directory, not a symlink)
 # - .gitignore merged with harness template
-
-git config core.hooksPath .github/hooks  # Enable hooks
+# - core.hooksPath set to the harness's .github/hooks (via --with-hook;
+#   requires this project to already be a git repo)
 ```
 
 ### Method 2: Copy
@@ -68,10 +68,11 @@ bash verify.sh
 
 Expected output:
 ```
-✅ .claude/skills exists and has: committing, branching, python-conventions
-✅ .github/hooks exists and has: prevent-trunk-commit
-✅ Key guidelines accessible: CODING_GUIDELINES.md, COMMITTING_GUIDELINES.md
-✅ All integration methods validated
+✅ .claude/skills exists
+✅ Committing skill linked
+✅ core.hooksPath points at the harness's prevent-trunk-commit hook
+✅ Project CLAUDE.md configured
+✅ All checks passed! Integration verified.
 ```
 
 ---
@@ -83,23 +84,24 @@ sample-project/
 ├── README.md                           # This file
 ├── verify.sh                           # Validation script
 ├── .claude/
-│   └── skills/                         # Symlink or copy of harness skills
-│       ├── committing/
+│   └── skills/                         # Real dir; each skill inside is a
+│       ├── committing/                 # symlink (or copy) from the harness
 │       ├── branching/
 │       └── python-conventions/
 ├── .github/
-│   ├── hooks/                          # Symlink or copy of harness hooks
-│   │   └── prevent-trunk-commit
 │   └── CLAUDE.md                       # Project-specific instructions
 ├── docs/
-│   ├── harness/                        # (If using copy method)
-│   │   ├── CODING_GUIDELINES.md
-│   │   └── COMMITTING_GUIDELINES.md
-│   └── INTEGRATION.md                  # Links to harness docs
-├── .git/
-│   └── hooks/                          # Disabled; use core.hooksPath instead
+│   └── harness/                        # (If using copy method)
+│       ├── CODING_GUIDELINES.md
+│       └── COMMITTING_GUIDELINES.md
 └── .gitignore                          # Merged with harness template
 ```
+
+Note: `.claude/skills/` itself is never a symlink — `harness-link.sh`
+creates it as a real directory and symlinks each skill inside it. Hook
+installation (`--with-hook`) sets `core.hooksPath` directly to the
+harness's `.github/hooks`; no `.github/hooks` symlink is created in the
+target project.
 
 ---
 
@@ -129,23 +131,18 @@ This project uses the agentharness for shared conventions.
 
 ## CI Integration
 
-To keep this sample validated, add a CI job:
+This repo's own `.github/workflows/ci.yml` keeps this sample validated: the
+`sample-project-integration` job copies this directory into a scratch git
+repo, runs `harness-link.sh --with-hook` against it exactly as Method 1
+above describes, and then runs `verify.sh` — so every push exercises the
+real symlink/hook-install path, not just documentation.
+
+If you're consuming this harness from your own project (rather than working
+in this repo), adapt the same idea in your own CI:
 
 ```yaml
-# .github/workflows/integration-test.yml
-name: Integration Tests
-
-on: [push, pull_request]
-
-jobs:
-  harness-integration:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive  # If using submodule method
-      - name: Verify harness integration
-        run: bash examples/sample-project/verify.sh
+- name: Verify harness integration
+  run: bash verify.sh   # or your own project's equivalent check
 ```
 
 ---
