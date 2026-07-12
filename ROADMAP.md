@@ -75,3 +75,13 @@ language/pattern skills can follow the same template.
   `config_loader.py` with tests for loading YAML configs with `${VAR:-default}`
   environment variable interpolation. Documentation integrated into
   `LOGGING_STANDARDS.md`.
+
+- **Profile-enforcement wiring in `.github/hooks/pre-push`.** Not started.
+  `patterns/profiles/` defines `.agentharness-profile` (prototype/internal/
+  production) as a lookup a project or agent can consult, but no script
+  reads it yet. The hook currently only ever runs *this* repo's own
+  hardcoded test suites and no-ops for a consumer's push, so there's
+  nothing for a profile to gate there today. Wiring this up depends on
+  the hook (or a successor lifecycle CLI) first learning to discover and
+  run a *consumer's own* test suite — do both together, not the gate
+  alone with nothing real to enforce.

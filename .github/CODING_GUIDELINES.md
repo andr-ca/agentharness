@@ -29,6 +29,14 @@ If you're not sure which tier you're in, ask: "if this breaks at 3am, does
 it page someone who isn't me?" If yes, it's Production tier regardless of
 how small the change looks.
 
+**Selecting a tier, not just reading about it:** see
+[`patterns/profiles/`](../patterns/profiles/README.md) for this table as
+machine-readable YAML, how a project declares its tier via
+`.agentharness-profile`, the precedence order between an explicit
+request/repo-local override/profile/language add-on/generic default, and
+the current state of mechanical enforcement (none yet — advisory only,
+see that file for why and what's planned).
+
 The minimalism principles elsewhere in this doc ("trust internal code,"
 "don't add error handling for scenarios that can't happen," "three
 similar lines don't need an abstraction") apply at every tier — rigor
