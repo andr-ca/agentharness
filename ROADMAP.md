@@ -54,8 +54,8 @@ Reusable CI workflows for consuming projects. Not started. This repo's own
 CI (markdown link check, shellcheck, hook tests) is implemented in `ci.yml`.
 
 ### `dependabot.yml`, `CODEOWNERS`
-Referenced by `.github/README.md` in earlier drafts as if present. Not
-created yet.
+Implemented: `.github/dependabot.yml` (Go modules + GitHub Actions updates)
+and `.github/CODEOWNERS` (review routing for framework/GitHub config areas).
 
 ### Claude Code Skills (`.claude/skills/`)
 Implemented: `committing`, `branching`, `python-conventions` with full
@@ -64,10 +64,12 @@ language/pattern skills can follow the same template.
 
 ## Explicitly Deferred / Needs a Decision
 
-- **Sample integration project** — a tiny project that consumes this repo
-  via each integration method (symlink/copy/submodule), kept green by CI,
-  so every command in `docs/INTEGRATION.md` is validated automatically
-  rather than hand-verified. Meaningful effort; not started.
+- ~~Sample integration project~~ — **IMPLEMENTED** (item 23). Symlink
+  method (`examples/sample-project/`) is validated by CI's
+  `sample-project-integration` job, which runs `harness-link.sh --with-hook`
+  against a scratch copy and checks the result — not hand-verified. Copy and
+  submodule methods are documented in the sample's README but not
+  independently CI-checked; a smaller follow-up if that gap matters later.
 
 - ~~Logging config loader~~ — **IMPLEMENTED** (item 12). Python utility
   `config_loader.py` with tests for loading YAML configs with `${VAR:-default}`
