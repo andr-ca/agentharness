@@ -64,7 +64,7 @@ generator script yet (see ROADMAP.md).
 | Logging standards | `patterns/logging/LOGGING_STANDARDS.md` | guide | Structured logging design, levels, what to log/redact, centralized config |
 | logging.yaml example | `patterns/logging/logging.yaml.example` | template | Copy and adapt for your service; includes OTEL, cloud, file, console backends |
 | Config loader | `patterns/logging/config_loader.py` | utility | Python: load YAML config with `${VAR:-default}` env var interpolation |
-| Config loader tests | `patterns/logging/test_config_loader.py` | tests | Tests for config_loader.py; run with pytest
+| Config loader tests | `patterns/logging/test_config_loader.py` | tests | Tests for config_loader.py; run with pytest |
 
 ## Claude Code Skills
 
@@ -96,6 +96,9 @@ generator script yet (see ROADMAP.md).
 |---|---|---|---|
 | Dependency updates | `.github/dependabot.yml` | config | Automated dependency version checking (Go, GitHub Actions) |
 | Code ownership | `.github/CODEOWNERS` | config | Review routing and ownership for framework components |
+| Scheduled link check | `.github/workflows/link-check-scheduled.yml` | workflow | Weekly online external-link validation, separate from the offline PR gate (P1-08) |
+| Markdownlint config | `.markdownlint-cli2.yaml` | config | Rules enforced in CI's content-quality job; documents why purely-stylistic rules are off (P1-08) |
+| Content-quality checker | `tools/verify-content-quality.py` | script | YAML validity, skill frontmatter schema, tested-snippet syntax (P1-08) |
 
 ## Meta
 

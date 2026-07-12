@@ -68,4 +68,3 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 - Hand-written "Last Updated" date lines (18 files) — git already tracks
   this, and the hand-maintained dates had all drifted to the same value
   regardless of actual last edit.
-

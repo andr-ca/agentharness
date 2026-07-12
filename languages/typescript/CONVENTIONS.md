@@ -302,7 +302,7 @@ function process(value: string | number): string {
   return value.toString();
 }
 
-type Result<T> = 
+type Result<T> =
   | { status: 'success'; data: T }
   | { status: 'error'; error: Error };
 

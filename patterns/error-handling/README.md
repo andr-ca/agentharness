@@ -149,7 +149,7 @@ def retry(func: Callable[..., T], max_attempts: int = 3,
         raise ValueError("max_attempts must be at least 1")
 
     last_error = None
-    
+
     for attempt in range(max_attempts):
         try:
             return func()
@@ -157,13 +157,13 @@ def retry(func: Callable[..., T], max_attempts: int = 3,
             last_error = e
             if attempt < max_attempts - 1:
                 wait_time = backoff_base ** attempt
-                logger.warning(f"Retry {attempt + 1}/{max_attempts}", 
+                logger.warning(f"Retry {attempt + 1}/{max_attempts}",
                            extra={"wait_seconds": wait_time})
                 time.sleep(wait_time)
         except (ValueError, KeyError) as e:
             # Don't retry validation errors
             raise
-    
+
     raise last_error
 
 # Usage
@@ -184,21 +184,21 @@ class CircuitState(Enum):
     HALF_OPEN = "half_open"  # Testing recovery
 
 class CircuitBreaker:
-    def __init__(self, failure_threshold: int = 5, 
+    def __init__(self, failure_threshold: int = 5,
                  recovery_timeout: float = 60):
         self.failure_count = 0
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
         self.state = CircuitState.CLOSED
         self.last_failure_time = None
-    
+
     def call(self, func, *args, **kwargs):
         if self.state == CircuitState.OPEN:
             if time.time() - self.last_failure_time > self.recovery_timeout:
                 self.state = CircuitState.HALF_OPEN
             else:
                 raise RuntimeError("Circuit breaker is OPEN")
-        
+
         try:
             result = func(*args, **kwargs)
             self._on_success()
@@ -206,11 +206,11 @@ class CircuitBreaker:
         except Exception as e:
             self._on_failure()
             raise
-    
+
     def _on_success(self):
         self.failure_count = 0
         self.state = CircuitState.CLOSED
-    
+
     def _on_failure(self):
         self.failure_count += 1
         self.last_failure_time = time.time()
@@ -233,7 +233,7 @@ def get_user_with_fallback(user_id: str) -> User:
         return cache.get(user_id)
     except CacheError:
         logger.warn("Cache miss", extra={"user_id": user_id})
-    
+
     try:
         user = database.find(user_id)
         cache.set(user_id, user)  # Warm cache
@@ -306,7 +306,7 @@ def classify_error(error: Exception) -> str:
 
 def handle_error(error: Exception, operation: str):
     error_type = classify_error(error)
-    
+
     if error_type == "transient":
         retry(operation, max_attempts=3)
     elif error_type == "validation":

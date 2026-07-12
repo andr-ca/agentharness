@@ -457,7 +457,7 @@ Work is DONE when:
 - ✅ No visual regressions accepted
 - ✅ Screenshots must match expected appearance
 
-### UI Work Cannot Be Complete Without:
+### UI Work Cannot Be Complete Without
 - [ ] All Playwright tests written
 - [ ] All tests PASS
 - [ ] Coverage >= 80%
@@ -475,7 +475,7 @@ See: `PLAYWRIGHT_UI_TESTING.md` for complete UI testing guide
 
 ---
 
-## Never Claim Work Complete If:
+## Never Claim Work Complete If
 
 ❌ Tests are failing
 ❌ Coverage < 80%

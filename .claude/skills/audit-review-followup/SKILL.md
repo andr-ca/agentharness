@@ -50,6 +50,7 @@ Example: a markdown *link* checker validates `[text](path)` but not prose
 asserting a file exists — so grep for the claim text, not just dead links.
 
 ### 5. Classify every item
+
 | Bucket | Meaning |
 |---|---|
 | ✅ Verified done | Claimed done, confirmed against repo state |

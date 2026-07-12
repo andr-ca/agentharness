@@ -98,21 +98,21 @@ Fail fast when a service is down; stop hammering it.
 ```python
 class CircuitBreaker:
     CLOSED, OPEN, HALF_OPEN = "closed", "open", "half_open"
-    
+
     def __init__(self, failure_threshold=5, timeout=60):
         self.failures = 0
         self.threshold = failure_threshold
         self.timeout = timeout
         self.state = self.CLOSED
         self.last_failure = None
-    
+
     def call(self, func, *args, **kwargs):
         if self.state == self.OPEN:
             if time.time() - self.last_failure > self.timeout:
                 self.state = self.HALF_OPEN
             else:
                 raise RuntimeError("Circuit is OPEN")
-        
+
         try:
             result = func(*args, **kwargs)
             self.failures = 0  # Success: reset
@@ -136,7 +136,7 @@ def get_user_with_fallback(user_id):
         return cache.get(user_id)
     except CacheError:
         pass
-    
+
     try:
         user = database.find(user_id)
         cache.set(user_id, user)  # Warm cache

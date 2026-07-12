@@ -88,3 +88,16 @@ language/pattern skills can follow the same template.
   the hook (or a successor lifecycle CLI) first learning to discover and
   run a *consumer's own* test suite — do both together, not the gate
   alone with nothing real to enforce.
+
+- **Duplicate-policy detection in CI (part of P1-08).** Not started.
+  The rest of P1-08's content-quality gate is implemented (`git diff
+  --check`, markdownlint, YAML/frontmatter validation, tested-snippet
+  syntax checks — see `.github/workflows/ci.yml`'s `content-quality` job).
+  Automated detection of the *same rule restated with a different number*
+  across docs (this repo's actual "one source of truth per rule" bug
+  class) is deliberately deferred until after P1-10 consolidates the
+  testing/logging policy docs — building the detector first would either
+  need to hard-fail on ~15 pre-existing, legitimate cross-references
+  (e.g. "80%" appearing in files that correctly link back to
+  `COVERAGE_REQUIREMENTS.md` rather than restating the rule) or be too
+  narrowly allow-listed to catch anything new.

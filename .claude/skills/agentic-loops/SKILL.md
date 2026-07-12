@@ -67,7 +67,7 @@ class Tool:
         self.name = name
         self.fn = fn
         self.description = description
-    
+
     def call(self, **kwargs):
         """Call tool and return result as JSON string."""
         try:
@@ -105,21 +105,21 @@ Agent observes its own results and corrects course.
 def run_with_reflection(agent, task):
     """Agent reflects on each step."""
     state = {"task": task, "iteration": 0}
-    
+
     for i in range(5):
         # Execute action
         action = agent.decide(state)
         result = execute(action)
-        
+
         # Reflect on result
         reflection = agent.reflect(state, action, result)
-        
+
         if reflection["progress"]:
             state["iteration"] += 1
         else:
             # Adjust strategy based on reflection
             state["strategy"] = reflection["new_strategy"]
-    
+
     return state
 ```
 
@@ -150,7 +150,7 @@ def run_with_branching(agent, task):
     """Agent chooses execution path."""
     # Classify task
     classification = agent.classify(task)
-    
+
     if classification == "simple":
         return agent.solve_direct(task)
     elif classification == "complex":
@@ -169,20 +169,20 @@ Multiple agents vote on best action.
 def consensus_decision(agents: list, task: str):
     """Multiple agents propose; choose by vote."""
     proposals = []
-    
+
     for agent in agents:
         proposal = agent.propose(task)
         proposals.append(proposal)
-    
+
     # Vote: most common proposal wins
     votes = {}
     for prop in proposals:
         key = prop["action"]
         votes[key] = votes.get(key, 0) + 1
-    
+
     best = max(votes, key=votes.get)
     logger.info(f"Consensus: {best} (votes: {votes})")
-    
+
     return execute(best)
 ```
 
@@ -212,7 +212,7 @@ def run_with_logging(agent, task, logger):
     """Run agent with comprehensive logging."""
     trace_id = uuid.uuid4()
     logger.info("Agent start", extra={"trace_id": trace_id, "task": task})
-    
+
     state = {"messages": []}
     for iteration in range(10):
         action = agent.decide(state)
@@ -221,16 +221,16 @@ def run_with_logging(agent, task, logger):
             "iteration": iteration,
             "action": action["name"],
         })
-        
+
         result = call_tool(action)
         logger.info("Result", extra={
             "trace_id": trace_id,
             "tool": action["name"],
             "success": result["status"] == "ok",
         })
-        
+
         state["messages"].append({"role": "user", "content": json.dumps(result)})
-    
+
     logger.info("Agent done", extra={"trace_id": trace_id, "iterations": len(state["messages"])})
     return state
 ```

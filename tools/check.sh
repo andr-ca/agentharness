@@ -6,11 +6,14 @@
 # Usage: bash tools/check.sh
 #
 # Runs, in order: shellcheck (if installed), bats suites, ruff, mypy,
-# pytest with coverage gates, and MANIFEST.md verification. Stops at the
-# first failure so you fix things one at a time, same as the pre-push hook
-# (which runs a subset of this — bats + pytest — automatically).
+# pytest with coverage gates, MANIFEST.md verification, and the P1-08
+# content-quality checks (markdownlint, YAML/frontmatter/snippet
+# validation). Stops at the first failure so you fix things one at a time,
+# same as the pre-push hook (which runs a subset of this — bats + pytest —
+# automatically).
 #
-# Requires: bats, python3, pip install -r requirements-dev.txt.
+# Requires: bats, python3, pip install -r requirements-dev.txt, npx (for
+# markdownlint-cli2 — downloaded on first use if not already cached).
 # Static analysis of shell scripts (via the shellcheck tool) is optional
 # locally — CI always runs it — but installing it locally catches issues
 # this script otherwise can't.
@@ -60,5 +63,15 @@ step "pytest: agent_loop (>=80% coverage)"
 
 step "MANIFEST.md verification"
 bash tools/verify-manifest.sh
+
+if command -v npx >/dev/null 2>&1; then
+    step "markdownlint"
+    npx --yes markdownlint-cli2 "**/*.md"
+else
+    echo -e "${YELLOW}skipping markdownlint (npx not installed) — CI still runs it.${NC}"
+fi
+
+step "content quality (YAML, skill frontmatter, tested-snippet syntax)"
+python3 tools/verify-content-quality.py
 
 echo -e "\n${GREEN}All checks passed.${NC}"

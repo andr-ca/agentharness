@@ -356,7 +356,6 @@ See that file for the full template and its policy notes (lock files and
 version-pin files are committed, not ignored; `.env.sample` is committed,
 `.env` is not).
 
-
 ### Environment Variable Pattern
 
 Never commit `.env` but DO commit `.env.sample`:
