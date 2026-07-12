@@ -8,11 +8,13 @@ languages: typescript, javascript
 
 # Playwright UI Testing
 
-Mandatory testing framework for all web UI development. All UI work MUST use Playwright with visual verification.
+This applies at the **Production** rigor tier — see
+`.github/CODING_GUIDELINES.md#rigor-tiers`. Internal tools and prototypes
+can skip this; manual verification is fine there.
 
-## 🚨 CRITICAL REQUIREMENT
+## 🚨 CRITICAL REQUIREMENT (Production tier)
 
-**ALL WEB UI WORK IS MANDATORY PLAYWRIGHT + SCREENSHOT VERIFICATION**
+**ALL PRODUCTION-TIER WEB UI WORK IS MANDATORY PLAYWRIGHT + SCREENSHOT VERIFICATION**
 
 This means:
 - ✅ UI work STARTS with Playwright setup (not added later)
@@ -21,7 +23,31 @@ This means:
 - ✅ Screenshots MUST be reviewed by agent/human before approval
 - ✅ Visual regressions are caught during development, not production
 
-**UI work WITHOUT Playwright tests and screenshot verification WILL NOT MERGE.**
+**At Production tier, UI work WITHOUT Playwright tests and screenshot verification WILL NOT MERGE.**
+
+### What "Screenshot Approval" Actually Means
+
+"Agent MUST review and approve screenshots" is meaningless without a
+concrete mechanism. Here's the mechanism:
+
+1. Playwright writes screenshots to `test-results/screenshots/` (or your
+   configured path) as part of the normal test run.
+2. Before marking the task complete, the agent (or human) opens each new
+   or changed screenshot and states, in the PR description or commit
+   message, what was checked and what was seen — e.g. "Reviewed
+   `login-success.png`: form renders correctly, no layout shift, matches
+   the design spec." A screenshot that was generated but never looked at
+   does not count as reviewed.
+3. If comparing against a baseline (`--update-snapshots` workflow), the
+   diff output itself (pass/fail per snapshot) is the evidence — link or
+   paste it.
+4. CI enforces the mechanical part: the Playwright test suite (including
+   snapshot comparison) must pass. CI cannot enforce that a human actually
+   looked at a screenshot; that's why step 2's written statement exists —
+   it's the audit trail for the part CI can't check.
+
+If you can't produce that written statement, the screenshots weren't
+reviewed — go review them.
 
 ---
 

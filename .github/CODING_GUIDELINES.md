@@ -7,9 +7,37 @@ applyTo: all projects using agentharness
 
 Core principles for writing clear, maintainable, and consistent code across all languages and frameworks.
 
-## 🚨 CRITICAL: Test-Driven Development & 80% Coverage Requirement
+## Rigor Tiers
 
-**THESE ARE NON-NEGOTIABLE REQUIREMENTS:**
+The mandates below (TDD, 80% coverage, Playwright, OTEL-grade logging)
+apply in full at the **Production** tier. Applying them uniformly to
+every script or prototype produces unfollowable rules, and unfollowable
+rules teach agents (and humans) to discount all rules, including the ones
+that matter. Pick a tier before writing code, state it in the PR
+description if it's not obvious, and apply the matching column.
+
+| | Prototype / Exploration | Internal Tool | Production Service |
+|---|---|---|---|
+| **Examples** | Spike, notebook, one-off script, "does this API even work" | Internal dashboard, CLI used by the team, migration script run once | Anything customer-facing, anything another service depends on, anything that handles user data |
+| **Tests** | Optional | Cover the logic that would be expensive to get wrong; skip pure glue | Full TDD, 80% coverage minimum (see `COVERAGE_REQUIREMENTS.md`) |
+| **UI testing** | Manual is fine | Manual is fine unless it's shared broadly | Playwright + screenshot verification mandatory (see `patterns/testing/PLAYWRIGHT_UI_TESTING.md`) |
+| **Logging** | `print`/`console.log` is fine | Structured logs for anything you'll need to debug later | Full logging/telemetry standard (see `patterns/logging/`) |
+| **Error handling** | Let it crash | Handle errors at boundaries you actually hit | Handle all documented failure modes; still don't handle the impossible ones |
+| **Review** | None required | Self-review | PR + the full checklist in `COMPLETION_CHECKLIST.md` |
+
+If you're not sure which tier you're in, ask: "if this breaks at 3am, does
+it page someone who isn't me?" If yes, it's Production tier regardless of
+how small the change looks.
+
+The minimalism principles elsewhere in this doc ("trust internal code,"
+"don't add error handling for scenarios that can't happen," "three
+similar lines don't need an abstraction") apply at every tier — rigor
+tiers control *how much verification* you add, not whether you're allowed
+to over-engineer the solution itself.
+
+## 🚨 CRITICAL: Test-Driven Development & 80% Coverage Requirement (Production tier)
+
+**THESE ARE NON-NEGOTIABLE REQUIREMENTS AT THE PRODUCTION TIER:**
 
 ### TDD is Mandatory
 - ✅ Write tests BEFORE code (always Red-Green-Refactor)
@@ -24,7 +52,7 @@ Core principles for writing clear, maintainable, and consistent code across all 
 - ✅ **Lint must pass** – No errors, no suppressions without justification
 - ✅ **Fix inherited failures** – Even if someone else broke a test, YOU fix it
 
-**Code with coverage < 80% WILL NOT MERGE. This is a hard requirement.**
+**At Production tier, code with coverage < 80% WILL NOT MERGE. This is a hard requirement at that tier — see Rigor Tiers above.**
 
 ### Definition of "Done"
 Work is NOT done until:
@@ -49,7 +77,7 @@ Work is NOT done until:
 - ✅ **Test responsive design** (mobile, tablet, desktop)
 - ✅ **No visual regressions** (screenshots must match expected appearance)
 
-**UI work without Playwright + screenshot verification WILL NOT MERGE.**
+**At Production tier, UI work without Playwright + screenshot verification WILL NOT MERGE. See Rigor Tiers above.**
 
 See: `patterns/testing/PLAYWRIGHT_UI_TESTING.md` for complete Playwright guide
 
@@ -66,7 +94,7 @@ See: `patterns/testing/PLAYWRIGHT_UI_TESTING.md` for complete Playwright guide
 - ✅ **No sensitive data** (passwords, secrets, PII removed/redacted)
 - ✅ **Accessible for debugging** (logs must enable root cause analysis)
 
-**Code without proper logging WILL NOT MERGE.**
+**At Production tier, code without proper logging WILL NOT MERGE. See Rigor Tiers in `.github/CODING_GUIDELINES.md`.**
 
 See: `patterns/logging/` for complete logging framework
 

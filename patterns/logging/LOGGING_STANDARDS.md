@@ -8,22 +8,46 @@ languages: all
 
 # Logging & Telemetry Standards
 
-Comprehensive logging and telemetry requirements for all code. Logging is MANDATORY and must be verified before marking work complete.
+Comprehensive logging and telemetry requirements for **Production-tier**
+code — see `.github/CODING_GUIDELINES.md#rigor-tiers` for what applies to
+prototypes and internal tools instead.
 
-## 🚨 CRITICAL REQUIREMENT
+The examples in this doc assume a structured logging library that accepts
+a message plus a fields dict as separate arguments (e.g.
+[structlog](https://www.structlog.org/) or
+[loguru](https://loguru.readthedocs.io/) in Python; `pino` or `winston` in
+Node). Python's stdlib `logging` module does not have a `TRACE` level and
+does not accept a dict as a positional argument the way these examples
+show — if you're on stdlib `logging`, adapt the call shape (`extra={...}`)
+or add structlog/loguru as a dependency.
 
-**ALL CODE MUST HAVE PROPER LOGGING AND TELEMETRY**
+## 🚨 CRITICAL REQUIREMENT (Production tier)
 
-This is non-negotiable:
-- ✅ **Everything must be logged** (application events, errors, state changes)
+**ALL PRODUCTION-TIER CODE MUST HAVE PROPER LOGGING AND TELEMETRY**
+
+- ✅ **Log everything relevant to debugging and audit** — application
+  events, errors, state changes, auth. This does **not** override "no
+  sensitive data"; when the two conflict, redact or omit, don't log the
+  secret "for completeness." See "How to Handle Sensitive Data" below.
 - ✅ **Centrally configured** (one place to manage all logging)
 - ✅ **Multiple backends supported** (local files, OTEL, terminal, etc.)
 - ✅ **Proper rotation & segmentation** (by time, size, functionality, criticality)
 - ✅ **Detailed debugging always available** (logs enable root cause analysis)
 - ✅ **Sensible defaults** (works without configuration, optimizes with configuration)
-- ✅ **Must be checked before marking work complete** (logging verification required)
 
-**Code shipped without logging and telemetry WILL NOT BE ACCEPTED.**
+**At Production tier, code shipped without logging and telemetry WILL NOT BE ACCEPTED. See Rigor Tiers in `.github/CODING_GUIDELINES.md`.**
+
+### What "Logging Verification" Actually Means
+
+Before marking Production-tier work complete:
+1. Run the code path locally (or in CI) and confirm log lines are
+   actually emitted — grep the output or log file for the event names you
+   added, don't just read the code and assume.
+2. Confirm the log line is valid, parseable JSON (or your configured
+   format) — pipe it through `jq` or equivalent once.
+3. State in the PR description which events you verified emit correctly,
+   the same way the Playwright doc's screenshot-review statement works —
+   this is the audit trail for the part CI can't check automatically.
 
 ---
 

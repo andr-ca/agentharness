@@ -218,16 +218,14 @@ def test_discount_calculation():
 
 ### Minimum 80% Coverage Requirement
 
-**This is a hard requirement, not a guideline.**
+**This is a hard requirement, not a guideline.** For the coverage tiers,
+what counts, and per-language measurement commands, see
+`COVERAGE_REQUIREMENTS.md` — that file owns this policy; it's not
+restated here to avoid the two versions drifting apart.
 
-```
-Coverage:        Status:
-100%            ⭐ Excellent (bonus points!)
-95-99%          ✅ Excellent
-80-94%          ✅ Acceptable (minimum requirement)
-75-79%          ⚠️  Below minimum (will not merge)
-<75%            ❌ Unacceptable (must be rewritten)
-```
+This section (and this file generally) applies at the **Production**
+rigor tier. See `.github/CODING_GUIDELINES.md#rigor-tiers` for what
+applies to prototypes and internal tools instead.
 
 ### What Counts Toward Coverage
 

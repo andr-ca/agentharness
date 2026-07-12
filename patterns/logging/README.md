@@ -52,7 +52,7 @@ Comprehensive logging and telemetry standards for all code. Logging is MANDATORY
 - ✅ Sensitive data protection
 - ✅ Debugging capability
 
-**Code without logging WILL NOT BE ACCEPTED.**
+**At Production tier, code without logging WILL NOT BE ACCEPTED. See Rigor Tiers in `.github/CODING_GUIDELINES.md`.**
 
 ### Never Ship Without Logging
 

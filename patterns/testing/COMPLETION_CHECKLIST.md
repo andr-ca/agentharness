@@ -62,14 +62,9 @@ go test ./... -cover                      # Go
 # Expected result: >= 80% coverage
 ```
 
-**Acceptable coverage:**
-```
-100%     ✅ Excellent
-95-99%   ✅ Very Good
-80-94%   ✅ Acceptable (MINIMUM)
-79%      ❌ BELOW MINIMUM - ADD TESTS
-<79%     ❌ UNACCEPTABLE - ADD TESTS
-```
+**Coverage tiers:** see `COVERAGE_REQUIREMENTS.md` — that file is the
+single source of truth for the tier thresholds so this checklist doesn't
+drift out of sync with it. Short version: 80% is the floor.
 
 **If coverage < 80%:**
 1. Identify untested code
@@ -245,7 +240,7 @@ You: "Ready to review, also fixed validate_email issue in PR description"
 - [ ] Documentation: How to access logs
 - [ ] Documentation: How to debug using logs
 
-**Logging is NOT optional. Code without proper logging WILL NOT MERGE.**
+**At Production tier, logging is not optional — code without it WILL NOT MERGE. See Rigor Tiers in `.github/CODING_GUIDELINES.md`.**
 
 ---
 

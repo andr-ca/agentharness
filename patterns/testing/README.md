@@ -26,7 +26,7 @@ Comprehensive guide to testing strategies, Test-Driven Development (TDD), and te
 - Handling low coverage
 - Code review checklist
 
-**YOUR CODE WILL NOT MERGE IF COVERAGE < 80%**
+**At Production tier, your code will not merge if coverage < 80%. See Rigor Tiers in `.github/CODING_GUIDELINES.md`.**
 
 ### [COMPLETION_CHECKLIST.md](./COMPLETION_CHECKLIST.md) – Never Skip These Steps
 **Mandatory checklist before marking work complete**
@@ -68,7 +68,7 @@ Comprehensive guide to testing strategies, Test-Driven Development (TDD), and te
 - ✅ Test responsive design (all screen sizes)
 - ✅ No visual regressions (screenshots match expected appearance)
 
-**UI work without Playwright + screenshot approval WILL NOT MERGE.**
+**At Production tier, UI work without Playwright + screenshot approval WILL NOT MERGE.**
 
 ### 1. Minimum 80% Test Coverage (MANDATORY)
 
