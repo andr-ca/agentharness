@@ -4,13 +4,18 @@ Tests for config_loader.py — environment variable interpolation in YAML config
 """
 
 import os
+import sys
 import tempfile
 from pathlib import Path
 
 import pytest
 import yaml
 
-from config_loader import interpolate_env_vars, load_config, process_config_value
+# config_loader.py lives alongside this test file, which isn't on sys.path
+# when pytest is invoked from the repo root (or anywhere else).
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from config_loader import interpolate_env_vars, load_config, process_config_value  # noqa: E402
 
 
 class TestInterpolateEnvVars:

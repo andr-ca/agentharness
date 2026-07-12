@@ -19,13 +19,14 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 try:
     import yaml
-except ImportError:
-    print("ERROR: PyYAML not installed. Install with: pip install pyyaml", file=sys.stderr)
-    sys.exit(1)
+except ImportError as e:
+    raise ImportError(
+        "PyYAML is required for config_loader. Install with: pip install pyyaml"
+    ) from e
 
 
 def interpolate_env_vars(value: str) -> str:
@@ -91,7 +92,7 @@ def process_config_value(value: Any) -> Any:
         return value
 
 
-def load_config(config_path: str) -> Dict[str, Any]:
+def load_config(config_path: str) -> Any:
     """
     Load YAML configuration file with environment variable interpolation.
 
@@ -99,7 +100,9 @@ def load_config(config_path: str) -> Dict[str, Any]:
         config_path: Path to YAML config file
 
     Returns:
-        Parsed configuration dict with env vars interpolated
+        Parsed configuration with env vars interpolated. Typically a dict,
+        but reflects whatever type the YAML document's root actually is
+        (list, string, number, etc.) — same as yaml.safe_load.
 
     Raises:
         FileNotFoundError: If config file doesn't exist
