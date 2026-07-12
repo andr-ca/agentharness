@@ -56,6 +56,13 @@ generator script yet (see ROADMAP.md).
 |---|---|---|---|
 | Harness link script | `tools/setup/harness-link.sh` | script | One-command integration into a consuming project — replaces hand-typed symlink commands |
 
+## GitHub Configuration
+
+| Asset | Path | Type | Purpose |
+|---|---|---|---|
+| Dependency updates | `.github/dependabot.yml` | config | Automated dependency version checking (Go, GitHub Actions) |
+| Code ownership | `.github/CODEOWNERS` | config | Review routing and ownership for framework components |
+
 ## Meta
 
 | Asset | Path | Type |

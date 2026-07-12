@@ -31,6 +31,8 @@ jobs:
           sudo /tmp/bats-core/install.sh /usr/local
       - name: Run hook tests
         run: bats .github/hooks/tests/
+      - name: Run harness-link integration tests
+        run: bats tools/tests/
 
   markdown-links:
     runs-on: ubuntu-latest
