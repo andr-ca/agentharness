@@ -51,19 +51,16 @@ tools have been built. The one real script in the repo is
 
 ### `.github/workflows/`
 Reusable CI workflows for consuming projects. Not started. This repo's own
-CI (markdown link check, shellcheck, hook tests) lives here once added —
-see `docs/operational/` for tracking.
+CI (markdown link check, shellcheck, hook tests) is implemented in `ci.yml`.
 
 ### `dependabot.yml`, `CODEOWNERS`
 Referenced by `.github/README.md` in earlier drafts as if present. Not
 created yet.
 
 ### Claude Code Skills (`.claude/skills/`)
-Converting the strongest guideline docs (committing, branching, Python
-conventions) into on-demand skills with proper frontmatter, so agents load
-them only when relevant instead of via manual copy/symlink. This is the
-highest-leverage item on this roadmap — see `MANIFEST.md` for current
-skill status.
+Implemented: `committing`, `branching`, `python-conventions` with full
+frontmatter, loading on demand. These are the initial high-value skills; more
+language/pattern skills can follow the same template.
 
 ## Explicitly Deferred / Needs a Decision
 
@@ -71,3 +68,10 @@ skill status.
   via each integration method (symlink/copy/submodule), kept green by CI,
   so every command in `docs/INTEGRATION.md` is validated automatically
   rather than hand-verified. Meaningful effort; not started.
+
+- **Logging config loader** (item 12 from fable-review recommendations) —
+  `logging.yaml.example` currently uses `${VAR:-default}` syntax that
+  requires a loader to interpolate environment variables. Two options: (a)
+  implement a small Python module that parses this syntax, or (b) rewrite the
+  example in plain YAML with a comment showing per-library env handling.
+  Deferred pending decision on approach.

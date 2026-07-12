@@ -52,9 +52,8 @@ This directory contains repository-wide configuration files, guidelines, and bes
 
 ### Configuration Files
 
-- **dependabot.yml** – Dependency update automation
-- **CODEOWNERS** – Code ownership and review routing
-- Other GitHub-specific configurations
+Additional GitHub-specific configurations are planned for future versions.
+See [ROADMAP.md](../ROADMAP.md) for upcoming components.
 
 ## 🎯 How to Use These Guidelines
 
@@ -100,9 +99,9 @@ This directory contains repository-wide configuration files, guidelines, and bes
 When guidelines change or new practices are established:
 
 1. Update the relevant `.md` file
-2. Add a "Last Updated" date
-3. Consider adding a "Learnings" section noting why the change was made
-4. Create a PR clearly explaining the change
+2. Consider adding a "Learnings" section noting why the change was made
+3. Create a PR clearly explaining the change
+4. Git commit history will record when updates were made — no manual timestamps needed
 
 ## 🌍 Using in Your Projects
 

@@ -44,3 +44,10 @@ jobs:
             --offline
             '**/*.md'
           fail: true
+
+  manifest-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify MANIFEST.md against actual files
+        run: bash tools/verify-manifest.sh
