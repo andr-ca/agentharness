@@ -859,23 +859,29 @@ cmd_uninstall() {
 # ----------------------------------------------------------------------------
 # Dispatch
 # ----------------------------------------------------------------------------
+#
+# Guarded so this file can be `source`d for its functions (list_available_
+# skills, state_field, etc. — see tools/generate-agents-md.sh) without also
+# triggering the CLI dispatch below.
 
-case "${1:-}" in
-    init|plan|status|doctor|audit|update|uninstall)
-        cmd="$1"; shift
-        ;;
-    -h|--help)
-        usage; exit 0
-        ;;
-    "")
-        echo "Error: subcommand or target project directory is required." >&2
-        usage
-        exit 1
-        ;;
-    *)
-        # Legacy invocation: harness-link.sh <target-dir> [options] == init
-        cmd="init"
-        ;;
-esac
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    case "${1:-}" in
+        init|plan|status|doctor|audit|update|uninstall)
+            cmd="$1"; shift
+            ;;
+        -h|--help)
+            usage; exit 0
+            ;;
+        "")
+            echo "Error: subcommand or target project directory is required." >&2
+            usage
+            exit 1
+            ;;
+        *)
+            # Legacy invocation: harness-link.sh <target-dir> [options] == init
+            cmd="init"
+            ;;
+    esac
 
-"cmd_$cmd" "$@"
+    "cmd_$cmd" "$@"
+fi

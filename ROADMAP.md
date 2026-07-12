@@ -20,9 +20,12 @@ Not started.
 
 ### `.codex/`
 Configuration for OpenAI Codex CLI, mirroring what `.claude/` does for
-Claude Code. Not started. (Earlier drafts of this repo mislabeled this as
-"Anthropic Codex" — Codex is an OpenAI product; any future `.codex/`
-content should not imply Anthropic affiliation.)
+Claude Code (a directory of Codex-specific config/tooling, distinct from
+the single generated `AGENTS.md` adapter at the repo root — see
+`tools/generate-agents-md.sh`, P2-02). Not started. (Earlier drafts of
+this repo mislabeled this as "Anthropic Codex" — Codex is an OpenAI
+product; any future `.codex/` content should not imply Anthropic
+affiliation.)
 
 ### `frameworks/{vue,angular,django,express,go}/`
 Framework-specific config templates, patterns, and examples. Not started

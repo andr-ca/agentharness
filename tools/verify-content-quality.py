@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import ast
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -102,11 +103,37 @@ def check_python_snippets() -> list[str]:
     return errors
 
 
+def check_agents_md_sync() -> list[str]:
+    # P2-02: AGENTS.md is generated from CLAUDE.md + .claude/skills/ by
+    # tools/generate-agents-md.sh, not hand-maintained — the same drift
+    # class fixed for docs in P1-13, guarded against here the same way
+    # verify-manifest.sh guards MANIFEST.md's bidirectional accuracy.
+    committed = REPO_ROOT / "AGENTS.md"
+    generator = REPO_ROOT / "tools/generate-agents-md.sh"
+    if not committed.is_file():
+        return [f"{committed.relative_to(REPO_ROOT)}: expected file not found"]
+    result = subprocess.run(
+        ["bash", str(generator)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return [f"{generator.relative_to(REPO_ROOT)}: failed to run — {result.stderr.strip()}"]
+    if result.stdout != committed.read_text():
+        return [
+            f"{committed.relative_to(REPO_ROOT)}: out of sync with its source — "
+            f"run 'tools/generate-agents-md.sh --output AGENTS.md' and commit the result"
+        ]
+    return []
+
+
 def main() -> int:
     errors = []
     errors += check_yaml_files()
     errors += check_skill_frontmatter()
     errors += check_python_snippets()
+    errors += check_agents_md_sync()
 
     if errors:
         print("Content-quality check failed:\n")

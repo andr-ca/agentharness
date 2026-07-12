@@ -146,6 +146,27 @@ via a system reminder listing available skills); if it doesn't show up,
 run `doctor` (see Troubleshooting below) or check the frontmatter is
 valid YAML with `name` and `description` fields.
 
+### Codex (`AGENTS.md`)
+
+Codex has no on-demand skill-loading mechanism — it reads one `AGENTS.md`
+file in full. Generate one from this harness's own `CLAUDE.md` +
+`.claude/skills/` catalog instead of hand-writing a separate copy that
+drifts:
+
+```bash
+~/agentharness/tools/generate-agents-md.sh --output AGENTS.md
+```
+
+Re-run it whenever the harness updates, the same way you'd re-run
+`update` for skills — there's no CI check keeping *your* project's copy
+in sync (only this harness's own root `AGENTS.md` has that), so treat it
+as a copy-mode integration (see Method 2 above): pin it, regenerate
+deliberately.
+
+**This adapter has not been verified against a real Codex CLI session —
+best-effort only.** See the README's "Supported clients" section before
+relying on it.
+
 ### Language Guidelines
 
 Python, TypeScript, and Go exist today (`languages/{python,typescript,go}/`),

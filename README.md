@@ -46,6 +46,12 @@ other agent's skill/tool-loading mechanism has been tested against this
 repo yet — don't assume Cursor, Copilot, or another harness picks up
 `.claude/skills/` the same way Claude Code does.
 
+An `AGENTS.md` adapter for Codex exists at the repo root, generated from
+the same `CLAUDE.md`/skill catalog by `tools/generate-agents-md.sh` (kept
+in sync by a CI check, not hand-maintained). **It has not been verified
+against a real Codex CLI session** — best-effort until someone actually
+tests it; treat it the same as any other untested-client claim above.
+
 **Supported platforms:** Linux and macOS (Bash scripts, POSIX shell
 conditionals, `bats-core` for shell tests). Windows is untested; WSL
 should work but hasn't been verified.
@@ -109,6 +115,7 @@ orientation map, not the source of truth.
 agentharness/
 ├── README.md                    # This file
 ├── CLAUDE.md                    # Agent-facing router + mandatory rules
+├── AGENTS.md                    # Codex adapter, generated from CLAUDE.md + skills (untested)
 ├── MANIFEST.md                  # Index of every real asset
 ├── ROADMAP.md                   # What's planned but not built yet
 ├── CHANGELOG.md                 # Release history
