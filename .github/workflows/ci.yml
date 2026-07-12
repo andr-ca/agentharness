@@ -14,7 +14,7 @@ jobs:
       - name: Shellcheck all shell scripts
         run: |
           shopt -s globstar nullglob
-          scripts=(.github/hooks/prevent-trunk-commit tools/**/*.sh)
+          scripts=(.github/hooks/prevent-trunk-commit .github/hooks/pre-commit .github/hooks/pre-push tools/**/*.sh)
           if [ ${#scripts[@]} -eq 0 ]; then
             echo "No shell scripts found."
             exit 0
@@ -28,10 +28,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
       - name: Install bats-core
         run: |
           git clone --depth 1 https://github.com/bats-core/bats-core.git /tmp/bats-core
           sudo /tmp/bats-core/install.sh /usr/local
+      - name: Install pytest (pre-push.bats invokes the pre-push hook, which needs it)
+        run: pip install pytest pytest-cov pyyaml
       - name: Run hook tests
         run: bats .github/hooks/tests/
       - name: Run harness-link tests
@@ -45,9 +50,11 @@ jobs:
         with:
           python-version: "3.x"
       - name: Install dependencies
-        run: pip install pytest pyyaml
-      - name: Run config_loader tests
-        run: pytest patterns/logging/test_config_loader.py -v
+        run: pip install pytest pytest-cov pyyaml
+      - name: Run config_loader tests (>=80% coverage required)
+        run: |
+          cd patterns/logging
+          pytest test_config_loader.py --cov=config_loader --cov-fail-under=80 -v
 
   markdown-links:
     runs-on: ubuntu-latest
