@@ -87,6 +87,7 @@ echo ""
 # New Python test suites should be added to this list as they're created.
 PYTHON_SUITES=(
     "patterns/logging:test_config_loader.py:config_loader"
+    "patterns/agentic-loops:test_agent_loop.py:agent_loop"
 )
 
 if command -v python3 >/dev/null 2>&1 && python3 -m pytest --version >/dev/null 2>&1; then

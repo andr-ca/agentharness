@@ -19,47 +19,35 @@ An **agentic loop** is:
 
 ---
 
-## Minimal Loop
+## Minimal Loop — use the tested implementation, don't hand-roll this
+
+Don't write a bespoke think/act/observe loop from scratch — it's easy to
+get the tool-result protocol wrong (feeding a tool's result back as a
+plain `"user"` message loses the call binding and looks like human input
+to the model, instead of `{"role": "tool", "tool_call_id": ..., ...}`),
+easy to leave out a budget (infinite loop if the model never stops
+calling tools), and easy to skip argument validation (a malformed tool
+call reaches your tool function instead of being rejected).
+
+`patterns/agentic-loops/agent_loop.py` is a minimal, tested (100%
+coverage), provider-neutral implementation that gets these right:
+JSON-Schema-validated arguments, provider-correct tool-result messages, an
+iteration + wall-clock budget, an optional approval hook, and an auditable
+trace that never logs raw tool output. See
+`patterns/agentic-loops/README.md` for the full usage example and what it
+does *not* cover (sandboxing, prompt-injection handling, real cost
+accounting, cancellation, retries/idempotency, persistence, evals).
 
 ```python
-def agent_loop(task: str, max_iterations: int = 10):
-    """Core agent loop: think → act → observe → repeat."""
-    state = {"task": task, "messages": [], "iteration": 0}
-    
-    while state["iteration"] < max_iterations:
-        # 1. Think: LLM decides next action
-        response = llm.complete(
-            messages=state["messages"],
-            tools=list(available_tools.keys()),
-        )
-        
-        state["messages"].append({"role": "assistant", "content": response["text"]})
-        
-        # 2. Check: did agent decide it's done?
-        if not response.get("tool_call"):
-            return {"status": "done", "result": response["text"]}
-        
-        action = response["tool_call"]
-        
-        # 3. Act: execute tool
-        tool_fn = available_tools[action["name"]]
-        try:
-            result = tool_fn(**action["arguments"])
-        except Exception as e:
-            result = f"Error: {e}"
-        
-        # 4. Observe: feed result back to agent
-        state["messages"].append({
-            "role": "user",
-            "content": json.dumps({"tool": action["name"], "result": result})
-        })
-        
-        state["iteration"] += 1
-    
-    return {"status": "max_iterations", "iterations": state["iteration"]}
+from agent_loop import Budget, ToolSpec, run_agent_loop
 
-# Usage
-result = agent_loop("Write a blog post about error handling")
+tool = ToolSpec(name="add", fn=add, parameters_schema={...})  # JSON Schema
+result = run_agent_loop(
+    model_fn=my_provider_adapter,  # translates to/from your provider's native shape
+    tools={"add": tool},
+    messages=[{"role": "user", "content": "What is 2 + 3?"}],
+    budget=Budget(max_iterations=5, max_seconds=30),
+)
 ```
 
 ---
@@ -191,6 +179,11 @@ def consensus_decision(agents: list, task: str):
     return execute(best)
 ```
 
+**Caution:** this is not independent validation. Agents sharing a model,
+prompt, or training data have correlated errors — they can confidently
+agree on the same wrong answer. Use it to reduce variance on tasks with
+genuinely diverse proposers, not as a correctness guarantee.
+
 ---
 
 ## Common Pitfalls
@@ -252,6 +245,11 @@ def run_with_logging(agent, task, logger):
 
 ## References
 
-- Full guide: `patterns/agentic-loops/README.md`
+- Tested implementation: `patterns/agentic-loops/agent_loop.py` +
+  `patterns/agentic-loops/test_agent_loop.py`
+- Full guide (usage example, what's not covered, pseudocode patterns):
+  `patterns/agentic-loops/README.md`
 - Error handling: `.claude/skills/error-handling/SKILL.md`
-- Tool calling: Anthropic docs on tool_use API
+- [OpenAI Responses API](https://developers.openai.com/api/docs/guides/migrate-to-responses) —
+  current tool-use API; the Assistants API is deprecated (sunset
+  2026-08-26)

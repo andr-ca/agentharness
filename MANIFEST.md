@@ -50,6 +50,8 @@ generator script yet (see ROADMAP.md).
 | Asset | Path | Type | When to use |
 |---|---|---|---|
 | Agentic loops | `patterns/agentic-loops/README.md` | guide | Building multi-turn agents, tool calling, tool chaining, branching |
+| Agent loop implementation | `patterns/agentic-loops/agent_loop.py` | utility | Python: tested, provider-neutral single-tool-call agent loop with schema validation, budget, approval hook, audit trace |
+| Agent loop tests | `patterns/agentic-loops/test_agent_loop.py` | tests | Tests for agent_loop.py; run with pytest |
 
 ## Logging
 
