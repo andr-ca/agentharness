@@ -113,6 +113,10 @@ generator script yet (see ROADMAP.md).
 | Release history | `CHANGELOG.md` | doc |
 | Release policy (versioning, checklist, pin/upgrade/rollback) | `docs/RELEASING.md` | doc |
 | Security / secrets procedure | `SECURITY.md` | doc |
+| Contribution workflow | `CONTRIBUTING.md` | doc |
+| Code of Conduct | `CODE_OF_CONDUCT.md` | doc |
+| Issue template: bug report | `.github/ISSUE_TEMPLATE/bug_report.md` | GitHub config |
+| Issue template: feature request | `.github/ISSUE_TEMPLATE/feature_request.md` | GitHub config |
 | Prior full repo review | `docs/operational/reviews/fable-review.md` | historical record — dated 2026-07-11, describes the repo as `awesome-harness` before the rename |
 | Review recommendations status | `docs/operational/reviews/fable-review-status.md` | disposition of all 30 backlog items from the review above |
 | Independent repo review (GPT-5.6) | `docs/operational/reviews/gpt-5.6-review.md` | second-opinion review, dated 2026-07-11; completion status is recorded separately below |

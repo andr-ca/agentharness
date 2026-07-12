@@ -14,7 +14,7 @@
 #   status    Show what's currently installed (from .agentharness-state.json).
 #   doctor    Validate the current install is healthy; nonzero exit if not.
 #   audit     Report drift: newly available/removed skills, source commits
-#             since install.
+#             since install. --json for machine-readable output (CI/scripting).
 #   update    Re-sync an existing install to the current harness state.
 #   uninstall Reverse everything 'init' recorded.
 #
@@ -64,11 +64,15 @@ init options:
 update/uninstall options:
   --yes                        Skip the confirmation prompt
 
+audit options:
+  --json                        Machine-readable drift report (CI/scripting)
+
 Examples:
   $(basename "$0") init ~/my-project --with-hook
   $(basename "$0") init ~/my-project --mode copy --skills committing,branching
   $(basename "$0") status ~/my-project
   $(basename "$0") doctor ~/my-project
+  $(basename "$0") audit ~/my-project --json
   $(basename "$0") update ~/my-project --yes
   $(basename "$0") uninstall ~/my-project
 EOF
@@ -544,7 +548,15 @@ cmd_doctor() {
 # ----------------------------------------------------------------------------
 
 cmd_audit() {
-    local target="${1:-.}"
+    local target="" json=false
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --json) json=true; shift ;;
+            -h|--help) usage; exit 0 ;;
+            *) if [ -z "$target" ]; then target="$1"; else echo "Unexpected argument: $1" >&2; exit 1; fi; shift ;;
+        esac
+    done
+    target="${target:-.}"
     [ -d "$target" ] && target="$(cd "$target" && pwd)"
     require_state "$target"
 
@@ -562,32 +574,79 @@ cmd_audit() {
     local available=()
     while IFS= read -r name; do available+=("$name"); done < <(list_available_skills "$source_path")
 
-    echo "Skill drift for $target:"
-    local found_drift=0
+    local not_installed=() no_longer_available=()
     for name in "${available[@]}"; do
         if ! printf '%s\n' "${installed[@]}" | grep -qxF "$name"; then
-            echo "  + available upstream, not installed: $name"
-            found_drift=1
+            not_installed+=("$name")
         fi
     done
     for name in "${installed[@]}"; do
         [ -z "$name" ] && continue
         if ! printf '%s\n' "${available[@]}" | grep -qxF "$name"; then
-            echo "  - installed, no longer available upstream: $name"
-            found_drift=1
+            no_longer_available+=("$name")
         fi
     done
-    [ "$found_drift" -eq 0 ] && echo "  (none)"
 
-    local source_rev current_rev
+    local source_rev current_rev rev_comparable=false commits_since=""
     source_rev="$(state_field "$target" source.revision)"
     current_rev="$(git -C "$source_path" rev-parse HEAD 2>/dev/null || echo unknown)"
     if [ "$current_rev" != "$source_rev" ] && [ "$current_rev" != "unknown" ] && git -C "$source_path" cat-file -e "$source_rev" 2>/dev/null; then
-        echo ""
+        rev_comparable=true
+        commits_since="$(git -C "$source_path" log --oneline "$source_rev..$current_rev" -- .claude/skills patterns languages 2>/dev/null | head -20 || true)"
+    fi
+
+    # --json (P2-01): machine-readable form of the same drift this
+    # subcommand already computes, for CI or scripted consumption instead
+    # of parsing the human-readable text below.
+    if [ "$json" = true ]; then
+        python3 - "$target" "$source_path" "$source_rev" "$current_rev" "$rev_comparable" \
+            "$(printf '%s\n' "${not_installed[@]}")" "$(printf '%s\n' "${no_longer_available[@]}")" \
+            "$commits_since" <<'PYEOF'
+import json
+import sys
+
+target, source_path, source_rev, current_rev, rev_comparable = sys.argv[1:6]
+not_installed_raw, no_longer_available_raw, commits_raw = sys.argv[6:9]
+
+
+def lines(s):
+    return [line for line in s.split("\n") if line]
+
+
+not_installed = lines(not_installed_raw)
+no_longer_available = lines(no_longer_available_raw)
+print(json.dumps({
+    "target": target,
+    "source_path": source_path,
+    "source_revision": source_rev,
+    "current_revision": current_rev,
+    "revision_comparable": rev_comparable == "true",
+    "available_not_installed": not_installed,
+    "installed_not_available": no_longer_available,
+    "drift": bool(not_installed or no_longer_available),
+    "commits_since_install": lines(commits_raw),
+}, indent=2))
+PYEOF
+        return
+    fi
+
+    echo "Skill drift for $target:"
+    local found_drift=0
+    for name in "${not_installed[@]}"; do
+        echo "  + available upstream, not installed: $name"
+        found_drift=1
+    done
+    for name in "${no_longer_available[@]}"; do
+        echo "  - installed, no longer available upstream: $name"
+        found_drift=1
+    done
+    [ "$found_drift" -eq 0 ] && echo "  (none)"
+
+    echo ""
+    if [ "$rev_comparable" = true ]; then
         echo "Commits in source since install ($source_rev..$current_rev):"
-        git -C "$source_path" log --oneline "$source_rev..$current_rev" -- .claude/skills patterns languages 2>/dev/null | head -20 || true
+        printf '%s\n' "$commits_since"
     else
-        echo ""
         echo "Source revision unchanged or not comparable ($source_rev)."
     fi
 }

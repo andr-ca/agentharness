@@ -35,6 +35,9 @@ This directory contains repository-wide configuration files, guidelines, and bes
   - Testing checklist
   - Links to related guidelines
 
+- **[ISSUE_TEMPLATE/](./ISSUE_TEMPLATE/)** – `bug_report.md`,
+  `feature_request.md`
+
 ### Tools & Templates
 
 - **[.gitignore.template](./.gitignore.template)** – Comprehensive gitignore template

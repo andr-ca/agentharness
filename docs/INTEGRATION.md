@@ -22,7 +22,7 @@ subcommands can act on it later:
 | `init` | Install (see modes below). `--dry-run` (or the `plan` alias) shows what would happen without changing anything. |
 | `status` | What's installed, from where, and whether the source has moved on since. |
 | `doctor` | Validate the install is healthy (skills present, bundled resources resolve, hook configured); nonzero exit if not — usable as a CI check. |
-| `audit` | Report drift: skills available upstream but not installed, installed skills no longer available, commits since your recorded revision. |
+| `audit` | Report drift: skills available upstream but not installed, installed skills no longer available, commits since your recorded revision. `--json` for machine-readable output (CI/scripting). |
 | `update` | Re-sync to the current harness state; shows a diff and asks for confirmation (`--yes` to skip it) before changing anything. |
 | `uninstall` | Reverse everything `init` recorded — skills, gitignore block, hook, profile file, state file (and the submodule, in that mode). |
 

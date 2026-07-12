@@ -1,8 +1,10 @@
 # agentharness
 
-A centralized repository for coding-agent instructions, conventions, and
-git/testing/logging guidelines, reused across projects instead of
-duplicated in each one.
+[![CI](https://github.com/andr-ca/agentharness/actions/workflows/ci.yml/badge.svg)](https://github.com/andr-ca/agentharness/actions/workflows/ci.yml)
+
+Portable engineering policies for coding agents — git, testing, logging,
+and language conventions written once and referenced everywhere, instead
+of re-authored (and drifting) in every project's own `CLAUDE.md`.
 
 ## Purpose
 
@@ -14,6 +16,20 @@ single source of truth for that shared context — read once here, referenced
 **Status:** early. See [MANIFEST.md](MANIFEST.md) for what actually exists
 today and [ROADMAP.md](ROADMAP.md) for what's planned but not built. Don't
 trust a directory tree in prose — trust the manifest.
+
+### Why not just CLAUDE.md?
+
+A single project's `CLAUDE.md` works fine — until there's a second
+project, and its `CLAUDE.md` quietly diverges: a different coverage bar,
+a branch-naming rule that contradicts the first repo's, a logging
+convention nobody remembers deciding. Multiply by N projects and the
+conventions aren't really policies anymore, just N independent guesses
+that happen to overlap. agentharness is the fix for that specific
+problem: one `CLAUDE.md` router plus a set of skills and convention docs
+that every project's own (short) `CLAUDE.md` *references* — see
+[docs/INTEGRATION.md](docs/INTEGRATION.md). You still write a
+project-specific `CLAUDE.md`; it just stops being where the shared rules
+live.
 
 ## Product Contract
 
@@ -96,7 +112,9 @@ agentharness/
 ├── MANIFEST.md                  # Index of every real asset
 ├── ROADMAP.md                   # What's planned but not built yet
 ├── CHANGELOG.md                 # Release history
-├── SECURITY.md                  # Secrets-in-history procedure
+├── SECURITY.md                  # Secrets-in-history + instruction-attack-surface procedure
+├── CONTRIBUTING.md              # Contribution workflow
+├── CODE_OF_CONDUCT.md           # Contributor Covenant
 ├── requirements-dev.txt         # Pinned dev/CI toolchain
 ├── .markdownlint-cli2.yaml      # Markdown lint rules for CI
 ├── .github/
@@ -104,6 +122,7 @@ agentharness/
 │   ├── COMMITTING_GUIDELINES.md
 │   ├── CODING_GUIDELINES.md
 │   ├── pull_request_template.md
+│   ├── ISSUE_TEMPLATE/          # bug_report.md, feature_request.md
 │   ├── .gitignore.template
 │   ├── CODEOWNERS
 │   ├── dependabot.yml
@@ -174,23 +193,12 @@ symlink/copy/submodule tradeoffs, troubleshooting, and update/uninstall.
 
 ## Contributing
 
-1. Check [MANIFEST.md](MANIFEST.md) — don't duplicate an existing asset.
-2. New content gets a real usage example, not just a description.
-3. Skills need frontmatter (see any file in `.claude/skills/` for the
-   shape).
-4. Add an entry to MANIFEST.md.
-5. Before opening a PR, run `bash tools/check.sh` — the same checks CI
-   runs (shellcheck, bats, ruff, mypy, pytest with coverage,
-   `verify-manifest.sh`, markdownlint, content-quality).
-6. Every change goes through a feature branch and PR — see
-   `.github/BRANCHING_STRATEGY.md`. Branch protection on `main` enforces
-   this for everyone except repo admins.
-7. Review routing is in [.github/CODEOWNERS](.github/CODEOWNERS) — right
-   now that's a single maintainer (`@andr-ca`) for every path. A change to
-   `CLAUDE.md`, a skill's `SKILL.md`, or anything else an agent loads as
-   an instruction should get a second pair of eyes once this repo has
-   more than one active contributor; until then, the PR review step
-   itself is that check.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow (branching,
+local verification, review routing). Short version: check
+[MANIFEST.md](MANIFEST.md) before adding anything, run
+`bash tools/check.sh` before opening a PR, and go through a feature
+branch — never commit directly to `main`. This project follows the
+[Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## License
 

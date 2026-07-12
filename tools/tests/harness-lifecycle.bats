@@ -116,6 +116,28 @@ print(d['with_hook'])
     [[ "$output" =~ "available upstream, not installed: branching" ]]
 }
 
+@test "lifecycle: audit --json reports the same drift as machine-readable output" {
+    # P2-01: the review's "no machine-readable output" gap for the audit
+    # capability. Same drift computation as the text-mode test above, just
+    # asserted through the JSON structure instead of a substring match.
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing
+
+    run bash "$SCRIPT" audit "$TEST_PROJECT" --json
+    [ "$status" -eq 0 ]
+
+    run python3 -c "
+import json
+d = json.loads('''$output''')
+assert d['drift'] is True, d
+assert 'branching' in d['available_not_installed'], d
+assert d['installed_not_available'] == [], d
+assert d['target'] == '$TEST_PROJECT', d
+print('ok')
+"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "ok" ]]
+}
+
 @test "lifecycle: update adds newly-in-scope skills and refreshes the state file" {
     bash "$SCRIPT" init "$TEST_PROJECT" --skills committing
     # Simulate "install was set to track all skills, and a new one has since
