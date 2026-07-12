@@ -266,7 +266,10 @@ def chain_tools(tools: List[str], initial_input: Any) -> Any:
     for tool_name in tools:
         tool = get_tool(tool_name)
         result = tool(result)
-        logger.info(f"Chained {tool_name}", extra={"result": result})
+        # Never log a raw tool result — a tool can return file contents,
+        # API responses, or credentials it fetched, none of which this
+        # code has redacted. Log shape, not content.
+        logger.info(f"Chained {tool_name}", extra={"result_type": type(result).__name__})
     
     return result
 

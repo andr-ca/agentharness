@@ -21,7 +21,9 @@ Return errors as values or raise them; never ignore them.
 try:
     user = parse_user_data(raw)
 except json.JSONDecodeError as e:
-    logger.error("Invalid user JSON", extra={"error": str(e), "raw": raw})
+    # Never log the raw payload — it can carry passwords/PII. Log a
+    # bounded, redaction-safe summary instead.
+    logger.error("Invalid user JSON", extra={"error": str(e), "payload_length": len(raw)})
     return None
 
 # ❌ Bad: Silent failure

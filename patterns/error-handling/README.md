@@ -39,7 +39,13 @@ _ = os.Rename(oldPath, newPath)  // File might not have renamed
 try:
     user_data = parse_user_data(raw_json)
 except json.JSONDecodeError as e:
-    logger.error("Invalid user JSON", extra={"raw": raw_json, "error": str(e)})
+    # Never log the raw payload — user data can contain passwords, tokens,
+    # or other PII (e.g. a signup request body). Log a bounded,
+    # redaction-safe summary instead: size and the parse error itself.
+    logger.error(
+        "Invalid user JSON",
+        extra={"payload_length": len(raw_json), "error": str(e)},
+    )
     return None  # Or raise
 
 # JavaScript: Explicit handling
@@ -47,7 +53,9 @@ try {
   const user = await fetchUser(id);
   await process(user);
 } catch (error) {
-  logger.error("User fetch failed", { id, error });
+  // Log the message/stack, not the raw error object — some HTTP clients
+  // embed full request config (including auth headers) on their errors.
+  logger.error("User fetch failed", { id, errorMessage: error.message, stack: error.stack });
   // Decide: retry, return default, or rethrow
 }
 
@@ -302,13 +310,17 @@ def handle_error(error: Exception, operation: str):
     if error_type == "transient":
         retry(operation, max_attempts=3)
     elif error_type == "validation":
-        logger.error(f"Invalid {operation}", extra={"error": error})
+        # str(error), not the raw exception object: some exceptions carry
+        # sensitive context in their args (e.g. a DB error embedding a
+        # connection string), and raw objects aren't JSON-serializable
+        # for most structured-logging backends anyway.
+        logger.error(f"Invalid {operation}", extra={"error": str(error)})
         raise
     elif error_type == "fatal":
-        logger.critical(f"Fatal {operation}", extra={"error": error})
+        logger.critical(f"Fatal {operation}", extra={"error": str(error)})
         raise
     else:
-        logger.warn(f"Unknown error in {operation}", extra={"error": error})
+        logger.warn(f"Unknown error in {operation}", extra={"error": str(error)})
         raise
 ```
 
