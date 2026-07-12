@@ -117,7 +117,7 @@ print('importable')
     # as "not a git repo" and silently skip hook installation.
     main_repo=$(mktemp -d)
     git -C "$main_repo" init --quiet
-    git -C "$main_repo" commit --quiet --allow-empty -m "init"
+    git -C "$main_repo" -c user.email=test@example.com -c user.name=Test commit --quiet --allow-empty -m "init"
     worktree_dir="$TEST_PROJECT/worktree"
     git -C "$main_repo" worktree add --quiet "$worktree_dir" --detach >/dev/null
 

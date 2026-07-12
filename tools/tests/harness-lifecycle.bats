@@ -264,7 +264,7 @@ print('importable')
 
 @test "lifecycle: --mode submodule adds this harness as a real submodule and symlinks from it" {
     git -C "$TEST_PROJECT" init --quiet
-    git -C "$TEST_PROJECT" commit --quiet --allow-empty -m "init"
+    git -C "$TEST_PROJECT" -c user.email=test@example.com -c user.name=Test commit --quiet --allow-empty -m "init"
 
     run bash "$SCRIPT" init "$TEST_PROJECT" --mode submodule --skills committing
     [ "$status" -eq 0 ]
@@ -301,7 +301,7 @@ with open('$TEST_PROJECT/.agentharness-state.json') as f: print(json.load(f)['so
     # skills HARNESS_DIR has that the (possibly different-commit) submodule
     # didn't, and reported phantom drift.
     git -C "$TEST_PROJECT" init --quiet
-    git -C "$TEST_PROJECT" commit --quiet --allow-empty -m "init"
+    git -C "$TEST_PROJECT" -c user.email=test@example.com -c user.name=Test commit --quiet --allow-empty -m "init"
 
     run bash "$SCRIPT" init "$TEST_PROJECT" --mode submodule
     [ "$status" -eq 0 ]
@@ -313,7 +313,7 @@ with open('$TEST_PROJECT/.agentharness-state.json') as f: print(json.load(f)['so
 
 @test "lifecycle: --mode submodule uninstall removes the submodule cleanly" {
     git -C "$TEST_PROJECT" init --quiet
-    git -C "$TEST_PROJECT" commit --quiet --allow-empty -m "init"
+    git -C "$TEST_PROJECT" -c user.email=test@example.com -c user.name=Test commit --quiet --allow-empty -m "init"
     bash "$SCRIPT" init "$TEST_PROJECT" --mode submodule --skills committing
 
     run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
