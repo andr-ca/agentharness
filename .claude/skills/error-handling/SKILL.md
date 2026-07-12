@@ -195,5 +195,7 @@ Error occurs
 
 ## References
 
+This file is self-contained for day-to-day use. Deeper reference (needs
+the full harness checkout, not just this skill):
 - Full guide: `patterns/error-handling/README.md`
 - Logging: `patterns/logging/LOGGING_STANDARDS.md`

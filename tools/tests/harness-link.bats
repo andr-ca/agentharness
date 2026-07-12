@@ -51,6 +51,29 @@ teardown() {
     [ ! -e "$TEST_PROJECT/.claude/skills/python-conventions" ]
 }
 
+@test "harness-link.sh: agentic-loops skill is importable standalone (only that skill linked)" {
+    # Regression test for P1-03: a skill's own bundled code must resolve
+    # in a consumer that only linked *this one* skill, not the whole
+    # patterns/ tree (which harness-link.sh never symlinks). Previously
+    # agentic-loops/SKILL.md referenced "patterns/agentic-loops/agent_loop.py"
+    # — a path that doesn't exist anywhere in a consumer project, symlink
+    # depth or not. Fixed by bundling agent_loop.py/test_agent_loop.py as
+    # relative symlinks inside the skill's own directory.
+    bash "$SCRIPT" "$TEST_PROJECT" --skills agentic-loops
+
+    [ -e "$TEST_PROJECT/.claude/skills/agentic-loops/agent_loop.py" ]
+    [ -e "$TEST_PROJECT/.claude/skills/agentic-loops/test_agent_loop.py" ]
+
+    run python3 -c "
+import sys
+sys.path.insert(0, '$TEST_PROJECT/.claude/skills/agentic-loops')
+from agent_loop import Budget, ToolSpec, run_agent_loop
+print('importable')
+"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "importable" ]]
+}
+
 @test "harness-link.sh: --skills rejects path traversal instead of symlinking outside skills dir" {
     # Regression test: "../../patterns" (or an absolute path) used to
     # resolve straight through to SRC="$SKILLS_SRC/../../patterns",

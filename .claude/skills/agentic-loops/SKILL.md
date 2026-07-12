@@ -29,16 +29,23 @@ easy to leave out a budget (infinite loop if the model never stops
 calling tools), and easy to skip argument validation (a malformed tool
 call reaches your tool function instead of being rejected).
 
-`patterns/agentic-loops/agent_loop.py` is a minimal, tested (100%
-coverage), provider-neutral implementation that gets these right:
+`agent_loop.py`, bundled alongside this file (a symlink back to
+`patterns/agentic-loops/agent_loop.py`, so it resolves whether you
+installed the whole harness or only this one skill), is a minimal, tested
+(100% coverage), provider-neutral implementation that gets these right:
 JSON-Schema-validated arguments, provider-correct tool-result messages, an
 iteration + wall-clock budget, an optional approval hook, and an auditable
 trace that never logs raw tool output. See
-`patterns/agentic-loops/README.md` for the full usage example and what it
-does *not* cover (sandboxing, prompt-injection handling, real cost
-accounting, cancellation, retries/idempotency, persistence, evals).
+`patterns/agentic-loops/README.md` in the full harness checkout for the
+complete usage example and what it does *not* cover (sandboxing,
+prompt-injection handling, real cost accounting, cancellation,
+retries/idempotency, persistence, evals) — that guide isn't bundled with
+this skill since it's documentation, not something the skill needs to
+function.
 
 ```python
+# Run from this skill's own directory, or add it to sys.path — see
+# test_agent_loop.py (also bundled here) for a runnable example.
 from agent_loop import Budget, ToolSpec, run_agent_loop
 
 tool = ToolSpec(name="add", fn=add, parameters_schema={...})  # JSON Schema
@@ -245,9 +252,12 @@ def run_with_logging(agent, task, logger):
 
 ## References
 
-- Tested implementation: `patterns/agentic-loops/agent_loop.py` +
-  `patterns/agentic-loops/test_agent_loop.py`
-- Full guide (usage example, what's not covered, pseudocode patterns):
+- Tested implementation: `agent_loop.py` + `test_agent_loop.py`, bundled
+  in this skill's own directory (works whether you installed the whole
+  harness or only this skill).
+- Full guide (usage example, what's not covered, pseudocode patterns) —
+  needs the full harness checkout, not bundled here since it's
+  documentation rather than something this skill runs:
   `patterns/agentic-loops/README.md`
 - Error handling: `.claude/skills/error-handling/SKILL.md`
 - [OpenAI Responses API](https://developers.openai.com/api/docs/guides/migrate-to-responses) —
