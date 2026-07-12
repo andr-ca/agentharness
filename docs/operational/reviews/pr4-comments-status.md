@@ -1,10 +1,10 @@
 # PR #4 Review-Comment Follow-up — Status
 
-**Timestamp:** 2026-07-12T11:16:36Z
-**Source:** Copilot's 19 inline review comments on PR #4, plus gaps from this
-session's own `fable-review` follow-up audit (see chat history / this
-session's earlier assessment — no separate file was written for that
-verbal report).
+**Timestamp:** 2026-07-12T11:16:36Z (round 1) · **Updated:** 2026-07-12T12:05:00Z (round 2)
+**Source:** Copilot's inline review comments on PR #4 (two rounds: 19
+comments on the pre-fix diff, 11 more after round 1 was pushed), plus gaps
+from this session's own `fable-review` follow-up audit (see chat history —
+no separate file was written for that verbal report).
 **Branch:** `chore/add-remaining-components`
 **PR:** #4 — https://github.com/andr-ca/agentharness/pull/4
 
@@ -77,26 +77,44 @@ consequence of filing the document this session was already asked to file
 away — leaving it broken after finding it would have been worse than the
 scope creep of fixing it.
 
-## Not addressed (explicitly out of scope for this pass)
+## Round 2 — Copilot's 11 comments after round 1 was pushed
 
-`docs/operational/reviews/gpt-5.6-review.md` contains roughly 30 further
-findings beyond the hook bug above — most notably: the logging quick-start's
-own runtime bugs (type coercion, brace-regex truncation, `dictConfig`
-mismatch, `--show-env-vars` printing secrets), the agentic-loops and
-error-handling "production" examples being non-runnable, `CLAUDE.md`'s
-auto-commit/auto-push/auto-PR and "implement all positive recommendations"
-mandate being a self-authorization/trust concern, and the one-directional
-manifest verifier. These are legitimate and some are severe, but they come
-from a third, separate review this session wasn't asked to action — they're
-filed and preserved, not silently implemented. Recommend a dedicated
-follow-up pass (either `/audit-review-followup`-style triage first, or
-direct implementation if you'd rather skip straight to it) given the volume
-and the product-direction judgment several of them require (e.g., the
-CLAUDE.md self-authorization question, the dictConfig vs. custom-schema
-choice for logging).
+Copilot re-reviewed the pushed round-1 diff and found 11 further issues,
+several of which independently confirmed findings from `gpt-5.6-review.md`
+(a genuinely different reviewer catching the same bugs is a useful signal
+these were real, not stylistic nitpicks).
+
+| # | File(s) | Issue | Status |
+|---|---|---|---|
+| 1 | `.github/dependabot.yml` | `gomod` update entry configured but no `go.mod` exists in the repo — Dependabot would fail every run with a missing-manifest error | ✅ Fixed — removed, with a comment on re-adding it once Go modules exist |
+| 2 | `patterns/logging/config_loader.py:51` | `interpolate_env_vars`'s regex stopped at the first `}`, truncating defaults with brace placeholders (`${LOG_FILENAME:-app-{date}.log}`, used by `logging.yaml.example` itself) | ✅ Fixed — replaced the regex with a manual, brace-depth-aware scanner |
+| 3 | `patterns/logging/test_config_loader.py:48` | No test covered the brace-in-default case | ✅ Fixed — 2 new regression tests added (brace default preserved; env var still overrides it) |
+| 4 | `patterns/logging/LOGGING_STANDARDS.md:415` | `dictConfig(config['logging'])` — not a valid dictConfig document, raises at runtime | ✅ Fixed — added `build_dictconfig()` adapter, verified end-to-end |
+| 5 | `patterns/logging/LOGGING_STANDARDS.md:448` | Same issue in the "manual setup" example | ✅ Fixed — same adapter reused |
+| 6 | `patterns/logging/config_loader.py:152` | CLI always printed resolved env var values and the full resolved config — secret-leak vector | ✅ Fixed — `--show-env-vars` now prints only set/default/unset status; full config requires new opt-in `--show-config` |
+| 7 | `tools/verify-manifest.sh:80` | Dead `found`/`missing` counters inside a pipeline `while` loop (subshell) — never usable, unrelated to the actual `missing_count` check | ✅ Fixed — removed |
+| 8 | `examples/sample-project/README.md:8` | Claimed the sample "validates all three integration methods"; CI only checks Method 1 | ✅ Fixed — reworded, Methods 2/3 now explicitly marked as documented-not-CI-checked |
+| 9 | `patterns/agentic-loops/README.md:39` | Minimal loop's completion branch returns `state["result"]`, a key never set (`state["last_result"]` is) | ✅ Fixed |
+| 10 | `patterns/agentic-loops/README.md:61` | Production Loop uses `Callable` without importing it; `AgentState(task=task)` omits required `messages`, raising `TypeError` | ✅ Fixed — `field(default_factory=list)` defaults, added the import |
+| 11 | `patterns/error-handling/README.md:156` | `retry()`'s `backoff_base` defaults to `1.0` (`1.0 ** attempt` is constant, not exponential); uses deprecated `logger.warn`; `max_attempts=0` raises `None` | ✅ Fixed — default `2.0`, `.warning()`, `max_attempts < 1` guard |
+
+Every fix in this round was verified by extracting the exact code block
+from its markdown source and running it standalone (not just re-reading
+it) — see Verification below.
+
+**Not addressed:** `gpt-5.6-review.md` still contains further findings this
+round's 11 comments didn't cover — `CLAUDE.md`'s auto-commit/auto-push/
+auto-PR and "implement all positive recommendations" mandate as a
+self-authorization/trust question, the manifest verifier's one-directional
+check (lists→exists but not exists→listed), TypeScript/Go content-accuracy
+issues, and several installer/security hardening items (skill-name path
+traversal, worktree detection, etc.). These require more product-direction
+judgment than a bug fix and weren't raised by either Copilot round; still
+recommend a dedicated follow-up pass rather than folding them in here.
 
 ## Verification performed
 
+Round 1:
 - `shellcheck -S warning` on all 5 shell scripts in the repo: clean.
 - `bats` (9 harness-link tests + 5 hook tests): all pass.
 - `pytest patterns/logging/test_config_loader.py`: 17/17 pass, run from repo root.
@@ -106,6 +124,31 @@ choice for logging).
   the exact sequence the new CI job runs.
 - Manual repro of the `core.hooksPath`/`pre-commit` bug before and after the
   fix (shown above).
+- Confirmed on hosted CI (not just locally): all 6 jobs green on
+  `chore/add-remaining-components`, the first time this PR has been green.
+
+Round 2 (all local, hosted CI re-run pending push):
+- `interpolate_env_vars` tested directly against the real
+  `${LOG_FILENAME:-app-{date}.log}` string from `logging.yaml.example`:
+  now returns `app-{date}.log` instead of truncating it.
+- `config_loader.py` CLI tested against a synthetic config containing a
+  fake secret (`API_KEY=sk-super-secret-...`): `--show-env-vars` prints
+  only status, default output prints neither values nor config, and the
+  secret only appears with an explicit `--show-config`.
+- `build_dictconfig()` verified by extracting the *exact* code block from
+  `LOGGING_STANDARDS.md` and running it from a fresh working directory
+  against the real `logging.yaml.example`, using the documented
+  `lib/config_loader` import path a real consumer would use — it loads,
+  configures logging, and writes a real log line.
+- Agentic-loops Production Loop: extracted the exact code block and ran it
+  against a mock model/tools/logger — completes correctly, no exceptions.
+- `retry()`: extracted the exact code block and verified (a) succeeds after
+  transient failures, (b) non-retryable `ValueError` propagates immediately,
+  (c) delays are genuinely exponential (`1.0, 2.0, 4.0`, not constant), (d)
+  `max_attempts=0` raises a clear `ValueError` instead of `TypeError`.
+- `pytest patterns/logging/test_config_loader.py`: 19/19 pass (17 + 2 new).
+- `tools/verify-manifest.sh`, `bats`, `shellcheck -S warning`: all still
+  pass after these changes.
 
 ## Links
 
