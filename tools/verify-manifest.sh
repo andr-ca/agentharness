@@ -42,7 +42,7 @@ grep '|' "$MANIFEST_FILE" | \
 
         # Skip non-filesystem entries
         [ "${path#http}" != "$path" ] && continue
-        [ "${path##}" != "$path" ] && continue
+        [ "${path#\#}" != "$path" ] && continue
         [ -z "$path" ] && continue
 
         # Check if path exists
@@ -70,13 +70,13 @@ grep '|' "$MANIFEST_FILE" | \
         [ -z "$fullpath" ] && continue
         path="${fullpath%#*}"
         [ "${path#http}" != "$path" ] && continue
-        [ "${path##}" != "$path" ] && continue
+        [ "${path#\#}" != "$path" ] && continue
         [ -z "$path" ] && continue
 
         if [ -e "$path" ]; then
-            ((found++))
+            found=$((found + 1))
         else
-            ((missing++))
+            missing=$((missing + 1))
         fi
     done
 
@@ -95,7 +95,7 @@ missing_count=$(grep '|' "$MANIFEST_FILE" | \
         [ -z "$fullpath" ] && continue
         path="${fullpath%#*}"
         [ "${path#http}" != "$path" ] && continue
-        [ "${path##}" != "$path" ] && continue
+        [ "${path#\#}" != "$path" ] && continue
         [ -z "$path" ] && continue
         [ ! -e "$path" ] && echo "$path"
     done | wc -l)
