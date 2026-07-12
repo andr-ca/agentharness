@@ -174,6 +174,31 @@ Key takeaways
 What happens with this work?
 ```
 
+### Review Documents (Required Datestamps)
+
+Review and review-status documents **MUST** include an ISO 8601 timestamp in
+their frontmatter. This ensures each review is permanently dated and findable
+by when it was conducted, especially important when multiple review cycles
+accumulate.
+
+**Required fields:**
+- `review.md`: `**Date:** YYYY-MM-DD` (when the review was conducted)
+- `review-status.md`: `**Timestamp:** YYYY-MM-DDTHH:MM:SSZ` (when status was recorded, in UTC)
+
+**Example:**
+```markdown
+---
+# fable-review.md
+**Reviewer:** Claude (Fable 5) · **Date:** 2026-07-11 · **Scope:** [...]
+```
+
+```markdown
+---
+# fable-review-status.md
+**Timestamp:** 2026-07-12T03:09:50Z
+**Source:** `fable-review.md`
+```
+
 ### Lifecycle of an Operational Document
 
 ```
