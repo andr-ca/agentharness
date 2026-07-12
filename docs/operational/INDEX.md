@@ -27,6 +27,13 @@ Documents ready to be promoted to harness or archived:
 - `reviews/fable-review-status.md` — disposition of all 30 review
   recommendations. Stays active until the two partial items (logging
   config loader, sample integration project) are picked up.
+- `reviews/gpt-5.6-review.md` — independent full-repository review dated
+  2026-07-11; kept as the historical baseline for its completion audit.
+- `reviews/gpt-5.6-review-status.md` — independent re-validation at
+  `43604a7`, recorded 2026-07-12. One of 30 items is verified complete;
+  this remains the active gap list until the release gates are closed.
+- `reviews/pr4-comments-status.md` — disposition and verification record for
+  PR #4's review-comment fixes and later coverage/pre-push work.
 
 ## 📚 Archives
 

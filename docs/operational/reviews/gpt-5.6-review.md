@@ -7,10 +7,9 @@
 - **Remote status at review time:** [PR #4](https://github.com/andr-ca/agentharness/pull/4) open; `shellcheck` and `hook-tests` failing; `markdown-links` and `manifest-verify` passing
 
 > Filed by Claude (Fable 5) on 2026-07-12 from an untracked working file
-> (`docs/gpt-5.6-sol.md`) into the operational-docs convention. Not yet
-> triaged against the current repo state the way `fable-review.md` was —
-> see this session's status report for what has and hasn't been verified
-> from it.
+> (`docs/gpt-5.6-sol.md`) into the operational-docs convention. The current
+> implementation was independently validated in
+> [`gpt-5.6-review-status.md`](gpt-5.6-review-status.md).
 
 ## Executive verdict
 

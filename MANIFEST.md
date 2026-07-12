@@ -99,5 +99,6 @@ generator script yet (see ROADMAP.md).
 | Security / secrets procedure | `SECURITY.md` | doc |
 | Prior full repo review | `docs/operational/reviews/fable-review.md` | historical record — dated 2026-07-11, describes the repo as `awesome-harness` before the rename |
 | Review recommendations status | `docs/operational/reviews/fable-review-status.md` | disposition of all 30 backlog items from the review above |
-| Independent repo review (GPT-5.6) | `docs/operational/reviews/gpt-5.6-review.md` | second-opinion review, dated 2026-07-11; not yet triaged against current repo state |
+| Independent repo review (GPT-5.6) | `docs/operational/reviews/gpt-5.6-review.md` | second-opinion review, dated 2026-07-11; completion status is recorded separately below |
+| GPT-5.6 review completion status | `docs/operational/reviews/gpt-5.6-review-status.md` | evidence-based re-validation of all 30 backlog items and 12 release gates at `43604a7` |
 | PR #4 review-comment status | `docs/operational/reviews/pr4-comments-status.md` | disposition of Copilot's PR #4 comments and this session's own audit gaps |
