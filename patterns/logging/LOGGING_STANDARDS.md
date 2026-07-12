@@ -369,32 +369,81 @@ CLOUD_LOGGING_ENABLED=true
 LOG_FILE_PATH=/var/log/app
 ```
 
+### Using the Config Loader (Python)
+
+The harness includes `patterns/logging/config_loader.py`, a utility that handles
+environment variable interpolation in YAML config files using the `${VAR:-default}`
+syntax. This is cleaner than hand-rolling substitution logic in every project.
+
+**Installation:**
+```bash
+cp patterns/logging/config_loader.py your-project/lib/
+```
+
+**Usage:**
+```python
+from lib.config_loader import load_config
+
+# Loads config/logging.yaml with env var substitution
+config = load_config('config/logging.yaml')
+
+# Environment variables:
+# ${LOG_LEVEL}           → value of LOG_LEVEL env var (error if not set)
+# ${LOG_LEVEL:-INFO}     → value of LOG_LEVEL, or "INFO" if not set
+```
+
+See `patterns/logging/test_config_loader.py` for examples and edge cases.
+
 ---
 
 ## Implementation by Language
 
 ### Python
 
+**With config_loader (recommended):**
+
 ```python
 import logging
 import logging.config
-import json
-from pythonjsonlogger import jsonlogger
+from lib.config_loader import load_config
+
+# Load configuration with environment variable interpolation
+config = load_config('config/logging.yaml')
+
+# Setup logging from config
+logging.config.dictConfig(config['logging'])
+
+# Create loggers
+logger = logging.getLogger('app.auth')
+logger.info('User login', extra={'user_id': '12345'})
+```
+
+**Without config_loader (manual setup):**
+
+```python
+import logging
+import logging.config
 import yaml
 import os
 
-# Load configuration
+# Load and manually substitute environment variables
 with open('config/logging.yaml') as f:
     config = yaml.safe_load(f)
 
-# Substitute environment variables
-def substitute_env(value):
-    if isinstance(value, str) and value.startswith('${') and value.endswith('}'):
-        parts = value[2:-1].split(':-')
-        return os.getenv(parts[0], parts[1] if len(parts) > 1 else '')
-    return value
+def substitute_env(obj):
+    if isinstance(obj, str):
+        if obj.startswith('${') and obj.endswith('}'):
+            var_and_default = obj[2:-1].split(':-', 1)
+            var_name = var_and_default[0]
+            default = var_and_default[1] if len(var_and_default) > 1 else ''
+            return os.getenv(var_name, default)
+    elif isinstance(obj, dict):
+        return {k: substitute_env(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [substitute_env(item) for item in obj]
+    return obj
 
-# Setup logging from config
+config = substitute_env(config)
 logging.config.dictConfig(config['logging'])
 
 # Get logger for a module

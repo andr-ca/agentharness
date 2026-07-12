@@ -69,9 +69,7 @@ language/pattern skills can follow the same template.
   so every command in `docs/INTEGRATION.md` is validated automatically
   rather than hand-verified. Meaningful effort; not started.
 
-- **Logging config loader** (item 12 from fable-review recommendations) —
-  `logging.yaml.example` currently uses `${VAR:-default}` syntax that
-  requires a loader to interpolate environment variables. Two options: (a)
-  implement a small Python module that parses this syntax, or (b) rewrite the
-  example in plain YAML with a comment showing per-library env handling.
-  Deferred pending decision on approach.
+- ~~Logging config loader~~ — **IMPLEMENTED** (item 12). Python utility
+  `config_loader.py` with tests for loading YAML configs with `${VAR:-default}`
+  environment variable interpolation. Documentation integrated into
+  `LOGGING_STANDARDS.md`.

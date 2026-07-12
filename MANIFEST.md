@@ -39,8 +39,10 @@ generator script yet (see ROADMAP.md).
 
 | Asset | Path | Type | When to use |
 |---|---|---|---|
-| Logging standards | `patterns/logging/LOGGING_STANDARDS.md` | guide | Structured logging design, levels, what to log/redact |
-| logging.yaml example | `patterns/logging/logging.yaml.example` | template | Copy and adapt if you adopt the structlog-based loader pattern described in the standards doc |
+| Logging standards | `patterns/logging/LOGGING_STANDARDS.md` | guide | Structured logging design, levels, what to log/redact, centralized config |
+| logging.yaml example | `patterns/logging/logging.yaml.example` | template | Copy and adapt for your service; includes OTEL, cloud, file, console backends |
+| Config loader | `patterns/logging/config_loader.py` | utility | Python: load YAML config with `${VAR:-default}` env var interpolation |
+| Config loader tests | `patterns/logging/test_config_loader.py` | tests | Tests for config_loader.py; run with pytest
 
 ## Claude Code Skills
 
