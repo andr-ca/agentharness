@@ -400,51 +400,27 @@ See `patterns/logging/test_config_loader.py` for examples and edge cases.
 
 ### Python
 
-**With config_loader (recommended):**
+`logging.yaml.example`'s schema (backends, per-module loggers, tracing) is
+a custom schema, not a `logging.config.dictConfig` schema (which requires
+`version`, `handlers`, `formatters`, etc.) — passing it to `dictConfig`
+directly raises `ValueError: dictionary doesn't specify a version`. Always
+load it through `config_loader.py` (the interpolation logic — nested
+braces in defaults, native bool/number types — lives in exactly one place;
+don't re-implement `${VAR:-default}` substitution inline, see
+`patterns/logging/test_config_loader.py` for the cases a hand-rolled
+version tends to miss) and wire the resulting values into whichever
+logging library you're using:
 
 ```python
 import logging
-import logging.config
 from lib.config_loader import load_config
 
 # Load configuration with environment variable interpolation
-config = load_config('config/logging.yaml')
+config = load_config('config/logging.yaml')['logging']
 
-# Setup logging from config
-logging.config.dictConfig(config['logging'])
-
-# Create loggers
-logger = logging.getLogger('app.auth')
-logger.info('User login', extra={'user_id': '12345'})
-```
-
-**Without config_loader (manual setup):**
-
-```python
-import logging
-import logging.config
-import yaml
-import os
-
-# Load and manually substitute environment variables
-with open('config/logging.yaml') as f:
-    config = yaml.safe_load(f)
-
-def substitute_env(obj):
-    if isinstance(obj, str):
-        if obj.startswith('${') and obj.endswith('}'):
-            var_and_default = obj[2:-1].split(':-', 1)
-            var_name = var_and_default[0]
-            default = var_and_default[1] if len(var_and_default) > 1 else ''
-            return os.getenv(var_name, default)
-    elif isinstance(obj, dict):
-        return {k: substitute_env(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [substitute_env(item) for item in obj]
-    return obj
-
-config = substitute_env(config)
-logging.config.dictConfig(config['logging'])
+# Wire values into stdlib logging (or structlog/loguru — see the
+# disclaimer at the top of this doc for why those are otherwise assumed)
+logging.basicConfig(level=config['level'])
 
 # Get logger for a module
 logger = logging.getLogger('business')

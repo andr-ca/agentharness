@@ -66,7 +66,7 @@ logging:
 
       # Headers for authentication
       headers: {}
-        # Authorization: "Bearer ${OTEL_AUTH_TOKEN}"
+        # Authorization: "Bearer ${OTEL_AUTH_TOKEN:-}"
 
     # Console/Terminal logging
     console:
@@ -91,8 +91,10 @@ logging:
       # GCP Cloud Logging
       gcp:
         enabled: ${GCP_LOGGING_ENABLED:-false}
-        project_id: ${GCP_PROJECT_ID}
-        log_name: ${SERVICE_NAME}
+        # Required if gcp.enabled is true; the default keeps the file
+        # loadable with zero env vars set while the backend stays off.
+        project_id: ${GCP_PROJECT_ID:-}
+        log_name: ${SERVICE_NAME:-my-service}
         # Uses Application Default Credentials
         # Set GOOGLE_APPLICATION_CREDENTIALS env var
 
@@ -106,7 +108,9 @@ logging:
       # Azure Application Insights
       azure:
         enabled: ${AZURE_LOGGING_ENABLED:-false}
-        instrumentation_key: ${APPINSIGHTS_INSTRUMENTATION_KEY}
+        # Required if azure.enabled is true; empty default keeps the file
+        # loadable with zero env vars set while the backend stays off.
+        instrumentation_key: ${APPINSIGHTS_INSTRUMENTATION_KEY:-}
 
     # Elasticsearch (via Logstash/Filebeat)
     elasticsearch:

@@ -57,6 +57,38 @@ class TestInterpolateEnvVars:
         result = interpolate_env_vars("just a string")
         assert result == "just a string"
 
+    def test_default_with_nested_braces(self):
+        """A default value may itself contain literal { } without truncating."""
+        os.environ.pop("LOG_FILENAME", None)
+        result = interpolate_env_vars("${LOG_FILENAME:-app-{date}.log}")
+        assert result == "app-{date}.log"
+
+    def test_whole_string_placeholder_coerces_bool(self):
+        """A value that IS a single placeholder recovers its native YAML type."""
+        os.environ.pop("OTEL_ENABLED", None)
+        assert interpolate_env_vars("${OTEL_ENABLED:-false}") is False
+        assert interpolate_env_vars("${OTEL_ENABLED:-true}") is True
+
+    def test_whole_string_placeholder_coerces_float(self):
+        os.environ.pop("SAMPLING_PROBABILITY", None)
+        result = interpolate_env_vars("${SAMPLING_PROBABILITY:-0.1}")
+        assert result == 0.1
+        assert isinstance(result, float)
+
+    def test_embedded_placeholder_stays_string(self):
+        """A placeholder embedded in surrounding text never coerces type."""
+        os.environ.pop("PORT", None)
+        result = interpolate_env_vars("localhost:${PORT:-4317}")
+        assert result == "localhost:4317"
+        assert isinstance(result, str)
+
+    def test_env_var_wins_over_default_with_type_coercion(self):
+        os.environ["OTEL_ENABLED"] = "true"
+        try:
+            assert interpolate_env_vars("${OTEL_ENABLED:-false}") is True
+        finally:
+            del os.environ["OTEL_ENABLED"]
+
 
 class TestProcessConfigValue:
     """Tests for recursive config processing."""
@@ -169,6 +201,44 @@ class TestLoadConfig:
 
             config = load_config(str(config_path))
             assert config == {}
+
+    def test_shipped_example_loads_with_zero_env_vars(self):
+        """logging.yaml.example must load without any environment variables set."""
+        example_path = Path(__file__).resolve().parent / "logging.yaml.example"
+
+        env_backup = dict(os.environ)
+        os.environ.clear()
+        try:
+            config = load_config(str(example_path))
+        finally:
+            os.environ.clear()
+            os.environ.update(env_backup)
+
+        backends = config["logging"]["backends"]
+        assert backends["otel"]["enabled"] is False
+        assert backends["cloud"]["gcp"]["project_id"] == ""
+        assert backends["file"]["filename_pattern"] == "app-{date}.log"
+        assert config["logging"]["tracing"]["sampler"]["sampling_probability"] == 0.1
+
+
+class TestRedactSensitive:
+    """Tests for CLI output redaction of secret-shaped keys."""
+
+    def test_redacts_known_secret_keys(self):
+        from config_loader import _redact_sensitive
+
+        config = {"instrumentation_key": "abc123", "level": "INFO"}
+        result = _redact_sensitive(config)
+        assert result["instrumentation_key"] == "***REDACTED***"
+        assert result["level"] == "INFO"
+
+    def test_does_not_redact_disabled_or_empty_secrets(self):
+        from config_loader import _redact_sensitive
+
+        config = {"api_key": "", "token": False}
+        result = _redact_sensitive(config)
+        assert result["api_key"] == ""
+        assert result["token"] is False
 
 
 if __name__ == "__main__":

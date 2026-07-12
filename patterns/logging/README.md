@@ -96,17 +96,27 @@ logging:
 ### 3. Implement in Your Code
 
 **Python:**
+
+`logging.yaml.example`'s schema (backends, per-module loggers, tracing) is
+not shaped like Python's `logging.config.dictConfig` schema (which needs
+`version`, `handlers`, `formatters`, etc.) — passing it to `dictConfig`
+directly raises `ValueError: dictionary doesn't specify a version`. Load
+and interpolate it with `config_loader.py`, then wire the values you need
+into whichever logging library you're using:
+
 ```python
-import logging.config
-import yaml
+import logging
+from config_loader import load_config
 
-with open('config/logging.yaml') as f:
-    config = yaml.safe_load(f)
-logging.config.dictConfig(config)
+config = load_config('config/logging.yaml')['logging']
 
+logging.basicConfig(level=config['level'])
 logger = logging.getLogger('api')
-logger.info("Server started", {"port": 8000})
+logger.info('server_started', extra={'port': 8000})
 ```
+
+See [LOGGING_STANDARDS.md](./LOGGING_STANDARDS.md#python) for the
+structlog/loguru path this guide's other examples assume.
 
 **TypeScript:**
 ```typescript

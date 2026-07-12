@@ -13,6 +13,14 @@ Environment variable substitution:
     ${LOGGING_LEVEL}           → value of LOGGING_LEVEL env var (error if not set)
     ${LOGGING_LEVEL:-INFO}     → value of LOGGING_LEVEL or "INFO" if not set
     ${LOG_PATH:-./logs}        → value of LOG_PATH or "./logs" if not set
+
+Nested braces in a default (e.g. ``${NAME:-app-{date}.log}``) are supported —
+the parser tracks brace depth rather than stopping at the first ``}``.
+
+When a YAML value is *exactly one* placeholder (nothing else in the string),
+the substituted result is re-parsed as a YAML scalar so booleans and numbers
+(``${OTEL_ENABLED:-false}`` → ``False``, not ``"false"``) round-trip to their
+native type. Placeholders embedded in a larger string always stay strings.
 """
 
 import os
@@ -28,8 +36,36 @@ except ImportError as e:
         "PyYAML is required for config_loader. Install with: pip install pyyaml"
     ) from e
 
+_PLACEHOLDER_SCAN_RE = re.compile(r'\$\{[A-Za-z_][A-Za-z0-9_]*(?::-|\})')
 
-def interpolate_env_vars(value: str) -> str:
+
+def _scan_placeholder(value: str, start: int) -> tuple[str, str | None, int]:
+    """
+    Parse a single ${VAR} / ${VAR:-default} placeholder beginning at
+    ``value[start:start+2] == '${'``, tracking brace depth so a default
+    value may itself contain literal ``{``/``}`` characters.
+
+    Returns (var_name, default_or_None, index_just_past_the_closing_brace).
+    """
+    depth = 1
+    j = start + 2
+    n = len(value)
+    while j < n and depth > 0:
+        if value[j] == "{":
+            depth += 1
+        elif value[j] == "}":
+            depth -= 1
+        j += 1
+
+    if depth != 0:
+        raise ValueError(f"Unbalanced '${{' in {value!r}")
+
+    inner = value[start + 2 : j - 1]
+    var_name, sep, default_value = inner.partition(":-")
+    return var_name, (default_value if sep else None), j
+
+
+def interpolate_env_vars(value: Any) -> Any:
     """
     Interpolate environment variables in a string.
 
@@ -37,36 +73,54 @@ def interpolate_env_vars(value: str) -> str:
     - ${VAR_NAME}: Require the env var to be set; error if missing
     - ${VAR_NAME:-default}: Use default if env var not set
 
+    Non-string values pass through unchanged.
+
     Args:
         value: String potentially containing env var placeholders
 
     Returns:
-        String with environment variables substituted
+        The interpolated value. If the entire input was a single
+        placeholder, the result is re-parsed as a YAML scalar (so it may be
+        a bool, int, float, or None rather than a string); otherwise a
+        string.
 
     Raises:
         ValueError: If a required env var is not set
     """
-    # Pattern: ${VAR_NAME} or ${VAR_NAME:-default_value}
-    pattern = r'\$\{([^}:]+)(?::-(.*?))?\}'
+    if not isinstance(value, str) or "${" not in value:
+        return value
 
-    def replace_var(match):
-        var_name = match.group(1)
-        default_value = match.group(2)
+    pieces: list[str] = []
+    i, n = 0, len(value)
+    placeholder_count = 0
 
-        env_value = os.environ.get(var_name)
+    while i < n:
+        if value[i] == "$" and i + 1 < n and value[i + 1] == "{":
+            var_name, default_value, end = _scan_placeholder(value, i)
+            env_value = os.environ.get(var_name)
 
-        if env_value is not None:
-            return env_value
+            if env_value is not None:
+                pieces.append(env_value)
+            elif default_value is not None:
+                pieces.append(default_value)
+            else:
+                raise ValueError(
+                    f"Required environment variable '{var_name}' not set and no default provided"
+                )
 
-        if default_value is not None:
-            return default_value
+            placeholder_count += 1
+            i = end
+        else:
+            pieces.append(value[i])
+            i += 1
 
-        # No value and no default — this is an error
-        raise ValueError(
-            f"Required environment variable '{var_name}' not set and no default provided"
-        )
+    result = "".join(pieces)
 
-    return re.sub(pattern, replace_var, value)
+    # Whole string was exactly one placeholder — recover its native YAML type.
+    if placeholder_count == 1 and len(pieces) == 1:
+        return yaml.safe_load(result) if result else result
+
+    return result
 
 
 def process_config_value(value: Any) -> Any:
@@ -124,32 +178,64 @@ def load_config(config_path: str) -> Any:
     return process_config_value(config)
 
 
+_SENSITIVE_KEY_RE = re.compile(
+    r"(secret|token|password|passwd|api[_-]?key|credential|instrumentation[_-]?key|auth)",
+    re.IGNORECASE,
+)
+
+
+def _redact_sensitive(value: Any, key: str | None = None) -> Any:
+    """Recursively mask values whose key name looks secret-shaped."""
+    if isinstance(value, dict):
+        return {k: _redact_sensitive(v, k) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_redact_sensitive(item, key) for item in value]
+    if key and _SENSITIVE_KEY_RE.search(key) and value not in (None, "", False):
+        return "***REDACTED***"
+    return value
+
+
 if __name__ == "__main__":
     # Simple CLI for testing
     if len(sys.argv) < 2:
-        print(f"Usage: {sys.argv[0]} <config_file> [--show-env-vars]", file=sys.stderr)
+        print(f"Usage: {sys.argv[0]} <config_file> [--show-env-vars] [--no-redact]", file=sys.stderr)
         sys.exit(1)
 
     config_file = sys.argv[1]
     show_env_vars = "--show-env-vars" in sys.argv
+    no_redact = "--no-redact" in sys.argv
 
     try:
         config = load_config(config_file)
 
         if show_env_vars:
-            print("Environment variables used:")
-            pattern = r'\$\{([^}:]+)(?::-(.*?))?\}'
+            # Report which env vars were referenced and whether the
+            # environment or the file's own default supplied the value —
+            # never print the resolved value itself, since these
+            # placeholders are also used for credentials (API keys,
+            # instrumentation keys, tokens).
+            print("Environment variables referenced:")
             with open(config_file) as f:
                 content = f.read()
-                matches = re.findall(pattern, content)
-                for var_name, default in matches:
-                    value = os.environ.get(var_name, default or "(not set)")
-                    print(f"  {var_name} = {value}")
+            seen = set()
+            i = 0
+            while True:
+                idx = content.find("${", i)
+                if idx == -1:
+                    break
+                var_name, default_value, end = _scan_placeholder(content, idx)
+                i = end
+                if var_name in seen:
+                    continue
+                seen.add(var_name)
+                source = "environment" if var_name in os.environ else "default"
+                print(f"  {var_name} (from {source})")
             print()
 
         import json
 
-        print(json.dumps(config, indent=2))
+        to_print = config if no_redact else _redact_sensitive(config)
+        print(json.dumps(to_print, indent=2, default=str))
     except (FileNotFoundError, yaml.YAMLError, ValueError) as e:
         print(f"ERROR: {e}", file=sys.stderr)
         sys.exit(1)
