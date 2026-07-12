@@ -2,6 +2,20 @@
 
 Instructions for using this central harness repository with Claude Code, Claude agents, and coding workflows.
 
+## 🤖 Agent Workflow Completion (MANDATORY)
+
+**When an agent finishes work on a task, it MUST always complete the workflow:**
+
+1. ✅ **Verify all work is done** — tests pass, coverage ≥80%, lint passes, no TODOs
+2. ✅ **Create atomic commits** — one logical unit per commit, clear message explaining WHY
+3. ✅ **Push to remote** — push branch to origin with tracking (`git push -u origin branch-name`)
+4. ✅ **Create pull request** — use `gh pr create` with title, body summary, and checklist
+5. ✅ **Never leave work uncommitted** — work in progress that isn't pushed is work that doesn't exist
+
+**An agent claiming work is "complete" without a PR/commit is incomplete.** Always finish the workflow.
+
+---
+
 ## 🎯 Core Principles
 
 1. **DRY (Don't Repeat Yourself)** – Maintain harnesses once, reuse across all projects

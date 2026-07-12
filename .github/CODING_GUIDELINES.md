@@ -34,6 +34,10 @@ Work is NOT done until:
 4. ✅ All edge cases tested
 5. ✅ All inherited test failures fixed
 6. ✅ **For Web UI: Playwright tests with screenshot verification completed**
+7. ✅ **All work committed to a feature branch** (never trunk)
+8. ✅ **Branch pushed to remote** with tracking (`git push -u origin branch-name`)
+9. ✅ **Pull request created** with clear title, body, and checklist
+10. ✅ **PR link is provided** — no work is complete without a PR
 
 ### Web UI Testing Requirement (MANDATORY)
 

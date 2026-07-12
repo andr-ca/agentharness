@@ -9,6 +9,18 @@ Standards for git commits that maintain clean history, respect project configura
 
 ## Core Rules
 
+### For Agents: Workflow Completion is MANDATORY
+
+**An agent must always complete the full workflow—no partial work.**
+
+- ✅ Work is NOT done until pushed to remote with a PR created
+- ✅ Every task ends with: commit → push → PR (in that order)
+- ✅ Never claim work is complete without a PR link in the response
+- ✅ Commits must be on a feature branch, never directly on trunk
+- ✅ PR must have clear title, body, and reference to the task/issue
+
+If an agent says "work is complete" but there's no PR, the work is incomplete.
+
 ### Security & Verification
 
 - **Always respect signing configuration** – Do not disable, override, or work around GPG signing
