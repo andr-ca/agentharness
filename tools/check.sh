@@ -11,8 +11,9 @@
 # (which runs a subset of this — bats + pytest — automatically).
 #
 # Requires: bats, python3, pip install -r requirements-dev.txt.
-# shellcheck is optional locally (CI always runs it); install it to catch
-# what this script otherwise can't.
+# Static analysis of shell scripts (via the shellcheck tool) is optional
+# locally — CI always runs it — but installing it locally catches issues
+# this script otherwise can't.
 # ============================================================================
 
 set -euo pipefail

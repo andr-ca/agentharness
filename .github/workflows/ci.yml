@@ -54,7 +54,11 @@ jobs:
           set -euo pipefail
           git clone --depth 1 --branch v1.13.0 https://github.com/bats-core/bats-core.git "$RUNNER_TEMP/bats-core"
           cd "$RUNNER_TEMP/bats-core"
-          test "$(git rev-parse HEAD)" = "d6a46f2cc2d3025ee3ffb59991c6d93ef903e339"
+          # v1.13.0 is an annotated tag — HEAD after checkout is the commit
+          # it points to (3bca150e...), not the tag object's own SHA
+          # (d6a46f2c..., what `git ls-remote --tags` reports unless you
+          # dereference with ^{}). Verify against the commit, not the tag.
+          test "$(git rev-parse HEAD)" = "3bca150ec86275d6d9d5a4fd7d48ab8b6c6f3d87"
           ./install.sh "$RUNNER_TEMP/bats"
           echo "$RUNNER_TEMP/bats/bin" >> "$GITHUB_PATH"
       - name: Install pytest (pre-push.bats invokes the pre-push hook, which needs it)
