@@ -58,6 +58,17 @@ generator script yet (see ROADMAP.md).
 | Agent loop implementation | `patterns/agentic-loops/agent_loop.py` | utility | Python: tested, provider-neutral single-tool-call agent loop with schema validation, budget, approval hook, audit trace |
 | Agent loop tests | `patterns/agentic-loops/test_agent_loop.py` | tests | Tests for agent_loop.py; run with pytest |
 
+## Eval Suite
+
+| Asset | Path | Type | When to use |
+|---|---|---|---|
+| Overview | `tools/eval/README.md` | guide | What the suite measures, task format, how to score a candidate, what running a real eval requires (P2-04) |
+| Task definitions | `tools/eval/tasks/` | fixtures | 3 task specs (2 Python, 1 Go): prompt, starter code, hidden grading tests |
+| Deterministic scorer | `tools/eval/score.py` | script | Runs a task's hidden tests against a candidate dir; no LLM calls (P2-04) |
+| Orchestrator | `tools/eval/run.py` | script | Baseline/treatment condition setup + ledger writing; the live-agent call is unimplemented by design — see the README's "Running a real eval" (P2-04) |
+| Scorer/orchestrator fixtures | `tools/eval/fixtures/` | fixtures | Hand-written correct/broken implementations per task, used by `tests/test_score.py` |
+| Results ledger | `tools/eval/results/README.md` | doc | JSON-lines format for tracked score history |
+
 ## Logging
 
 | Asset | Path | Type | When to use |

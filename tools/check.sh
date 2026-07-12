@@ -56,16 +56,21 @@ bats tools/tests/materialize-skill-symlinks.bats
 
 step "ruff"
 ruff check patterns/logging/config_loader.py patterns/logging/test_config_loader.py \
-    patterns/agentic-loops/agent_loop.py patterns/agentic-loops/test_agent_loop.py
+    patterns/agentic-loops/agent_loop.py patterns/agentic-loops/test_agent_loop.py \
+    tools/eval/score.py tools/eval/run.py
 
 step "mypy"
-mypy patterns/logging/config_loader.py patterns/agentic-loops/agent_loop.py
+mypy patterns/logging/config_loader.py patterns/agentic-loops/agent_loop.py \
+    tools/eval/score.py tools/eval/run.py
 
 step "pytest: config_loader (>=80% coverage)"
 (cd patterns/logging && python3 -m pytest test_config_loader.py --cov=config_loader --cov-fail-under=80 -q)
 
 step "pytest: agent_loop (>=80% coverage)"
 (cd patterns/agentic-loops && python3 -m pytest test_agent_loop.py --cov=agent_loop --cov-fail-under=80 -q)
+
+step "pytest: eval suite score.py + run.py (>=80% coverage; requires go for the go-error-handling task)"
+(cd tools/eval && python3 -m pytest tests/ --cov=score --cov=run --cov-fail-under=80 -q)
 
 step "MANIFEST.md verification"
 bash tools/verify-manifest.sh

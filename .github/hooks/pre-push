@@ -85,17 +85,25 @@ echo ""
 # Python unit tests with coverage gate
 # ----------------------------------------------------------------------------
 # New Python test suites should be added to this list as they're created.
+# Third field is comma-separated for a suite that covers more than one
+# module (tools/eval's tests exercise both score.py and run.py).
 PYTHON_SUITES=(
     "patterns/logging:test_config_loader.py:config_loader"
     "patterns/agentic-loops:test_agent_loop.py:agent_loop"
+    "tools/eval:tests:score,run"
 )
 
 if command -v python3 >/dev/null 2>&1 && python3 -m pytest --version >/dev/null 2>&1; then
     for entry in "${PYTHON_SUITES[@]}"; do
-        IFS=':' read -r dir test_file module <<< "$entry"
+        IFS=':' read -r dir test_file modules <<< "$entry"
         [ -e "$REPO_ROOT/$dir/$test_file" ] || continue
         echo "-> pytest: $dir/$test_file (>=${COVERAGE_MIN}% coverage required)"
-        if ! (cd "$dir" && python3 -m pytest "$test_file" --cov="$module" --cov-fail-under="$COVERAGE_MIN" -q); then
+        cov_args=()
+        IFS=',' read -ra module_list <<< "$modules"
+        for module in "${module_list[@]}"; do
+            cov_args+=("--cov=$module")
+        done
+        if ! (cd "$dir" && python3 -m pytest "$test_file" "${cov_args[@]}" --cov-fail-under="$COVERAGE_MIN" -q); then
             FAILED=1
         fi
     done
