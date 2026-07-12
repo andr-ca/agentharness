@@ -1,9 +1,24 @@
 # Security
 
 This is a personal documentation/tooling repository — instructions,
-conventions, and a couple of scripts. There's no running service, no
-user data, and no attack surface beyond "a script in here could be
-wrong." Still, two things are worth stating explicitly.
+conventions, and a couple of scripts. There's no running service and no
+user data, but the instructions themselves are an attack surface: a
+coding agent reads `CLAUDE.md` and `.claude/skills/*/SKILL.md` as
+policy and acts on them. A malicious or accidentally-harmful edit to
+those files (or to anything a symlink resolves to) can make an agent
+run commands, read files, or push code it otherwise wouldn't — this is
+qualitatively different from "a script could be wrong."
+
+`tools/setup/harness-link.sh --with-hook`'s default install mode is a
+live symlink into this checkout: every project that links against it
+picks up whatever this repo's `main` currently says, with no pinning,
+review gate, or diff-on-update step. That's convenient for one person's
+own projects; for a team or a fork of unknown provenance, prefer
+copying the specific files/skills you want (or pin to a tagged commit
+and re-copy on update) rather than symlinking against a moving branch
+you don't control.
+
+Two more things are worth stating explicitly.
 
 ## If you find a secret committed to this repo's history
 
