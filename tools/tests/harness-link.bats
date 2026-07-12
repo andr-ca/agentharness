@@ -51,6 +51,22 @@ teardown() {
     [ ! -e "$TEST_PROJECT/.claude/skills/python-conventions" ]
 }
 
+@test "harness-link.sh: --skills rejects path traversal instead of symlinking outside skills dir" {
+    # Regression test: "../../patterns" (or an absolute path) used to
+    # resolve straight through to SRC="$SKILLS_SRC/../../patterns",
+    # symlinking an arbitrary harness path into the target project's
+    # .claude/skills/. See docs/operational/reviews/gpt-5.6-review-status.md.
+    run bash "$SCRIPT" "$TEST_PROJECT" --skills "../../patterns,committing"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Skipping invalid skill name: ../../patterns" ]]
+    [ -L "$TEST_PROJECT/.claude/skills/committing" ]
+    [ ! -e "$TEST_PROJECT/.claude/skills/patterns" ]
+    # Nothing traversal-shaped should exist anywhere under .claude/skills/
+    run find "$TEST_PROJECT/.claude/skills" -mindepth 1 -maxdepth 1 -name '..*'
+    [ -z "$output" ]
+}
+
 @test "harness-link.sh: merges .gitignore.template into .gitignore" {
     # Pre-create a .gitignore with some content
     echo "node_modules/" > "$TEST_PROJECT/.gitignore"
@@ -68,6 +84,51 @@ teardown() {
 
     bash "$SCRIPT" "$TEST_PROJECT" --with-hook
 
+    hooks_path=$(git -C "$TEST_PROJECT" config core.hooksPath)
+    [[ "$hooks_path" == *".github/hooks" ]]
+}
+
+@test "harness-link.sh: --with-hook works against a linked worktree, not just the main checkout" {
+    # Regression test: a worktree's .git is a *file* (gitdir: ...), not a
+    # directory, so `[ -d "$TARGET/.git" ]` used to treat every worktree
+    # as "not a git repo" and silently skip hook installation.
+    main_repo=$(mktemp -d)
+    git -C "$main_repo" init --quiet
+    git -C "$main_repo" commit --quiet --allow-empty -m "init"
+    worktree_dir="$TEST_PROJECT/worktree"
+    git -C "$main_repo" worktree add --quiet "$worktree_dir" --detach >/dev/null
+
+    [ -f "$worktree_dir/.git" ]
+    [ ! -d "$worktree_dir/.git" ]
+
+    run bash "$SCRIPT" "$worktree_dir" --with-hook
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Installed" ]]
+    hooks_path=$(git -C "$worktree_dir" config core.hooksPath)
+    [[ "$hooks_path" == *".github/hooks" ]]
+
+    git -C "$main_repo" worktree remove --force "$worktree_dir" 2>/dev/null || true
+    rm -rf "$main_repo"
+}
+
+@test "harness-link.sh: --with-hook refuses to overwrite a different existing core.hooksPath" {
+    git -C "$TEST_PROJECT" init --quiet
+    git -C "$TEST_PROJECT" config core.hooksPath "some/other/hooks"
+
+    run bash "$SCRIPT" "$TEST_PROJECT" --with-hook
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "already has a different core.hooksPath" ]]
+    hooks_path=$(git -C "$TEST_PROJECT" config core.hooksPath)
+    [ "$hooks_path" = "some/other/hooks" ]
+}
+
+@test "harness-link.sh: --with-hook --force overwrites a different existing core.hooksPath" {
+    git -C "$TEST_PROJECT" init --quiet
+    git -C "$TEST_PROJECT" config core.hooksPath "some/other/hooks"
+
+    run bash "$SCRIPT" "$TEST_PROJECT" --with-hook --force
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Overwrote existing core.hooksPath" ]]
     hooks_path=$(git -C "$TEST_PROJECT" config core.hooksPath)
     [[ "$hooks_path" == *".github/hooks" ]]
 }
