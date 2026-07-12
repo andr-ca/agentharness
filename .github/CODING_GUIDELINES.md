@@ -166,7 +166,7 @@ for (let i = 0; i < n; i++) doSomething();
 - **Don't add tests to wrong suite** – Keep tests organized by the code they test
 - **Look for existing patterns** before creating new test structures
 - **Use `describe`/`test` consistently** with what's already in the codebase
-- **Minimize assertions** – Prefer one comprehensive assertion over many small ones
+- **One behavior, one assertion** – see "Specific Practices" above; not restated here
 - **Make dependencies injectable** – Don't stub globals or use `any` casts to inject fakes
   - Add optional constructor parameter with real default
   - Test passes mock that implements the real interface
