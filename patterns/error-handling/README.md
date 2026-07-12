@@ -39,7 +39,12 @@ _ = os.Rename(oldPath, newPath)  // File might not have renamed
 try:
     user_data = parse_user_data(raw_json)
 except json.JSONDecodeError as e:
-    logger.error("Invalid user JSON", extra={"raw": raw_json, "error": str(e)})
+    # Don't log the raw payload — it may carry PII or secrets the caller
+    # sent. Log enough to debug the parse failure, not the input itself.
+    logger.error(
+        "Invalid user JSON",
+        extra={"length": len(raw_json), "error": str(e)},
+    )
     return None  # Or raise
 
 # JavaScript: Explicit handling
@@ -134,25 +139,31 @@ from typing import Callable, TypeVar
 
 T = TypeVar('T')
 
-def retry(func: Callable[..., T], max_attempts: int = 3, 
+def retry(func: Callable[..., T], max_attempts: int = 3,
           backoff_base: float = 1.0) -> T:
     """Retry function with exponential backoff."""
-    last_error = None
-    
+    if max_attempts < 1:
+        raise ValueError("max_attempts must be >= 1")
+
+    last_error: Exception | None = None
+
     for attempt in range(max_attempts):
         try:
             return func()
         except (ConnectionError, TimeoutError) as e:
             last_error = e
             if attempt < max_attempts - 1:
-                wait_time = backoff_base ** attempt
+                # backoff_base ** attempt is constant at backoff_base == 1.0
+                # (the default) — this is meant to double each time.
+                wait_time = backoff_base * (2 ** attempt)
                 logger.warn(f"Retry {attempt + 1}/{max_attempts}", 
                            extra={"wait_seconds": wait_time})
                 time.sleep(wait_time)
-        except (ValueError, KeyError) as e:
+        except (ValueError, KeyError):
             # Don't retry validation errors
             raise
-    
+
+    assert last_error is not None  # loop always ran >= 1 time
     raise last_error
 
 # Usage
@@ -164,6 +175,7 @@ user = retry(lambda: fetch_user(user_id), max_attempts=3)
 Stop repeatedly calling a failing service; fail fast and check periodically if it recovers.
 
 ```python
+import threading
 import time
 from enum import Enum
 
@@ -173,38 +185,52 @@ class CircuitState(Enum):
     HALF_OPEN = "half_open"  # Testing recovery
 
 class CircuitBreaker:
-    def __init__(self, failure_threshold: int = 5, 
-                 recovery_timeout: float = 60):
+    """
+    Not safe to share across threads without the lock below — concurrent
+    `call()`s mutating `failure_count`/`state` is a real race. Also only
+    trips on `expected_exceptions` (defaults to what `retry()` above
+    treats as transient); a bug in your own code that raises TypeError
+    isn't a "downstream service failure" and shouldn't count against it.
+    """
+
+    def __init__(self, failure_threshold: int = 5,
+                 recovery_timeout: float = 60,
+                 expected_exceptions: tuple = (ConnectionError, TimeoutError)):
         self.failure_count = 0
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
+        self.expected_exceptions = expected_exceptions
         self.state = CircuitState.CLOSED
         self.last_failure_time = None
-    
+        self._lock = threading.Lock()
+
     def call(self, func, *args, **kwargs):
-        if self.state == CircuitState.OPEN:
-            if time.time() - self.last_failure_time > self.recovery_timeout:
-                self.state = CircuitState.HALF_OPEN
-            else:
-                raise RuntimeError("Circuit breaker is OPEN")
-        
+        with self._lock:
+            if self.state == CircuitState.OPEN:
+                if time.time() - self.last_failure_time > self.recovery_timeout:
+                    self.state = CircuitState.HALF_OPEN
+                else:
+                    raise RuntimeError("Circuit breaker is OPEN")
+
         try:
             result = func(*args, **kwargs)
             self._on_success()
             return result
-        except Exception as e:
+        except self.expected_exceptions:
             self._on_failure()
             raise
-    
+
     def _on_success(self):
-        self.failure_count = 0
-        self.state = CircuitState.CLOSED
-    
+        with self._lock:
+            self.failure_count = 0
+            self.state = CircuitState.CLOSED
+
     def _on_failure(self):
-        self.failure_count += 1
-        self.last_failure_time = time.time()
-        if self.failure_count >= self.failure_threshold:
-            self.state = CircuitState.OPEN
+        with self._lock:
+            self.failure_count += 1
+            self.last_failure_time = time.time()
+            if self.failure_count >= self.failure_threshold:
+                self.state = CircuitState.OPEN
 
 # Usage
 breaker = CircuitBreaker(failure_threshold=5)
@@ -217,7 +243,16 @@ Provide a sensible default when the primary operation fails.
 
 ```python
 def get_user_with_fallback(user_id: str) -> User:
-    """Get user from cache, fallback to database, then guest."""
+    """
+    Get user from cache, fallback to database, then guest.
+
+    Assumes cache.get() raises CacheError on a miss — confirm that's
+    actually your cache client's contract before copying this. Many
+    `.get(key)` APIs return None on a miss instead, which this pattern
+    would misread as "cache is empty" and silently skip the cache warm
+    on the next branch; if a cached value can legitimately be None, add
+    a sentinel to tell "no entry" apart from "entry is None".
+    """
     try:
         return cache.get(user_id)
     except CacheError:
@@ -282,6 +317,11 @@ Distinguish error types to decide recovery strategy:
 - **Unknown**: Log carefully, treat conservatively
 
 ```python
+from typing import Callable, TypeVar
+
+T = TypeVar("T")
+
+
 def classify_error(error: Exception) -> str:
     """Classify error for recovery strategy."""
     if isinstance(error, (ConnectionError, TimeoutError)):
@@ -293,20 +333,28 @@ def classify_error(error: Exception) -> str:
     else:
         return "unknown"    # Log, treat conservatively
 
-def handle_error(error: Exception, operation: str):
+def handle_error(error: Exception, operation: Callable[[], T], operation_name: str) -> T | None:
+    """
+    Recover from `error`, which was raised by calling `operation()`.
+
+    `raise error` (not a bare `raise`) below is deliberate: this function
+    receives the exception as a value, so it isn't necessarily called from
+    inside the `except` block that caught it — a bare `raise` would fail
+    with "No active exception to reraise" whenever that's not the case.
+    """
     error_type = classify_error(error)
-    
+
     if error_type == "transient":
-        retry(operation, max_attempts=3)
+        return retry(operation, max_attempts=3)
     elif error_type == "validation":
-        logger.error(f"Invalid {operation}", extra={"error": error})
-        raise
+        logger.error(f"Invalid {operation_name}", extra={"error": str(error)})
+        raise error
     elif error_type == "fatal":
-        logger.critical(f"Fatal {operation}", extra={"error": error})
-        raise
+        logger.critical(f"Fatal {operation_name}", extra={"error": str(error)})
+        raise error
     else:
-        logger.warn(f"Unknown error in {operation}", extra={"error": error})
-        raise
+        logger.warn(f"Unknown error in {operation_name}", extra={"error": str(error)})
+        raise error
 ```
 
 ---
