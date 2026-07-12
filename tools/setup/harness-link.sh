@@ -103,6 +103,13 @@ if [ -d "$SKILLS_SRC" ]; then
     fi
 
     for skill in "${WANTED[@]}"; do
+        # Reject anything that isn't a plain directory name — "../../etc" or
+        # "foo/bar" could otherwise place a symlink outside .claude/skills
+        # or read a source outside the harness's skills directory.
+        if [[ "$skill" != "$(basename -- "$skill")" || "$skill" == "." || "$skill" == ".." ]]; then
+            echo "  Skipping invalid skill name: $skill" >&2
+            continue
+        fi
         SRC="$SKILLS_SRC/$skill"
         DST="$SKILLS_DST/$skill"
         if [ ! -d "$SRC" ]; then
@@ -130,9 +137,15 @@ GITIGNORE_DST="$TARGET/.gitignore"
 
 if [ -f "$GITIGNORE_TEMPLATE" ]; then
     if [ -f "$GITIGNORE_DST" ]; then
-        NEW_ENTRIES="$(comm -23 \
-            <(grep -vE '^\s*(#|$)' "$GITIGNORE_TEMPLATE" | sort -u) \
-            <(grep -vE '^\s*(#|$)' "$GITIGNORE_DST" | sort -u))"
+        # Preserve the template's own line order for newly-added entries —
+        # .gitignore is order-sensitive (negation patterns like `!kept.txt`
+        # only work if they appear after the pattern they un-ignore), so a
+        # comm+sort merge (which alphabetizes) can silently reorder past
+        # that ordering.
+        NEW_ENTRIES="$(awk '
+            NR == FNR { if ($0 !~ /^[[:space:]]*(#|$)/) seen[$0] = 1; next }
+            $0 !~ /^[[:space:]]*(#|$)/ && !($0 in seen)
+        ' "$GITIGNORE_DST" "$GITIGNORE_TEMPLATE")"
         if [ -n "$NEW_ENTRIES" ]; then
             {
                 echo ""
@@ -155,7 +168,9 @@ fi
 # 3. Trunk-protection hook (opt-in)
 # ----------------------------------------------------------------------------
 if [ "$WITH_HOOK" = true ]; then
-    if [ -d "$TARGET/.git" ]; then
+    # `.git` is a file (not a directory) inside a worktree, so check via
+    # rev-parse instead of `[ -d "$TARGET/.git" ]`, which rejects worktrees.
+    if git -C "$TARGET" rev-parse --git-dir >/dev/null 2>&1; then
         git -C "$TARGET" config core.hooksPath "$HARNESS_DIR/.github/hooks"
         echo "  Installed prevent-trunk-commit hook (core.hooksPath)"
     else

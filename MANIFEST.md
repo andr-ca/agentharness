@@ -18,6 +18,10 @@ generator script yet (see ROADMAP.md).
 | gitignore template | `.github/.gitignore.template` | template | `cp` into a new project as `.gitignore` |
 | prevent-trunk-commit hook | `.github/hooks/prevent-trunk-commit` | git hook | The enforcement logic. Installed via `git config core.hooksPath .github/hooks` (done in this repo) |
 | pre-commit dispatcher | `.github/hooks/pre-commit` | git hook | Required alongside the hook above — `core.hooksPath` only invokes a file literally named `pre-commit`; this execs `prevent-trunk-commit` |
+| Hooks overview | `.github/hooks/README.md` | doc | Why both hook files exist, how to install them elsewhere |
+| Hook tests | `.github/hooks/tests/prevent-trunk-commit.bats` | tests | bats coverage for the trunk-protection hook; run with `bats` |
+| CI workflow | `.github/workflows/ci.yml` | config | shellcheck, hook-tests, markdown-links, manifest-verify, python-tests, sample-project-integration |
+| .github overview | `.github/README.md` | doc | Index of this directory's guideline files |
 
 ## Language Conventions
 
@@ -27,6 +31,8 @@ generator script yet (see ROADMAP.md).
 | Python agent instructions | `languages/python/COPILOT_INSTRUCTIONS.md` | guide | General-purpose agent operating principles for Python repos |
 | TypeScript conventions | `languages/typescript/CONVENTIONS.md` | guide | Naming, type safety, React patterns for `.ts` / `.tsx` files |
 | Go conventions | `languages/go/CONVENTIONS.md` | guide | Naming, concurrency, interfaces, testing for `.go` files |
+| Python overview | `languages/python/README.md` | doc | Index of Python guide documents |
+| Languages overview | `languages/README.md` | doc | Index of per-language convention directories |
 
 ## Testing & Quality Patterns
 
@@ -37,6 +43,7 @@ generator script yet (see ROADMAP.md).
 | Coverage requirements | `patterns/testing/COVERAGE_REQUIREMENTS.md` | policy | Single source of truth for the 80% coverage tiers — other docs link here, don't restate |
 | Completion checklist | `patterns/testing/COMPLETION_CHECKLIST.md` | checklist | Before marking any task done |
 | Playwright UI testing | `patterns/testing/PLAYWRIGHT_UI_TESTING.md` | guide | Web UI work at Production tier only |
+| Testing overview | `patterns/testing/README.md` | doc | Index of testing guide documents |
 
 ## Error Handling & Reliability
 
@@ -57,7 +64,9 @@ generator script yet (see ROADMAP.md).
 | Logging standards | `patterns/logging/LOGGING_STANDARDS.md` | guide | Structured logging design, levels, what to log/redact, centralized config |
 | logging.yaml example | `patterns/logging/logging.yaml.example` | template | Copy and adapt for your service; includes OTEL, cloud, file, console backends |
 | Config loader | `patterns/logging/config_loader.py` | utility | Python: load YAML config with `${VAR:-default}` env var interpolation |
-| Config loader tests | `patterns/logging/test_config_loader.py` | tests | Tests for config_loader.py; run with pytest
+| Config loader tests | `patterns/logging/test_config_loader.py` | tests | Tests for config_loader.py; run with pytest |
+| Logging overview | `patterns/logging/README.md` | doc | Index of logging guide documents and quick-start |
+| Patterns overview | `patterns/README.md` | doc | Index of pattern categories (testing, logging, error handling, agentic loops) |
 
 ## Claude Code Skills
 
@@ -69,6 +78,7 @@ generator script yet (see ROADMAP.md).
 | Error handling | `.claude/skills/error-handling/SKILL.md` | skill | Loads on demand for error recovery, resilience patterns |
 | Agentic loops | `.claude/skills/agentic-loops/SKILL.md` | skill | Loads on demand for multi-turn agents, tool calling |
 | Audit review follow-up | `.claude/skills/audit-review-followup/SKILL.md` | skill | Verifying that review recommendations were actually implemented; re-scoring |
+| .claude overview | `.claude/README.md` | doc | Index of Claude Code skills in this repo |
 
 ## Setup & Examples
 
@@ -77,6 +87,9 @@ generator script yet (see ROADMAP.md).
 | Harness link script | `tools/setup/harness-link.sh` | script | One-command integration into a consuming project |
 | Sample project | `examples/sample-project/` | project | Demonstrates harness integration; validates INTEGRATION.md commands work |
 | Integration verification | `examples/sample-project/verify.sh` | script | Checks that skills, hooks, and guidelines are properly integrated |
+| Manifest verifier | `tools/verify-manifest.sh` | script | Bidirectional check: every manifest path exists, every tracked asset is listed. Run in CI (`manifest-verify` job) |
+| harness-link tests | `tools/tests/harness-link.bats` | tests | bats coverage for `harness-link.sh`; run with `bats` |
+| tools overview | `tools/README.md` | doc | Index of utility scripts |
 
 ## GitHub Configuration
 
@@ -96,6 +109,11 @@ generator script yet (see ROADMAP.md).
 | Planned-but-not-built components | `ROADMAP.md` | doc |
 | Release history | `CHANGELOG.md` | doc |
 | Security / secrets procedure | `SECURITY.md` | doc |
+| License | `LICENSE` | doc | MIT |
+| Documentation index | `docs/README.md` | doc | Index of `docs/` guides |
+| Operational docs policy | `docs/operational/README.md` | doc | Promote/archive/delete lifecycle for temporary agent-generated docs |
+| Operational docs index | `docs/operational/INDEX.md` | doc | Active/completed/archived operational documents |
+| Frameworks overview | `frameworks/README.md` | doc | Index of framework-specific harness directories (none built yet — see ROADMAP.md) |
 | Prior full repo review | `docs/operational/reviews/fable-review.md` | historical record — dated 2026-07-11, describes the repo as `awesome-harness` before the rename |
 | Review recommendations status | `docs/operational/reviews/fable-review-status.md` | disposition of all 30 backlog items from the review above |
 | Independent repo review (GPT-5.6) | `docs/operational/reviews/gpt-5.6-review.md` | second-opinion review, dated 2026-07-11; not yet triaged against current repo state |

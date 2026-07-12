@@ -90,6 +90,39 @@ teardown() {
     [ "$status" -ne 0 ]
 }
 
+@test "harness-link.sh: rejects path-traversal skill names" {
+    # ../../patterns resolves (from .claude/skills/) to the harness's own
+    # patterns/ directory, which really exists — so pre-fix this placed a
+    # live symlink at $TEST_PROJECT/patterns, outside .claude/skills.
+    run bash "$SCRIPT" "$TEST_PROJECT" --skills "../../patterns"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Skipping invalid skill name" ]]
+    [ ! -e "$TEST_PROJECT/patterns" ]
+}
+
+@test "harness-link.sh: rejects skill names containing a path separator" {
+    run bash "$SCRIPT" "$TEST_PROJECT" --skills "foo/bar"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Skipping invalid skill name" ]]
+}
+
+@test "harness-link.sh: --with-hook works against a git worktree, not just a primary checkout" {
+    git -C "$TEST_PROJECT" init --quiet -b main
+    git -C "$TEST_PROJECT" commit --quiet --allow-empty -m "initial"
+    WORKTREE=$(mktemp -d)
+    rmdir "$WORKTREE"
+    git -C "$TEST_PROJECT" worktree add --quiet -b feature "$WORKTREE"
+
+    bash "$SCRIPT" "$WORKTREE" --with-hook
+
+    hooks_path=$(git -C "$WORKTREE" config core.hooksPath)
+    [[ "$hooks_path" == *".github/hooks" ]]
+
+    rm -rf "$WORKTREE"
+}
+
 @test "harness-link.sh: is idempotent (run twice safely, same resulting state)" {
     git -C "$TEST_PROJECT" init --quiet
 
