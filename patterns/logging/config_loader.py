@@ -121,11 +121,63 @@ def interpolate_env_vars(value: str) -> str:
     return "".join(pieces)
 
 
+def _coerce_scalar(text: str) -> Any:
+    """
+    Coerce a fully-substituted placeholder value to the type plain YAML
+    would have parsed it as (bool, int, float, null) if it had been
+    written as a literal instead of an env-var placeholder — so
+    ${OTEL_ENABLED:-false} behaves like the YAML literal `false` rather
+    than always staying the string "false".
+
+    Only meaningful when a placeholder is a field's *entire* value; a
+    placeholder embedded in a larger string can't be partially typed.
+    """
+    if text in ("null", "~", ""):
+        return None
+    if text in ("true", "True", "TRUE"):
+        return True
+    if text in ("false", "False", "FALSE"):
+        return False
+    try:
+        return int(text)
+    except ValueError:
+        pass
+    try:
+        return float(text)
+    except ValueError:
+        pass
+    return text
+
+
+def interpolate_config_value(value: str) -> Any:
+    """
+    Interpolate a config string, returning a typed value (bool/int/float/
+    None) when the entire string is exactly one ${VAR} / ${VAR:-default}
+    placeholder, or a plain interpolated string otherwise (multiple
+    placeholders, or a placeholder embedded in surrounding literal text).
+    """
+    placeholders = list(find_env_var_placeholders(value))
+    if len(placeholders) == 1:
+        start, end, var_name, default_value = placeholders[0]
+        if start == 0 and end == len(value):
+            env_value = os.environ.get(var_name)
+            if env_value is not None:
+                return _coerce_scalar(env_value)
+            if default_value is not None:
+                return _coerce_scalar(default_value)
+            raise ValueError(
+                f"Required environment variable '{var_name}' not set and no default provided"
+            )
+    return interpolate_env_vars(value)
+
+
 def process_config_value(value: Any) -> Any:
     """
     Recursively process config values, interpolating environment variables.
 
-    Handles strings, lists, dicts, and nested structures.
+    Handles strings, lists, dicts, and nested structures. A string that is
+    entirely one ${VAR:-default} placeholder is typed (bool/int/float/None)
+    rather than always returned as a string — see interpolate_config_value.
 
     Args:
         value: Config value (can be any YAML type)
@@ -134,7 +186,7 @@ def process_config_value(value: Any) -> Any:
         Processed value with env vars interpolated
     """
     if isinstance(value, str):
-        return interpolate_env_vars(value)
+        return interpolate_config_value(value)
     elif isinstance(value, dict):
         return {k: process_config_value(v) for k, v in value.items()}
     elif isinstance(value, list):

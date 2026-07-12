@@ -15,7 +15,13 @@ import yaml
 # when pytest is invoked from the repo root (or anywhere else).
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from config_loader import interpolate_env_vars, load_config, main, process_config_value  # noqa: E402
+from config_loader import (  # noqa: E402
+    interpolate_config_value,
+    interpolate_env_vars,
+    load_config,
+    main,
+    process_config_value,
+)
 
 
 class TestInterpolateEnvVars:
@@ -80,6 +86,72 @@ class TestInterpolateEnvVars:
             interpolate_env_vars("${UNCLOSED")
 
 
+class TestInterpolateConfigValue:
+    """Tests for typed interpolation (bool/int/float/None) of whole-value
+    placeholders — regression tests for logging.yaml.example fields like
+    ${OTEL_ENABLED:-false} that must resolve to real booleans, not strings.
+    """
+
+    def test_whole_string_bool_default_is_coerced(self):
+        os.environ.pop("OTEL_ENABLED", None)
+        result = interpolate_config_value("${OTEL_ENABLED:-false}")
+        assert result is False
+
+    def test_whole_string_bool_env_value_is_coerced(self):
+        os.environ["OTEL_ENABLED"] = "true"
+        result = interpolate_config_value("${OTEL_ENABLED:-false}")
+        assert result is True
+
+    def test_whole_string_int_default_is_coerced(self):
+        os.environ.pop("BATCH_SIZE", None)
+        result = interpolate_config_value("${BATCH_SIZE:-1024}")
+        assert result == 1024
+        assert isinstance(result, int)
+
+    def test_whole_string_float_default_is_coerced(self):
+        os.environ.pop("TRACE_SAMPLING_PROBABILITY", None)
+        result = interpolate_config_value("${TRACE_SAMPLING_PROBABILITY:-0.1}")
+        assert result == 0.1
+        assert isinstance(result, float)
+
+    def test_whole_string_empty_default_is_none(self):
+        """${VAR:-} (empty default) means "not set" — e.g. a credential
+        that's only required when its provider is actually enabled."""
+        os.environ.pop("GCP_PROJECT_ID", None)
+        result = interpolate_config_value("${GCP_PROJECT_ID:-}")
+        assert result is None
+
+    def test_non_scalar_default_stays_string(self):
+        """A default that isn't a recognizable bool/int/float/null stays
+        a plain string — e.g. an OTEL endpoint host:port pair."""
+        os.environ.pop("OTEL_EXPORTER_OTLP_ENDPOINT", None)
+        result = interpolate_config_value("${OTEL_EXPORTER_OTLP_ENDPOINT:-localhost:4317}")
+        assert result == "localhost:4317"
+        assert isinstance(result, str)
+
+    def test_placeholder_embedded_in_larger_string_stays_string(self):
+        """A bool-looking default embedded in surrounding text can't be
+        partially typed — must stay a string, braces and all."""
+        os.environ.pop("LOG_FILENAME", None)
+        result = interpolate_config_value("${LOG_FILENAME:-app-{date}.log}")
+        assert result == "app-{date}.log"
+        assert isinstance(result, str)
+
+    def test_whole_string_required_var_missing_raises(self):
+        """${VAR} with no default still raises when unset, even though
+        it's a whole-string placeholder eligible for type coercion."""
+        os.environ.pop("REQUIRED_VAR", None)
+        with pytest.raises(ValueError, match="REQUIRED_VAR"):
+            interpolate_config_value("${REQUIRED_VAR}")
+
+    def test_multiple_placeholders_stays_string(self):
+        os.environ["VAR1"] = "true"
+        os.environ["VAR2"] = "false"
+        result = interpolate_config_value("${VAR1}/${VAR2}")
+        assert result == "true/false"
+        assert isinstance(result, str)
+
+
 class TestProcessConfigValue:
     """Tests for recursive config processing."""
 
@@ -112,6 +184,14 @@ class TestProcessConfigValue:
         """Booleans pass through unchanged."""
         assert process_config_value(True) is True
         assert process_config_value(False) is False
+
+    def test_whole_string_placeholder_is_typed(self):
+        """A dict value that's a whole-string placeholder is typed, not
+        left as a string — e.g. `enabled: ${OTEL_ENABLED:-false}`."""
+        os.environ.pop("OTEL_ENABLED", None)
+        config = {"otel": {"enabled": "${OTEL_ENABLED:-false}"}}
+        result = process_config_value(config)
+        assert result["otel"]["enabled"] is False
 
     def test_none_value(self):
         """None passes through unchanged."""
@@ -191,6 +271,37 @@ class TestLoadConfig:
 
             config = load_config(str(config_path))
             assert config == {}
+
+    def test_shipped_example_loads_with_no_env_vars_set(self, monkeypatch):
+        """logging.yaml.example must load cleanly out of the box — no env
+        vars required just to get past disabled/default providers.
+
+        Regression test: project_id/log_name/instrumentation_key used to
+        have no default, so the file failed to load unless GCP/Azure env
+        vars were set even though those providers are disabled by default.
+        """
+        for var in (
+            "GCP_PROJECT_ID",
+            "SERVICE_NAME",
+            "APPINSIGHTS_INSTRUMENTATION_KEY",
+            "OTEL_ENABLED",
+            "GCP_LOGGING_ENABLED",
+            "TRACE_SAMPLING_PROBABILITY",
+        ):
+            monkeypatch.delenv(var, raising=False)
+
+        example_path = Path(__file__).resolve().parent / "logging.yaml.example"
+        config = load_config(str(example_path))
+
+        backends = config["logging"]["backends"]
+        assert backends["otel"]["enabled"] is False
+        assert backends["cloud"]["gcp"]["enabled"] is False
+        assert backends["cloud"]["gcp"]["project_id"] is None
+        assert backends["cloud"]["gcp"]["log_name"] == "my-service"
+        assert backends["cloud"]["azure"]["instrumentation_key"] is None
+        assert isinstance(
+            config["logging"]["tracing"]["sampler"]["sampling_probability"], float
+        )
 
 
 class TestCLI:
