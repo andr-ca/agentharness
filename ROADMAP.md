@@ -64,12 +64,15 @@ language/pattern skills can follow the same template.
 
 ## Explicitly Deferred / Needs a Decision
 
-- ~~Sample integration project~~ — **IMPLEMENTED** (item 23). Symlink
-  method (`examples/sample-project/`) is validated by CI's
-  `sample-project-integration` job, which runs `harness-link.sh --with-hook`
-  against a scratch copy and checks the result — not hand-verified. Copy and
-  submodule methods are documented in the sample's README but not
-  independently CI-checked; a smaller follow-up if that gap matters later.
+- ~~Sample integration project~~ — **IMPLEMENTED** (item 23, expanded
+  under P1-05). `examples/sample-project/` (blank/generic) is validated
+  by CI's `sample-project-integration` job against link mode +
+  `--with-hook`. `examples/{python,typescript,go}-project/` (each with a
+  realistic pre-existing `.gitignore`) are validated by the
+  `fixture-matrix` job across all three install modes (link/copy/
+  submodule) plus `doctor`/`status`/`update`/`uninstall` — not just
+  install-and-check. Finding this gap live is what turned up the
+  --mode copy bundled-resource-symlink bug fixed alongside P1-05.
 
 - ~~Logging config loader~~ — **IMPLEMENTED** (item 12). Python utility
   `config_loader.py` with tests for loading YAML configs with `${VAR:-default}`

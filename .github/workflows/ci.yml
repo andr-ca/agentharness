@@ -94,3 +94,40 @@ jobs:
           git init --quiet "$TMP"
           bash tools/setup/harness-link.sh "$TMP" --with-hook
           (cd "$TMP" && bash verify.sh)
+
+  # P1-05: exercise every supported mode against every language fixture, not
+  # just the one blank sample-project checked above — install, verify
+  # (fixture-specific policy check), doctor, update, uninstall. Real
+  # consumer projects differ by what's already in the target (an existing
+  # .gitignore, in particular), so each fixture pre-seeds one and verify.sh
+  # checks it survives the merge untouched.
+  fixture-matrix:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        fixture: [python-project, typescript-project, go-project]
+        mode: [link, copy, submodule]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Install, verify, doctor, update, uninstall (${{ matrix.fixture }}, --mode ${{ matrix.mode }})
+        run: |
+          set -euo pipefail
+          TMP=$(mktemp -d)
+          cp -r "examples/${{ matrix.fixture }}/." "$TMP"/
+          git init --quiet "$TMP"
+          git -C "$TMP" -c user.email=ci@example.com -c user.name=ci add -A
+          git -C "$TMP" -c user.email=ci@example.com -c user.name=ci commit --quiet -m init
+
+          bash tools/setup/harness-link.sh init "$TMP" --mode "${{ matrix.mode }}" --with-hook
+          (cd "$TMP" && bash verify.sh)
+          bash tools/setup/harness-link.sh doctor "$TMP"
+          bash tools/setup/harness-link.sh status "$TMP"
+          bash tools/setup/harness-link.sh update "$TMP"
+          bash tools/setup/harness-link.sh uninstall "$TMP" --yes
+          # Uninstall must be complete: no state file, no lingering skills.
+          [ ! -f "$TMP/.agentharness-state.json" ]
+          [ ! -e "$TMP/.claude/skills/committing" ]

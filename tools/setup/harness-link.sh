@@ -312,7 +312,7 @@ cmd_init() {
                 ;;
             copy)
                 rm -rf "$dst"
-                cp -r "$src" "$dst"
+                cp -rL "$src" "$dst"
                 echo "  Copied skill: $skill"
                 ;;
         esac
@@ -664,7 +664,13 @@ cmd_update() {
                 ;;
             copy)
                 rm -rf "$dst"
-                cp -r "$src" "$dst"
+                # -L: dereference symlinks instead of copying them as
+                # symlinks. Skills bundle relative symlinks back to
+                # patterns/<name>/ (see P1-03) that only resolve from
+                # inside this checkout; a plain `cp -r` would copy those
+                # links literally into the target, where they point at a
+                # patterns/ directory copy mode never creates.
+                cp -rL "$src" "$dst"
                 ;;
         esac
     done

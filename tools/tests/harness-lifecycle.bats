@@ -214,6 +214,31 @@ with open(p, 'w') as f: json.dump(d, f, indent=2)
     [ ! -L "$TEST_PROJECT/.claude/skills/committing/SKILL.md" ]
 }
 
+@test "lifecycle: --mode copy dereferences a skill's bundled-resource symlinks instead of copying them literally" {
+    # Regression test: agentic-loops bundles agent_loop.py/test_agent_loop.py
+    # as *relative* symlinks back to patterns/agentic-loops/ (see P1-03),
+    # which only resolve from inside this checkout. A plain `cp -r` copied
+    # those links literally into the target, where they pointed at a
+    # patterns/ directory --mode copy never creates — found by running the
+    # examples/{python,typescript,go}-project fixtures through every mode.
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills agentic-loops
+
+    [ ! -L "$TEST_PROJECT/.claude/skills/agentic-loops/agent_loop.py" ]
+    [ -f "$TEST_PROJECT/.claude/skills/agentic-loops/agent_loop.py" ]
+
+    run bash "$SCRIPT" doctor "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+
+    run python3 -c "
+import sys
+sys.path.insert(0, '$TEST_PROJECT/.claude/skills/agentic-loops')
+from agent_loop import Budget, ToolSpec, run_agent_loop
+print('importable')
+"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "importable" ]]
+}
+
 @test "lifecycle: --mode copy update reports no drift when content is unchanged" {
     bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
 

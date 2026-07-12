@@ -82,8 +82,11 @@ generator script yet (see ROADMAP.md).
 | Asset | Path | Type | When to use |
 |---|---|---|---|
 | Harness lifecycle CLI | `tools/setup/harness-link.sh` | script | init/plan/status/doctor/audit/update/uninstall; link/copy/submodule modes; state tracked in `<project>/.agentharness-state.json` |
-| Sample project | `examples/sample-project/` | project | Demonstrates harness integration; validates INTEGRATION.md commands work |
+| Sample project | `examples/sample-project/` | project | Blank/generic fixture; demonstrates harness integration, validates INTEGRATION.md commands work |
 | Integration verification | `examples/sample-project/verify.sh` | script | Checks that skills, hooks, and guidelines are properly integrated |
+| Python fixture | `examples/python-project/` | project | Realistic Python consumer (pre-existing `.gitignore`); CI-verified across all install modes |
+| TypeScript fixture | `examples/typescript-project/` | project | Realistic TypeScript consumer (pre-existing `.gitignore`); CI-verified across all install modes |
+| Go fixture | `examples/go-project/` | project | Realistic Go consumer (pre-existing `.gitignore`); CI-verified across all install modes |
 
 ## GitHub Configuration
 
