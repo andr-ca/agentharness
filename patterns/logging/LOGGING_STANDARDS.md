@@ -400,18 +400,72 @@ See `patterns/logging/test_config_loader.py` for examples and edge cases.
 
 ### Python
 
+**Important:** `config/logging.yaml`'s schema (the `backends`/`context`/
+`tracing`/`security` structure from `logging.yaml.example`) is a
+project-defined portable format, not a Python `dictConfig` document —
+passing it straight to `logging.config.dictConfig()` raises `ValueError:
+Unable to configure ...` because dictConfig expects its own specific shape
+(`version`, `formatters`, `handlers`, `loggers`). An adapter translates
+between the two.
+
 **With config_loader (recommended):**
 
 ```python
 import logging
 import logging.config
+import os
 from lib.config_loader import load_config
+
+
+def build_dictconfig(logging_cfg: dict) -> dict:
+    """Translate the custom logging.yaml schema's console/file backends
+    into a dict logging.config.dictConfig understands. OTEL/cloud/
+    elasticsearch backends need their own exporter libraries wired up
+    separately — this covers the two stdlib-only backends."""
+    backends = logging_cfg.get("backends", {})
+    console = backends.get("console", {})
+    file_backend = backends.get("file", {})
+
+    handlers = {}
+    root_handlers = []
+
+    if console.get("enabled", True):
+        handlers["console"] = {
+            "class": "logging.StreamHandler",
+            "level": console.get("level", logging_cfg["level"]),
+            "formatter": "default",
+        }
+        root_handlers.append("console")
+
+    if file_backend.get("enabled", False):
+        log_path = file_backend.get("path", "./logs")
+        os.makedirs(log_path, exist_ok=True)
+        handlers["file"] = {
+            "class": "logging.handlers.TimedRotatingFileHandler",
+            "filename": f"{log_path}/app.log",
+            "when": "midnight",
+            "backupCount": file_backend.get("rotation", {}).get("max_backups", 7),
+            "level": logging_cfg["level"],
+            "formatter": "default",
+        }
+        root_handlers.append("file")
+
+    return {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "default": {"format": "%(asctime)s %(levelname)s %(name)s %(message)s"}
+        },
+        "handlers": handlers,
+        "root": {"level": logging_cfg["level"], "handlers": root_handlers},
+    }
+
 
 # Load configuration with environment variable interpolation
 config = load_config('config/logging.yaml')
 
-# Setup logging from config
-logging.config.dictConfig(config['logging'])
+# Translate the custom schema into a real dictConfig and apply it
+logging.config.dictConfig(build_dictconfig(config['logging']))
 
 # Create loggers
 logger = logging.getLogger('app.auth')
@@ -444,7 +498,10 @@ def substitute_env(obj):
     return obj
 
 config = substitute_env(config)
-logging.config.dictConfig(config['logging'])
+
+# See build_dictconfig() above — the raw config isn't a dictConfig
+# document, it needs the same translation step.
+logging.config.dictConfig(build_dictconfig(config['logging']))
 
 # Get logger for a module
 logger = logging.getLogger('business')
