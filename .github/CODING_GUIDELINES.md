@@ -148,10 +148,10 @@ If yes, do that instead. Comments are a code smell pointing to unclear logic.
 
 ### Specific Practices
 
-- **Avoid `any` or `unknown` types** – Use proper types; if you can't type something, the code design needs improvement.
+- **Avoid `any`** – Use proper types; if you can't type something, the code design needs improvement. `unknown` is not the same problem as `any` — it's TypeScript's type-safe alternative (forces a check/narrow before use) and is the *correct* tool when a value's type genuinely can't be known at the call site (e.g. parsing untrusted JSON). Don't ban it alongside `any`.
 - **Import management** – Never duplicate imports; reuse existing ones if available. Don't leave blank lines where imports were removed.
 - **Use idiomatic patterns** – Before creating new structures, look for existing test patterns and utilities in the codebase.
-- **One assertion per test** – Prefer snapshot-style assertions (`assert.deepStrictEqual`) over multiple precise assertions—they're easier to understand and update.
+- **One behavior per test, one assertion where possible** – When a test's expected outcome is a single composite value (e.g. an object with several fields), assert it in one snapshot-style comparison (`assert.deepStrictEqual`) rather than one `assert` per field — same behavior, one assertion, easier to update. When two checks verify genuinely independent behaviors (e.g. "creation succeeds" vs. "duplicate email is rejected"), that's two tests, not one test with two assertions. See `patterns/testing/TDD.md`'s "Testing Multiple Things at Once" example for the worked case.
 - **Prefer standard async patterns** – Use `async`/`await` over `.then()`/`.catch()` chains in languages that support both.
 
 ## Type Safety
@@ -233,12 +233,24 @@ for (let i = 0; i < n; i++) doSomething();
 
 ### Lifecycle Management
 
-For languages with explicit resource management (Rust, C++, or languages with GC):
-- **Register disposables immediately** after creation
-- Use helpers like `DisposableStore`, `MutableDisposable`, or `this._register()`
-- **Never register a disposable to containing class** if the object is created in a repeatedly-called method (causes memory leaks)
-  - Return `IDisposable` and let caller register it
-- **File watching:** Prefer correlated file watchers (via service) to shared ones
+For resources that need explicit cleanup (file handles, sockets, timers,
+subscriptions, watchers — not memory, which the GC/borrow checker already
+handles):
+- **Tie cleanup to a scope, not to manual bookkeeping.** Use your
+  language's native mechanism: `with` / context managers (Python),
+  `using` / `IDisposable` (C#), RAII destructors (C++/Rust), `defer`
+  (Go), `try-with-resources` (Java). Prefer these over a hand-rolled
+  registry of things to clean up later.
+- **If you do need a registry** (e.g. a component that owns several
+  subscriptions with the same lifetime), create it in the constructor and
+  dispose it in one place — don't scatter cleanup calls across the class.
+- **Never accumulate disposables on a long-lived owner** for objects
+  created inside a method that runs repeatedly (a request handler, a
+  render loop) — that's a leak. Return the resource/handle to the caller
+  that actually owns its lifetime instead.
+- **File watching:** prefer one watcher instance shared/injected via a
+  service over each component creating its own — cheaper and avoids
+  duplicate events.
 
 ## Refactoring & Code Review Guidelines
 

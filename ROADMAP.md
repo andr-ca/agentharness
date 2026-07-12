@@ -32,9 +32,17 @@ category README exists today; no framework subdirectories have been built.
 Additional language convention guides, following the shape of the existing
 `languages/python/`. Only Python exists today.
 
-### `patterns/{agentic-loops,error-handling,api-design}/`
+### `patterns/{agentic-loops,error-handling,api-design,accessibility}/`
 Additional pattern categories, following the shape of the existing
 `patterns/testing/` and `patterns/logging/`. Only those two exist today.
+
+A genuine cross-framework accessibility pattern doc is a real gap — an
+earlier draft (`accessibility.instructions.md`) was removed because it
+was entirely VS Code source-internal (`AccessibleContentProvider`,
+`CONTEXT_ACCESSIBILITY_MODE_ENABLED`, references to specific VS Code
+PRs) despite claiming general applicability. A real version needs to be
+written from ARIA/WCAG fundamentals, not adapted from one codebase's
+internal APIs.
 
 ### `tools/{lint,build,deploy}/`
 Standalone utility scripts. Only the category README exists today; no

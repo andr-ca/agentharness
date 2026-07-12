@@ -530,8 +530,15 @@ def test_cache_retrieves_stored_user():
 
 ### ❌ Mistake 2: Testing Multiple Things at Once
 
+The fields below (`id`, `email`, `password_hash`, `created_at`,
+`is_active`) aren't independent behaviors — they're all part of the same
+outcome: "creating a user produces a correctly-populated user." That's one
+behavior, so it should be one test with one snapshot-style assertion, not
+five assertions and definitely not five separate tests.
+
 ```python
-# BAD: Too many assertions
+# BAD: Five assertions for one behavior — if one fails, the failure
+# message doesn't tell you which without reading the whole test
 def test_user_creation():
     user = User.create(email="test@example.com", password="secret")
     assert user.id is not None
@@ -540,14 +547,34 @@ def test_user_creation():
     assert user.created_at is not None
     assert user.is_active == True
 
-# GOOD: One test, one behavior
-def test_user_creation_generates_id():
+# GOOD: one behavior, one assertion — the diff on failure shows exactly
+# which field(s) were wrong
+def test_user_creation_populates_all_fields():
+    user = User.create(email="test@example.com", password="secret")
+    assert_that(user).matches({
+        "id": IsNotNone(),
+        "email": "test@example.com",
+        "password_hash": IsNotNone(),
+        "created_at": IsNotNone(),
+        "is_active": True,
+    })  # or assert.deepStrictEqual against a fully-specified expected object
+```
+
+Splitting into separate tests is correct when the assertions verify
+**genuinely independent behaviors** that could reasonably fail for
+unrelated reasons — e.g. "creation succeeds with valid input" vs.
+"creation rejects a duplicate email" are two different behaviors and
+belong in two different tests, each with its own single assertion:
+
+```python
+def test_create_succeeds_with_valid_input():
     user = User.create(email="test@example.com", password="secret")
     assert user.id is not None
 
-def test_user_creation_stores_email():
-    user = User.create(email="test@example.com", password="secret")
-    assert user.email == "test@example.com"
+def test_create_rejects_duplicate_email():
+    User.create(email="test@example.com", password="secret")
+    with pytest.raises(DuplicateEmailError):
+        User.create(email="test@example.com", password="other")
 ```
 
 ### ❌ Mistake 3: Slow Tests
