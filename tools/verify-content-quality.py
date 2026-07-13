@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Content-quality gate (P1-08): catches structural doc/content bugs that
 markdown-links and markdownlint don't — bad YAML, malformed skill
-frontmatter, syntax errors in the two docs whose Python examples are
+frontmatter, syntax errors in docs whose Python or bash examples are
 explicitly maintained as tested, runnable reference implementations (not
 every illustrative snippet in the repo — most are deliberately partial
 pseudocode, and syntax-checking those would just be noise);
@@ -39,8 +39,34 @@ PYTHON_SNIPPET_SOURCES = [
     REPO_ROOT / "patterns/logging/LOGGING_STANDARDS.md",
 ]
 
+# B3: same allowlist principle as PYTHON_SNIPPET_SOURCES, extended to the
+# docs whose ```bash fences are complete, runnable recipes rather than
+# illustrative fragments — docs/INTEGRATION.md's harness-link.sh
+# invocations and COVERAGE_REQUIREMENTS.md's bc-based coverage
+# comparison. Deliberately NOT languages/*/CONVENTIONS.md,
+# patterns/testing/TDD.md, or patterns/error-handling/README.md — those
+# are intentional pseudocode/pattern illustrations (variable names like
+# `<command>`, partial control flow), and syntax-checking them would be
+# exactly the noise this module's docstring already warns against.
+BASH_SNIPPET_SOURCES = [
+    REPO_ROOT / "docs/INTEGRATION.md",
+    REPO_ROOT / "patterns/testing/COVERAGE_REQUIREMENTS.md",
+]
+
+# B3: docs/DEMO.md's ```console blocks interleave prompts ("$ cmd"),
+# commands' own output, and box-drawing decoration in the same fence —
+# not raw bash. Only the "$ "-prefixed lines are commands; extracting
+# just those and syntax-checking them is what actually protects this
+# doc, since every command in it was hand-verified by running it for
+# real when the doc was written (see its own intro paragraph).
+CONSOLE_SNIPPET_SOURCES = [
+    REPO_ROOT / "docs/DEMO.md",
+]
+
 FRONTMATTER_RE = re.compile(r"\A---\n(.*?\n)---\n", re.DOTALL)
 PYTHON_FENCE_RE = re.compile(r"```python\n(.*?)```", re.DOTALL)
+BASH_FENCE_RE = re.compile(r"```bash\n(.*?)```", re.DOTALL)
+CONSOLE_FENCE_RE = re.compile(r"```console\n(.*?)```", re.DOTALL)
 ANY_FENCE_RE = re.compile(r"```.*?```|~~~.*?~~~", re.DOTALL)
 
 # B7: duplicate-policy detection. Registry of (name, source-of-truth file,
@@ -153,6 +179,71 @@ def check_python_snippets() -> list[str]:
             except SyntaxError as exc:
                 errors.append(
                     f"{path.relative_to(REPO_ROOT)}: python snippet #{i} has a syntax error — {exc}"
+                )
+    return errors
+
+
+def _display_path(path: Path) -> str:
+    # check_bash_snippets()/check_console_snippets() accept an overridable
+    # `sources` list (so tests can point them at tmp_path fixtures instead
+    # of the real repo) — relative_to(REPO_ROOT) raises ValueError for a
+    # path outside it, unlike the other checkers here that only ever see
+    # real repo paths.
+    try:
+        return str(path.relative_to(REPO_ROOT))
+    except ValueError:
+        return str(path)
+
+
+def _bash_syntax_error(script: str) -> str | None:
+    # -n is syntax-check-only — never executes the script (the recipes
+    # here do real things like `git submodule add` or `touch`, which must
+    # never run as a side effect of linting docs).
+    result = subprocess.run(
+        ["bash", "-n"],
+        input=script,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return result.stderr.strip()
+    return None
+
+
+def check_bash_snippets(sources: list[Path] = BASH_SNIPPET_SOURCES) -> list[str]:
+    errors = []
+    for path in sources:
+        if not path.is_file():
+            errors.append(f"{_display_path(path)}: expected file not found")
+            continue
+        text = path.read_text()
+        for i, block in enumerate(BASH_FENCE_RE.findall(text), start=1):
+            error = _bash_syntax_error(block)
+            if error:
+                errors.append(
+                    f"{_display_path(path)}: bash snippet #{i} has a syntax error — {error}"
+                )
+    return errors
+
+
+def check_console_snippets(sources: list[Path] = CONSOLE_SNIPPET_SOURCES) -> list[str]:
+    errors = []
+    for path in sources:
+        if not path.is_file():
+            errors.append(f"{_display_path(path)}: expected file not found")
+            continue
+        text = path.read_text()
+        for i, block in enumerate(CONSOLE_FENCE_RE.findall(text), start=1):
+            commands = "\n".join(
+                line[len("$ "):] for line in block.split("\n") if line.startswith("$ ")
+            )
+            if not commands:
+                continue
+            error = _bash_syntax_error(commands)
+            if error:
+                errors.append(
+                    f"{_display_path(path)}: console snippet #{i} has a syntax error — {error}"
                 )
     return errors
 
@@ -273,6 +364,8 @@ def main() -> int:
     errors += check_yaml_files()
     errors += check_skill_frontmatter()
     errors += check_python_snippets()
+    errors += check_bash_snippets()
+    errors += check_console_snippets()
     errors += check_duplicate_policy_numbers()
     errors += check_agents_md_sync()
     errors += check_manifest_md_sync()
@@ -285,7 +378,7 @@ def main() -> int:
         return 1
 
     print("Content-quality check passed: YAML parses, skill frontmatter valid, "
-          "tested Python snippets parse cleanly.")
+          "tested Python/bash/console snippets parse cleanly.")
     return 0
 
 

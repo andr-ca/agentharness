@@ -320,11 +320,11 @@ sections:
   - asset: Content-quality checker
     path: tools/verify-content-quality.py
     type: script
-    purpose: YAML validity, skill frontmatter schema, tested-snippet syntax (P1-08); `AGENTS.md` sync (P2-02); duplicate-policy number detection (B7); `MANIFEST.md` sync (B2)
-  - asset: Duplicate-policy detection tests
+    purpose: YAML validity, skill frontmatter schema, tested Python/bash/console-snippet syntax (P1-08, B3); `AGENTS.md` sync (P2-02); duplicate-policy number detection (B7); `MANIFEST.md` sync (B2)
+  - asset: Content-quality checker tests
     path: tools/tests/test_verify_content_quality.py
     type: tests
-    purpose: Tests for `check_duplicate_policy_numbers()` — real conflicts vs. measured-result/cross-reference/fenced-example false positives (B7)
+    purpose: Tests for `check_duplicate_policy_numbers()` (real conflicts vs. measured-result/cross-reference/fenced-example false positives, B7) and `check_bash_snippets()`/`check_console_snippets()` (real syntax errors caught, B3)
   - asset: AGENTS.md generator
     path: tools/generate-agents-md.sh
     type: script
