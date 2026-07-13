@@ -149,8 +149,11 @@ follow the same template.
 Tracked here per the user's explicit choice ("turn the whole set into a
 tracked roadmap") after
 `docs/operational/reviews/gpt-5.6-sol-3rdpass-2026-07-13T134419Z.md`'s
-P0 items were fixed (P0-01 through P0-05 directly; P0-06 redesigned —
-see the Codex entries above) and P0-02/P0-03 were confirmed and shipped.
+P0 items were fixed (P0-01, P0-04, P0-05 directly; P0-02, P0-03, P0-06
+were product-direction decisions, confirmed by the user, and shipped —
+see the review's own P0-06 section and
+`docs/operational/reviews/gpt-5.6-sol-3rdpass-status.md` for what each
+one changed).
 This is a documentation-only pass — none of the following is scoped or
 authorized for implementation yet; each still needs its own scoping
 decision before work starts, per `CLAUDE.md`'s Recommendation Assessment
@@ -261,7 +264,8 @@ label by the review filename cited next to it, never by number alone.
 - **P2-04 (this review's numbering) — Add a policy provenance model.**
   For each normative rule: owner/source, rationale, applicability,
   enforcement mechanism, last review date, as structured data (the
-  semantic equivalent of the structured-manifest work, B2). Human guides
+  semantic equivalent of the already-shipped generated-`MANIFEST.md`
+  work, `manifest.yaml` + `tools/generate-manifest.py`). Human guides
   would be generated from, or validated against, that catalog.
 - **P2-05 (this review's numbering) — Composable presets instead of one
   global opinion set.** Proposed: a minimal safety core plus opt-in
@@ -277,7 +281,9 @@ label by the review filename cited next to it, never by number alone.
   onboarding success, not ubiquity alone.
 - **P2-07 — Add telemetry-free local adoption diagnostics.** Extend
   `audit --json` (already reports `publish_mode_active`/`selected_profile`/
-  `validation_commands` per B5) to also report client adapter freshness,
+  `validation_commands` — see `tools/tests/harness-lifecycle.bats`'s
+  `audit --json reports publish_mode_active, selected_profile, and
+  validation_commands` tests) to also report client adapter freshness,
   managed router state (once P1-01 exists), unsupported profile runner,
   broken/stale package source, hook ownership, and state-schema version —
   local and deterministic, no remote telemetry.
