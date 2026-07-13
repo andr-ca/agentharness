@@ -95,7 +95,7 @@ BODY
 generate_skill_rule() {
     local skill_md="$1"
     local description
-    description="$(skill_description "$skill_md")"
+    description="$(yaml_dquote_escape "$(skill_description "$skill_md")")"
 
     cat <<EOF
 ---

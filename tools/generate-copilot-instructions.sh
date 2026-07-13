@@ -104,8 +104,8 @@ HEADER
 generate_language_instructions() {
     local conventions_md="$1" lang_name="$2"
     local apply_to description
-    apply_to="$(frontmatter_field "$conventions_md" applyTo)"
-    description="$(frontmatter_field "$conventions_md" description)"
+    apply_to="$(yaml_dquote_escape "$(frontmatter_field "$conventions_md" applyTo)")"
+    description="$(yaml_dquote_escape "$(frontmatter_field "$conventions_md" description)")"
 
     cat <<EOF
 ---

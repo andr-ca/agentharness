@@ -7,10 +7,13 @@ every illustrative snippet in the repo — most are deliberately partial
 pseudocode, and syntax-checking those would just be noise);
 duplicate-policy detection (B7): the same numeric mandate restated with a
 *different* number somewhere outside its source of truth; and
-generated-file drift for AGENTS.md (P2-02), MANIFEST.md (B2), and the
+generated-file drift for AGENTS.md (P2-02), MANIFEST.md (B2), the
 cross-platform-parity adapters (GEMINI.md, .kilo/rules/agentharness.md,
 .github/copilot-instructions.md + .github/instructions/*, and
-.cursor/rules/*.mdc) against their structured sources.
+.cursor/rules/*.mdc), and the custom-agent-porting generators
+(.codex/agents/*.toml, .opencode/agents/*.md, .cursor/agents/*.md,
+.kilo/agents/*.md, .github/agents/*.agent.md, and .gemini/agents/*.md)
+against their structured sources.
 """
 
 from __future__ import annotations
@@ -509,6 +512,63 @@ def check_cursor_rules_sync() -> list[str]:
         return _diff_generated_subdir(tmp_path, ".cursor/rules", regen_hint)
 
 
+def _check_agent_generator_sync(
+    generator_rel: str, output_subdir_rel: str
+) -> list[str]:
+    # Shared by the six custom-agent-porting generators
+    # (Codex/OpenCode/Cursor/Kilo/Copilot/Gemini) below — each owns a whole directory
+    # of variable-length output (one file per .claude/agents/*.md), the
+    # same shape check_cursor_rules_sync() already handles via
+    # _diff_generated_subdir().
+    generator = REPO_ROOT / generator_rel
+    regen_hint = f"run '{generator_rel} --output-dir .' and commit the result"
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        result = subprocess.run(
+            ["bash", str(generator), str(REPO_ROOT), "--output-dir", str(tmp_path)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            return [f"{generator_rel}: failed to run — {result.stderr.strip()}"]
+        return _diff_generated_subdir(tmp_path, output_subdir_rel, regen_hint)
+
+
+def check_codex_agents_sync() -> list[str]:
+    return _check_agent_generator_sync(
+        "tools/generate-codex-agents.sh", ".codex/agents"
+    )
+
+
+def check_opencode_agents_sync() -> list[str]:
+    return _check_agent_generator_sync(
+        "tools/generate-opencode-agents.sh", ".opencode/agents"
+    )
+
+
+def check_cursor_agents_sync() -> list[str]:
+    return _check_agent_generator_sync(
+        "tools/generate-cursor-agents.sh", ".cursor/agents"
+    )
+
+
+def check_kilo_agents_sync() -> list[str]:
+    return _check_agent_generator_sync("tools/generate-kilo-agents.sh", ".kilo/agents")
+
+
+def check_copilot_agents_sync() -> list[str]:
+    return _check_agent_generator_sync(
+        "tools/generate-copilot-agents.sh", ".github/agents"
+    )
+
+
+def check_gemini_agents_sync() -> list[str]:
+    return _check_agent_generator_sync(
+        "tools/generate-gemini-agents.sh", ".gemini/agents"
+    )
+
+
 def main() -> int:
     errors = []
     errors += check_yaml_files()
@@ -523,6 +583,12 @@ def main() -> int:
     errors += check_kilo_rules_sync()
     errors += check_copilot_instructions_sync()
     errors += check_cursor_rules_sync()
+    errors += check_codex_agents_sync()
+    errors += check_opencode_agents_sync()
+    errors += check_cursor_agents_sync()
+    errors += check_kilo_agents_sync()
+    errors += check_copilot_agents_sync()
+    errors += check_gemini_agents_sync()
 
     if errors:
         print("Content-quality check failed:\n")

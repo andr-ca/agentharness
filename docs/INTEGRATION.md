@@ -331,6 +331,52 @@ Re-run it whenever `CLAUDE.md` or the skill catalog changes. **Not
 verified against a live Cursor session** — built from public docs as of
 2026-07-14.
 
+### Custom Agents (sub-agent delegation)
+
+Separate from every generator above: those cover always-on instructions
+and on-demand skills, content the *current* agent reads. This section
+covers **task delegation to a separate, specialized agent instance** —
+Claude Code's own `.claude/agents/*.md` + Task/Agent tool is the origin
+case. This repo defines one such subagent,
+`.claude/agents/coding-guidelines-reviewer.md` (a read-only reviewer
+scoped to `.github/CODING_GUIDELINES.md`'s rigor tiers), and ports it to
+every tool confirmed to support genuine delegation — Codex CLI,
+OpenCode, Cursor, Kilo Code, GitHub Copilot, and Gemini CLI:
+
+```bash
+~/agentharness/tools/generate-codex-agents.sh --output-dir .     # .codex/agents/*.toml
+~/agentharness/tools/generate-opencode-agents.sh --output-dir .  # .opencode/agents/*.md
+~/agentharness/tools/generate-cursor-agents.sh --output-dir .    # .cursor/agents/*.md
+~/agentharness/tools/generate-kilo-agents.sh --output-dir .      # .kilo/agents/*.md
+~/agentharness/tools/generate-copilot-agents.sh --output-dir .   # .github/agents/*.agent.md
+~/agentharness/tools/generate-gemini-agents.sh --output-dir .    # .gemini/agents/*.md
+```
+
+Each is a manual-regeneration step (re-run whenever `.claude/agents/`
+changes), CI-drift-checked against its committed output the same way as
+every generator above. **None of these six translate tool/permission
+scoping** — Claude Code's `tools:` field, Cursor's
+`readonly`/`is_background`, Kilo's `permission`/`permission.task`,
+Copilot's `target`/`disable-model-invocation`/`user-invocable`, and
+Gemini's `tools`/`temperature`/`max_turns` are all real, documented
+fields on their respective platforms, but mapping between them is
+unverified against a live session; ported files carry only
+`name`/`description`/`model` and the body verbatim, and adopting one for
+real use means re-specifying its tool/permission scope by hand.
+
+Zed has no equivalent to generate for: real subagent delegation exists
+architecturally (isolated `Thread` instances, `SpawnAgentTool`), but no
+confirmed user-facing named-config-file format was located to port
+into. GitHub Copilot's own custom-agent mechanism (CLI/VS Code, not the
+cloud coding agent) and Gemini CLI's subagents both genuinely spin up an
+isolated-context subagent — an earlier research pass here initially got
+both wrong, classifying them as persona-only (the same root-cause error
+each time: conflating "can't nest further subagents" with "no
+delegation at all"); see `docs/CLIENT_COMPATIBILITY.md`'s dated
+correction notes. **Not verified against a live session of any of these
+six tools** — built from public docs as of 2026-07-13, the same
+"not verified" caveat as everything else in this document.
+
 ### Language Guidelines
 
 Python, TypeScript, and Go exist today (`languages/{python,typescript,go}/`),

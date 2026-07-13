@@ -26,14 +26,35 @@ setup() {
 }
 
 @test "generate-cursor-rules: each skill's .mdc description matches its source SKILL.md verbatim" {
+    # Compared through an actual YAML parse, not string-sliced: a
+    # description containing a literal double quote (e.g.
+    # port-agent-config's) round-trips through yaml_dquote_escape()'s
+    # escaping and back, so naive substring extraction would wrongly see
+    # a backslash-escaped mismatch even though the parsed value is
+    # identical.
     bash "$SCRIPT" "$HARNESS_ROOT" --output-dir "$BATS_TEST_TMPDIR"
     for skill_dir in "$HARNESS_ROOT"/.claude/skills/*/; do
         skill="$(basename "$skill_dir")"
         skill_md="$skill_dir/SKILL.md"
         [ -f "$skill_md" ] || continue
-        expected="$(grep -m1 '^description: ' "$skill_md" | sed 's/^description: //')"
-        actual="$(grep -m1 '^description: ' "$BATS_TEST_TMPDIR/.cursor/rules/$skill.mdc" | sed -E 's/^description: "?//; s/"?$//')"
-        [ "$actual" = "$expected" ]
+        run python3 -c "
+import yaml
+skill_fm = yaml.safe_load(open('$skill_md').read().split('---')[1])
+mdc_fm = yaml.safe_load(open('$BATS_TEST_TMPDIR/.cursor/rules/$skill.mdc').read().split('---')[1])
+assert skill_fm['description'] == mdc_fm['description'], (skill_fm['description'], mdc_fm['description'])
+"
+        [ "$status" -eq 0 ]
+    done
+}
+
+@test "generate-cursor-rules: every generated .mdc's frontmatter is valid YAML (regression: unescaped quotes in a description)" {
+    bash "$SCRIPT" "$HARNESS_ROOT" --output-dir "$BATS_TEST_TMPDIR"
+    for mdc in "$BATS_TEST_TMPDIR"/.cursor/rules/*.mdc; do
+        run python3 -c "
+import yaml
+yaml.safe_load(open('$mdc').read().split('---')[1])
+"
+        [ "$status" -eq 0 ]
     done
 }
 
