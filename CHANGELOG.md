@@ -6,16 +6,75 @@ section into a tagged version.
 
 ## [Unreleased]
 
-Everything below has landed on `main` or is in open PRs since `v0.1.0`;
-none of it has been cut into a tagged release yet (see
-[docs/RELEASING.md](docs/RELEASING.md) for why — currently `main`'s own
-CI needs to be green before the next tag).
+## [0.2.0] - 2026-07-13
 
 ### Added
-- `CLAUDE.md` mandates for agent workflow completion (verify, commit,
-  push, PR — never leave work uncommitted) and recommendation assessment
-  (implement scoped low-risk fixes directly; get confirmation before a
-  batch that amounts to a roadmap; escalate anything high-risk).
+- npm as a distribution channel: `package.json`, `bin/cli.js` (CLI shim
+  execing `harness-link.sh`), and `.github/workflows/release.yml` (runs
+  `npm publish` on a `v*` tag push) — built and tested end-to-end
+  (`npm pack` → unpack → run) via CI's `npm-package` job, including a
+  prepack/postpack symlink-materialization step so npm tarballs (which
+  don't preserve symlinks) still ship the `agentic-loops` skill's bundled
+  `agent_loop.py` correctly. Not yet actually published — no npm
+  account/org or `NPM_TOKEN` secret exists (see `docs/DECISIONS.md`).
+- A deterministic eval suite (`tools/eval/`) — task/scoring/orchestration
+  infrastructure proving the harness *can* be measured against real
+  tasks, with a free, fully-tested fake standing in for live agent
+  invocation (`invoke_agent_via_api()` intentionally raises
+  `NotImplementedError`; no eval results exist yet — see
+  `docs/DECISIONS.md`).
+- An `AGENTS.md` adapter for Codex, generated from `CLAUDE.md` +
+  `.claude/skills/` by `tools/generate-agents-md.sh` (not hand-written,
+  so it can't drift) — CI drift-checks it but it has not been verified
+  against a real Codex CLI session; documented as best-effort only.
+- An opt-in publish-authority flag (`.agentharness-publish-mode`,
+  gitignored, per-operator): the harness's default agent behavior is now
+  verify-and-stage-only — commit locally, then stop and ask before
+  pushing, opening a PR, or auto-implementing a recommendation. Full
+  publish authority requires the flag file or explicit per-task
+  instruction. See `CLAUDE.md`'s "Agent Workflow Completion" and
+  `docs/INTEGRATION.md`'s "Publish Authority" section.
+- `harness-link.sh enforce-profile <project>`: makes
+  `.agentharness-profile` do something mechanical instead of being a
+  lookup table nothing reads — for a detected Python project, gates on
+  the selected tier for real (`pytest --cov-fail-under` at that tier's
+  floor; skips entirely where `tests.required` is false). Other project
+  types get a clear "not implemented yet" rather than a false pass.
+  Invoked explicitly (same posture as `audit`/`doctor`), not wired into
+  `pre-push` automatically.
+- `harness-link.sh audit --json` now also reports whether the target's
+  publish-authority flag is active, its selected profile, and whether
+  the recorded harness checkout's own validation commands
+  (`tools/check.sh`, `verify-content-quality.py`, ...) still exist —
+  catching a doc that claims a script exists after it's been renamed or
+  deleted upstream.
+- Duplicate-policy detection in CI: `check_duplicate_policy_numbers()` in
+  `tools/verify-content-quality.py` flags a numeric mandate (currently
+  the test-coverage percentage) restated with a genuinely *different*
+  number outside its source of truth, via a small, explicit, extensible
+  registry rather than general-purpose duplicate-content detection —
+  deliberately doesn't flag every same-number restatement, only real
+  conflicts, after two more naive designs produced real false positives
+  against this repo's own content during development.
+- `MANIFEST.md` is now generated from a structured `manifest.yaml` source
+  by `tools/generate-manifest.py` (mirroring the `AGENTS.md` generator
+  pattern, including a CI drift-check) instead of hand-maintained prose —
+  `tools/verify-manifest.sh` still validates the rendered file against
+  the filesystem on top of that.
+- Snippet-syntax validation extended from Python-only to bash and console
+  blocks: `check_bash_snippets()` (docs/INTEGRATION.md,
+  `COVERAGE_REQUIREMENTS.md`'s bc-based coverage comparison) and
+  `check_console_snippets()` (docs/DEMO.md's `$`-prefixed command
+  lines), both via `bash -n` syntax-only checks — same small-allowlist
+  principle as the Python check, not an auto-classifier.
+- `docs/DEMO.md` — a 5-minute scripted walkthrough with real,
+  hand-verified commands and output; `docs/DECISIONS.md` — a compact,
+  retroactive architecture-decision log.
+- `CLAUDE.md` mandates for agent workflow completion (verify and commit
+  locally, always — full publish authority per the opt-in flag above) and
+  recommendation assessment (implement scoped low-risk fixes directly;
+  get confirmation before a batch that amounts to a roadmap; escalate
+  anything high-risk).
 - Rigor-tier profiles as selectable YAML (`patterns/profiles/`), not
   just prose — Prototype/Internal/Production now have a machine-readable
   config, not only a table in `CODING_GUIDELINES.md`.
@@ -58,6 +117,11 @@ CI needs to be green before the next tag).
   `git ls-files`, HTTPS-primary clone instructions, per-skill symlink
   loops (not a stale 3-skill hardcoded list) verified in a clean scratch
   directory for every method (symlink/copy/submodule).
+- Trimmed the language convention guides, logging docs, testing docs,
+  `error-handling/README.md`, and `BRANCHING_STRATEGY.md` down to
+  repo-specific decisions — cut generic, ecosystem-standard content that
+  didn't need to live in this harness at all (an encyclopedia is a
+  maintenance liability; a pointer to the real docs isn't).
 
 ### Fixed
 - `harness-link.sh --mode submodule` recorded `source.path` as the dev
