@@ -16,15 +16,32 @@ import subprocess
 import sys
 from pathlib import Path
 
-SKILLS_DIR = Path(__file__).resolve().parents[2] / ".claude" / "skills"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+SKILLS_DIR = REPO_ROOT / ".claude" / "skills"
 
 
 def materialize() -> None:
     for link in sorted(SKILLS_DIR.rglob("*")):
-        if link.is_symlink():
-            target = link.resolve()
-            link.unlink()
-            shutil.copy2(target, link)
+        if not link.is_symlink():
+            continue
+        target = link.resolve()
+        # Every bundled-resource symlink this repo actually uses points
+        # back into the repo itself (e.g. patterns/agentic-loops/). A
+        # symlink resolving outside the repo root is either a mistake or
+        # something worse — not a file `npm pack` should ever copy into
+        # a published tarball — so refuse rather than blindly follow it.
+        if not target.is_relative_to(REPO_ROOT):
+            raise ValueError(
+                f"{link} resolves outside the repo root ({target}) — refusing to materialize"
+            )
+        if not target.is_file():
+            raise ValueError(f"{link} resolves to {target}, which isn't a regular file")
+        # Copy before unlinking: if copy2() fails partway (disk full, a
+        # permissions error), the symlink is still there to retry/restore
+        # from, instead of leaving neither a symlink nor a real file.
+        shutil.copy2(target, link.with_name(link.name + ".materializing"))
+        link.unlink()
+        link.with_name(link.name + ".materializing").rename(link)
 
 
 def restore() -> None:

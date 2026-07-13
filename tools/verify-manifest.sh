@@ -43,8 +43,11 @@ extract_paths() {
         }
     ' "$MANIFEST_FILE" | \
         grep -E '^`[^`]*`$' | \
-        sed -E 's/^`(.*)`$/\1/' | \
-        grep -E '^\.?[^:]*/'
+        sed -E 's/^`(.*)`$/\1/'
+    # No slash-required filter here — that used to also exclude every
+    # root-level path (README.md, CLAUDE.md, package.json, ...), which
+    # meant they were never actually checked for existence. http(s):// and
+    # #-anchor entries are already skipped in the loop below.
 }
 
 missing_count=0
