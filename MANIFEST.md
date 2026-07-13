@@ -105,18 +105,6 @@ they drift (`check_manifest_md_sync()` in `tools/verify-content-quality.py`).
 | npm package manifest | `package.json` | config | `files` allowlist for `npm publish`; `bin.agentharness` entry point; see `docs/RELEASING.md#npm-distribution` for what's built vs. not-yet-published |
 | npm CLI shim | `bin/cli.js` | script | Execs `tools/setup/harness-link.sh` from an npm/npx install; fails clearly if `bash`/`python3` are missing |
 | Symlink materializer | `tools/release/materialize-skill-symlinks.py` | script | `prepack`/`postpack` hook — npm tarballs don't preserve symlinks, so bundled-resource symlinks (e.g. `agentic-loops`'s) are copied to real files before packing, then restored via `git checkout` |
-| Manifest source of truth | `manifest.yaml` | config | Structured source MANIFEST.md is generated from (B2) — edit this, not MANIFEST.md directly |
-| MANIFEST.md generator | `tools/generate-manifest.py` | script | Renders MANIFEST.md from manifest.yaml; drift-checked in CI the same way tools/generate-agents-md.sh is (B2) |
-
-## GitHub Configuration
-
-| Asset | Path | Type | Purpose |
-|---|---|---|---|
-| Dependency updates | `.github/dependabot.yml` | config | Automated dependency version checking (Go, GitHub Actions) |
-| Code ownership | `.github/CODEOWNERS` | config | Review routing and ownership for framework components |
-| Scheduled link check | `.github/workflows/link-check-scheduled.yml` | workflow | Weekly online external-link validation, separate from the offline PR gate (P1-08) |
-| Release workflow | `.github/workflows/release.yml` | workflow | Runs `npm publish` on a `v*` tag push; inert until `NPM_TOKEN` secret exists (P2-03) |
-| Markdownlint config | `.markdownlint-cli2.yaml` | config | Rules enforced in CI's content-quality job; documents why purely-stylistic rules are off (P1-08) |
 | Content-quality checker | `tools/verify-content-quality.py` | script | YAML validity, skill frontmatter schema, tested Python/bash/console-snippet syntax (P1-08, B3); `AGENTS.md` sync (P2-02); duplicate-policy number detection (B7); `MANIFEST.md` sync (B2) |
 | Content-quality checker tests | `tools/tests/test_verify_content_quality.py` | tests | Tests for `check_duplicate_policy_numbers()` (real conflicts vs. measured-result/cross-reference/fenced-example false positives, B7) and `check_bash_snippets()`/`check_console_snippets()` (real syntax errors caught, B3) |
 | AGENTS.md generator | `tools/generate-agents-md.sh` | script | Builds the Codex adapter from `CLAUDE.md` + `.claude/skills/` (P2-02) |
