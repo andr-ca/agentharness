@@ -183,6 +183,158 @@ def check_python_snippets() -> list[str]:
     return errors
 
 
+def _display_path(path: Path) -> str:
+    # check_bash_snippets()/check_console_snippets() accept an overridable
+    # `sources` list (so tests can point them at tmp_path fixtures instead
+    # of the real repo) — relative_to(REPO_ROOT) raises ValueError for a
+    # path outside it, unlike the other checkers here that only ever see
+    # real repo paths.
+    try:
+        return str(path.relative_to(REPO_ROOT))
+    except ValueError:
+        return str(path)
+
+
+def _bash_syntax_error(script: str) -> str | None:
+    # -n is syntax-check-only — never executes the script (the recipes
+    # here do real things like `git submodule add` or `touch`, which must
+    # never run as a side effect of linting docs).
+    result = subprocess.run(
+        ["bash", "-n"],
+        input=script,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return result.stderr.strip()
+    return None
+
+
+def check_bash_snippets(sources: list[Path] = BASH_SNIPPET_SOURCES) -> list[str]:
+    errors = []
+    for path in sources:
+        if not path.is_file():
+            errors.append(f"{_display_path(path)}: expected file not found")
+            continue
+        text = path.read_text()
+        for i, block in enumerate(BASH_FENCE_RE.findall(text), start=1):
+            error = _bash_syntax_error(block)
+            if error:
+                errors.append(
+                    f"{_display_path(path)}: bash snippet #{i} has a syntax error — {error}"
+                )
+    return errors
+
+
+def check_console_snippets(sources: list[Path] = CONSOLE_SNIPPET_SOURCES) -> list[str]:
+    errors = []
+    for path in sources:
+        if not path.is_file():
+            errors.append(f"{_display_path(path)}: expected file not found")
+            continue
+        text = path.read_text()
+        for i, block in enumerate(CONSOLE_FENCE_RE.findall(text), start=1):
+            commands = "\n".join(
+                line[len("$ "):] for line in block.split("\n") if line.startswith("$ ")
+            )
+            if not commands:
+                continue
+            error = _bash_syntax_error(commands)
+            if error:
+                errors.append(
+                    f"{_display_path(path)}: console snippet #{i} has a syntax error — {error}"
+                )
+    return errors
+
+
+def _strip_fences(text: str) -> str:
+    # Fenced code blocks (```...``` / ~~~...~~~) can legitimately contain
+    # illustrative "wrong" numbers — e.g. README.md's before/after example
+    # of two projects' drifted CLAUDE.md snippets — that aren't this
+    # repo's actual live policy and shouldn't be scanned as if they were.
+    return ANY_FENCE_RE.sub("", text)
+
+
+def _extract_mandate_numbers(text: str, topic_word: re.Pattern[str]) -> set[str]:
+    # A percentage counts as a mandate statement only if BOTH the topic
+    # word (e.g. "coverage") and a mandate-signal word/symbol (minimum,
+    # required, below, >=, ...) appear on the SAME line as it — see the
+    # registry comment above for why a bare "N% <topic>" isn't enough on
+    # its own. Scoped to a single line rather than a character window
+    # around the match: a character window bled across adjacent list
+    # items in testing, e.g. COMPLETION_CHECKLIST.md's "- [ ] Coverage >=
+    # 80% (minimum requirement)" immediately followed by "- [ ] Strive for
+    # 90%+ coverage" — a window wide enough to reach "minimum requirement"
+    # from the 90% line would have wrongly flagged the aspirational
+    # "strive for" stretch goal as a conflicting mandate. Scoping to
+    # single lines trades a few missed same-file legitimate mentions that
+    # happen to wrap across lines (never counted, never flagged either —
+    # safe failure mode) for zero false conflicts from a neighboring line.
+    numbers = set()
+    for line in text.split("\n"):
+        if not (topic_word.search(line) and _MANDATE_SIGNAL_RE.search(line)):
+            continue
+        for match in _PERCENT_RE.finditer(line):
+            numbers.add(match.group(1))
+    return numbers
+
+
+def check_duplicate_policy_numbers(scan_root: Path = REPO_ROOT) -> list[str]:
+    errors = []
+    for entry in DUPLICATE_POLICY_REGISTRY:
+        source_path = scan_root / entry["source_rel"]
+        if not source_path.is_file():
+            errors.append(f"{entry['source_rel']}: expected source-of-truth file not found")
+            continue
+        source_numbers = _extract_mandate_numbers(_strip_fences(source_path.read_text()), entry["topic_word"])
+
+        for md_file in sorted(scan_root.rglob("*.md")):
+            if ".git" in md_file.parts or md_file == source_path:
+                continue
+            rel = md_file.relative_to(scan_root)
+            rel_str = str(rel)
+            if rel_str.startswith(DUPLICATE_POLICY_EXCLUDED_DIR_PREFIXES):
+                continue
+            if md_file.name in DUPLICATE_POLICY_EXCLUDED_FILENAMES:
+                continue
+
+            found_numbers = _extract_mandate_numbers(_strip_fences(md_file.read_text()), entry["topic_word"])
+            conflicting = found_numbers - source_numbers
+            if conflicting:
+                errors.append(
+                    f"{rel_str}: states {entry['name']} as {sorted(conflicting)}, "
+                    f"but {entry['source_rel']} (source of truth) says "
+                    f"{sorted(source_numbers)} — fix the restatement or update the source"
+                )
+    return errors
+
+
+def check_agents_md_sync() -> list[str]:
+    # P2-02: AGENTS.md is generated from CLAUDE.md + .claude/skills/ by
+    # tools/generate-agents-md.sh, not hand-maintained — the same drift
+    # class fixed for docs in P1-13, guarded against here the same way
+    # verify-manifest.sh guards MANIFEST.md's bidirectional accuracy.
+    committed = REPO_ROOT / "AGENTS.md"
+    generator = REPO_ROOT / "tools/generate-agents-md.sh"
+    if not committed.is_file():
+        return [f"{committed.relative_to(REPO_ROOT)}: expected file not found"]
+    result = subprocess.run(
+        ["bash", str(generator)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return [f"{generator.relative_to(REPO_ROOT)}: failed to run — {result.stderr.strip()}"]
+    if result.stdout != committed.read_text():
+        return [
+            f"{committed.relative_to(REPO_ROOT)}: out of sync with its source — "
+            f"run 'tools/generate-agents-md.sh --output AGENTS.md' and commit the result"
+        ]
+    return []
+
+
 def check_manifest_md_sync() -> list[str]:
     # B2: MANIFEST.md is generated from manifest.yaml by
     # tools/generate-manifest.py, not hand-maintained — exact mirror of
