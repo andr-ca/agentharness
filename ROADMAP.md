@@ -139,7 +139,10 @@ follow the same template.
   against and letting friction surface over real use, then feeding
   findings back. Tracked here so it isn't silently dropped between status
   snapshots; see
-  `docs/operational/reviews/gpt-5.6-completion-reaudit-status.md`.
+  `docs/operational/reviews/gpt-5.6-completion-reaudit-status.md`. An
+  executable plan + tracking template now exists at
+  `docs/operational/planning/DOGFOODING.md`; the run itself is still the
+  (user-triggered) open item.
 
 - ~~P0-03's remote-write authorization model is unresolved.~~ —
   **IMPLEMENTED** (B1). `CLAUDE.md`'s Agent Workflow Completion section

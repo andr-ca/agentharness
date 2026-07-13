@@ -8,7 +8,7 @@ Currently being researched, developed, or planned:
 
 | Document | Status | Purpose | Location |
 |----------|--------|---------|----------|
-| (none yet) | - | - | - |
+| Dogfooding plan | Not started | Executable plan + tracking template to get real-world evidence (P2-05/P2-02) | `planning/DOGFOODING.md` |
 
 ## 🔄 In-Progress Work
 
