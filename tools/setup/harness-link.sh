@@ -355,13 +355,20 @@ COVERAGE_HOOK_MARKER="# agentharness generated coverage hook — do not hand-edi
 
 generate_coverage_pre_push() {
     local target="$1" harness_link_path="$2"
+    # %q-quote the path before embedding it: it lands inside a double-quoted
+    # assignment in the GENERATED script, and double quotes still allow
+    # $()/backtick expansion — an unescaped path containing shell
+    # metacharacters (e.g. a checkout directory renamed to include "$(...)")
+    # would be evaluated as a command when the hook later runs.
+    local harness_link_quoted
+    printf -v harness_link_quoted '%q' "$harness_link_path"
     cat > "$target/.github/hooks/pre-push" <<EOF
 #!/bin/bash
 $COVERAGE_HOOK_MARKER
 set -euo pipefail
 
 TARGET_ROOT="\$(git rev-parse --show-toplevel)"
-HARNESS_LINK="$harness_link_path"
+HARNESS_LINK=$harness_link_quoted
 
 if [ ! -f "\$HARNESS_LINK" ]; then
     echo "agentharness coverage hook: harness-link.sh not found at \$HARNESS_LINK" >&2
@@ -630,9 +637,29 @@ cmd_init() {
             # existing core.hooksPath left real filesystem side effects
             # behind on a declined install, even though with_hook/
             # coverage_hook were correctly recorded as false.
-            local existing_hooks_path
+            local existing_hooks_path existing_hooks_abs
             existing_hooks_path="$(git -C "$target" config --get core.hooksPath 2>/dev/null || true)"
-            if [ -n "$existing_hooks_path" ] && [ "$existing_hooks_path" != "$hooks_path" ] && [ "$force" != true ]; then
+            existing_hooks_abs="$existing_hooks_path"
+            # core.hooksPath may be recorded as a relative path (git resolves
+            # it relative to the work tree root at run time) — comparing that
+            # raw string against our always-absolute $hooks_path would treat
+            # an equivalent, already-correct hooksPath as a conflict. Resolve
+            # it to an absolute path first (Copilot review).
+            if [ -n "$existing_hooks_path" ]; then
+                case "$existing_hooks_path" in
+                    /*) ;;
+                    # $target is already an absolute, canonicalized path
+                    # (resolved via cd+pwd earlier in cmd_init), so plain
+                    # concatenation is enough for the realistic case (a
+                    # plain relative path with no './'/'../' segments) —
+                    # don't require the directory to already exist (a
+                    # cd-based resolution would silently fall through to
+                    # the raw string on a brand-new repo's first install,
+                    # since .github/hooks doesn't exist yet at that point).
+                    *) existing_hooks_abs="$target/$existing_hooks_path" ;;
+                esac
+            fi
+            if [ -n "$existing_hooks_abs" ] && [ "$existing_hooks_abs" != "$hooks_path" ] && [ "$force" != true ]; then
                 echo "  --with-hook requested but $target already has a different core.hooksPath set:" >&2
                 echo "    $existing_hooks_path" >&2
                 echo "  Not overwriting — rerun with --force, or 'git -C $target config --unset core.hooksPath' first." >&2
@@ -650,7 +677,7 @@ cmd_init() {
                         cp "$hooks_src_dir/pre-push" "$target/.github/hooks/"
                     fi
                 fi
-                if [ -n "$existing_hooks_path" ] && [ "$existing_hooks_path" != "$hooks_path" ]; then
+                if [ -n "$existing_hooks_abs" ] && [ "$existing_hooks_abs" != "$hooks_path" ]; then
                     git -C "$target" config core.hooksPath "$hooks_path"
                     echo "  Overwrote existing core.hooksPath ($existing_hooks_path) with agentharness hooks (--force)"
                 else

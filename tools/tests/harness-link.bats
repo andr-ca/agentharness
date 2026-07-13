@@ -184,6 +184,57 @@ print(len(d['skills']))
     [ "$hooks_path" = "some/other/hooks" ]
 }
 
+@test "harness-link.sh: --mode copy --with-hook does not treat an equivalent relative core.hooksPath as a conflict" {
+    # Copilot review on PR #21: core.hooksPath can be recorded as a
+    # relative path (git resolves it relative to the work tree at run
+    # time), but the conflict check compared it as a raw string against
+    # our always-absolute intended hooks_path — an equivalent, correct
+    # relative value was wrongly treated as a conflicting hooksPath.
+    git -C "$TEST_PROJECT" init --quiet
+    git -C "$TEST_PROJECT" config core.hooksPath ".github/hooks"
+
+    run bash "$SCRIPT" "$TEST_PROJECT" --mode copy --with-hook
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"already has a different core.hooksPath"* ]]
+    [[ "$output" =~ "Installed trunk-protection hook" ]]
+    hooks_path=$(git -C "$TEST_PROJECT" config core.hooksPath)
+    [ "$hooks_path" = "$TEST_PROJECT/.github/hooks" ]
+}
+
+@test "harness-link.sh: --with-hook still detects a genuinely different relative core.hooksPath as a conflict" {
+    git -C "$TEST_PROJECT" init --quiet
+    git -C "$TEST_PROJECT" config core.hooksPath "some/other/hooks"
+
+    run bash "$SCRIPT" "$TEST_PROJECT" --mode copy --with-hook
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "already has a different core.hooksPath" ]]
+    hooks_path=$(git -C "$TEST_PROJECT" config core.hooksPath)
+    [ "$hooks_path" = "some/other/hooks" ]
+}
+
+@test "harness-link.sh: generated coverage hook's harness-link.sh path is shell-escaped against injection" {
+    # Copilot review on PR #21: the generated pre-push script's
+    # HARNESS_LINK="..." line is inside double quotes, which still allow
+    # \$()/backtick expansion — an unescaped path containing shell
+    # metacharacters would be evaluated as a command when the generated
+    # hook later runs.
+    git -C "$TEST_PROJECT" init --quiet
+    local evil_dir="$TEST_PROJECT/../evil-\$(touch $TEST_PROJECT/PWNED)-dir"
+    mkdir -p "$evil_dir"
+
+    (
+        source "$SCRIPT" 2>/dev/null || true
+        mkdir -p "$TEST_PROJECT/.github/hooks"
+        generate_coverage_pre_push "$TEST_PROJECT" "$evil_dir/harness-link.sh"
+    )
+
+    bash -n "$TEST_PROJECT/.github/hooks/pre-push"
+    run bash "$TEST_PROJECT/.github/hooks/pre-push"
+    [ ! -e "$TEST_PROJECT/PWNED" ]
+
+    rm -rf "$evil_dir"
+}
+
 @test "harness-link.sh: --with-coverage-hook refusing a conflicting core.hooksPath leaves no generated hook files behind" {
     # Copilot review on PR #21: the generated/copied hook files used to be
     # written to $target/.github/hooks BEFORE the core.hooksPath conflict
