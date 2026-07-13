@@ -121,10 +121,18 @@ _YAML_SCAN_EXCLUDED_DIR_NAMES = {".git", "node_modules", "venv", ".venv", "__pyc
 
 
 def find_yaml_files() -> list[Path]:
+    # os.walk() with in-place dirnames pruning, not Path.rglob() filtered
+    # afterward — rglob() has no way to skip descending into an excluded
+    # directory once it's found one, so a post-hoc filter still pays the
+    # full traversal cost of walking into node_modules/venv/etc, which is
+    # exactly the slow/noisy case this exists to avoid.
     files: list[Path] = []
-    for pattern in ("*.yaml", "*.yml"):
-        files.extend(REPO_ROOT.rglob(pattern))
-    return [f for f in files if not _YAML_SCAN_EXCLUDED_DIR_NAMES & set(f.parts)]
+    for dirpath, dirnames, filenames in os.walk(REPO_ROOT):
+        dirnames[:] = [d for d in dirnames if d not in _YAML_SCAN_EXCLUDED_DIR_NAMES]
+        for name in filenames:
+            if name.endswith((".yaml", ".yml")):
+                files.append(Path(dirpath) / name)
+    return files
 
 
 def check_yaml_files() -> list[str]:
