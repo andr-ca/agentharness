@@ -232,6 +232,105 @@ own generated `AGENTS.md` to 201 lines/11.6KB — routing rules plus a
 6-line skill index, with full skill content loaded only on demand from
 `.agents/skills/`.
 
+### Gemini CLI / Antigravity (`GEMINI.md` + `.agents/skills/`)
+
+Gemini CLI supports the same Agent Skills open standard as Claude Code
+and Codex: it injects every enabled skill's `name`/`description` into
+the system prompt at session start, then calls an `activate_skill` tool
+to load a skill's full body only once its description matches the task
+at hand (see https://geminicli.com/docs/cli/skills/). Google Antigravity
+reads the same `GEMINI.md` filename and gives it precedence over
+`AGENTS.md` when both are present.
+
+`harness-link.sh init`/`update` already install every skill into
+`.agents/skills/` (same mechanism Codex uses above), so `GEMINI.md`
+itself only needs the same routing-rules-plus-index shape as `AGENTS.md`:
+
+```bash
+~/agentharness/tools/generate-gemini-md.sh --output GEMINI.md
+```
+
+Re-run it the same way you'd re-run the `AGENTS.md` generator — no CI
+check keeps a *consumer* project's copy in sync, only this harness's own
+root `GEMINI.md` has that. **Not verified against a live Gemini CLI or
+Antigravity session** — built from public docs as of 2026-07-14 (see
+`docs/CLIENT_COMPATIBILITY.md`).
+
+### GitHub Copilot (`.github/copilot-instructions.md` + `.github/instructions/*.instructions.md`)
+
+Copilot (VS Code, github.com, the Copilot coding agent) reads
+`.github/copilot-instructions.md` as a repo-wide, always-applied file,
+plus optional path-scoped `.github/instructions/*.instructions.md`
+files — each carrying an `applyTo` glob frontmatter field Copilot uses
+to decide whether the file applies to the path currently being edited
+(not a regex, despite that being a common assumption — see
+https://docs.github.com/en/copilot/customizing-copilot/adding-custom-instructions-for-github-copilot).
+Copilot also added support for the Agent Skills open standard to VS
+Code's agent mode in April 2026 and recognizes `.agents/skills/` the
+same way Codex and Gemini CLI do.
+
+This harness's own `languages/*/CONVENTIONS.md` files already carry
+`applyTo`/`description` frontmatter written for exactly this purpose —
+the generator reuses it as the source of truth instead of restating the
+glob pattern a second time:
+
+```bash
+~/agentharness/tools/generate-copilot-instructions.sh --output-dir .
+```
+
+This writes both `.github/copilot-instructions.md` and one
+`.github/instructions/<lang>.instructions.md` per language guide you
+have under `languages/`. Re-run it whenever `CLAUDE.md` or a
+`CONVENTIONS.md` file changes. **Not verified against a live Copilot
+session** — built from public docs as of 2026-07-14. (Separately,
+`languages/python/COPILOT_INSTRUCTIONS.md` is a generic, non-generated
+Python/Copilot best-practices reference — a different document from the
+project-specific conventions this generator produces; both are useful,
+neither replaces the other.)
+
+### Kilo Code (`.kilo/rules/agentharness.md`)
+
+Kilo Code auto-discovers every file placed under `.kilo/rules/` — no
+`kilo.jsonc` entry is required for a new file there to take effect. Kilo
+also recognizes `.agents/skills/` as an Agent-Skills-standard-compliant
+path, so this file follows the same routing-rules-plus-index shape as
+`AGENTS.md`/`GEMINI.md`:
+
+```bash
+mkdir -p .kilo/rules
+~/agentharness/tools/generate-kilo-rules.sh --output .kilo/rules/agentharness.md
+```
+
+Re-run it the same way as the other generators above. **Not verified
+against a live Kilo Code session** — built from public docs as of
+2026-07-14.
+
+### Cursor (`.cursor/rules/*.mdc`)
+
+Cursor is the one platform researched with no confirmed Agent Skills
+(SKILL.md) support — its native mechanism is structurally different:
+`.cursor/rules/*.mdc` files, each with `description`/`globs`/
+`alwaysApply` frontmatter and four activation modes (Always,
+Auto-Attached-by-glob, Agent-Requested-by-description, Manual — see
+https://docs.cursor.com/context/rules). Because there's no shared
+metadata-scan step to delegate to, this generator produces one `.mdc`
+per skill (full body inline, not just an index) plus one always-on
+router file:
+
+```bash
+~/agentharness/tools/generate-cursor-rules.sh --output-dir .
+```
+
+This writes `.cursor/rules/agentharness-router.mdc` (`alwaysApply:
+true`, `CLAUDE.md`'s routing prose) and one
+`.cursor/rules/<skill-name>.mdc` per skill (that skill's own
+`description` copied verbatim into the frontmatter, no `globs` — Cursor's
+agent reads the description and decides whether to pull the rule in,
+the closest native analog to SKILL.md's own progressive disclosure).
+Re-run it whenever `CLAUDE.md` or the skill catalog changes. **Not
+verified against a live Cursor session** — built from public docs as of
+2026-07-14.
+
 ### Language Guidelines
 
 Python, TypeScript, and Go exist today (`languages/{python,typescript,go}/`),

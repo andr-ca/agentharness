@@ -142,6 +142,41 @@ index (201 lines/11.6KB). Still not verified against a live Codex CLI
 session end-to-end — the "don't claim what you haven't tested" caveat
 stands, now against the corrected mechanism instead of the wrong one.
 
+**2026-07-14 update (cross-platform parity):** research across the
+remaining major agentic coding tools (OpenCode, Gemini CLI, Cursor,
+GitHub Copilot, Antigravity, Zed, Kilo Code — full findings in
+`docs/CLIENT_COMPATIBILITY.md`) found that the Codex exception above
+generalizes further than expected. The Agent Skills open standard
+(published December 2025, adopted within 48 hours by OpenAI and
+Microsoft, 32+ tools by March 2026) means `.agents/skills/` — already
+populated for every consumer by `harness-link.sh` — is a recognized
+compatibility path for OpenCode, Gemini CLI, GitHub Copilot, Antigravity,
+Zed, and Kilo Code too, not just Codex. Separately, always-on
+project-instructions have converged around `AGENTS.md` as a de facto
+cross-tool standard (OpenCode's and Zed's primary file, Antigravity's
+fallback), so this repo's existing `AGENTS.md` was likely already doing
+more work than its "Codex-only" framing gave it credit for.
+
+Given that, this repo now builds and dogfoods the same
+generated-routing-file-plus-skill-index adapter for `GEMINI.md`
+(Gemini CLI/Antigravity), `.github/copilot-instructions.md` +
+`.github/instructions/*.instructions.md` (GitHub Copilot's own
+`applyTo`-glob mechanism, reusing frontmatter this repo's
+`languages/*/CONVENTIONS.md` files already carried), and
+`.kilo/rules/agentharness.md` (Kilo Code) — plus a structurally
+different adapter for Cursor (`.cursor/rules/*.mdc`), the one platform
+researched with no confirmed Agent Skills support.
+
+This *broadens the structural coverage claim, not the tested-claim*:
+"Claude-first" as a statement about what's actually been dogfooded in a
+live session is unchanged — every new generated file carries the same
+"not verified against a live session" caveat already established for
+Codex. What changed is that "Claude-first, with one Codex exception" was
+too narrow a description of what the `.agents/skills/` design already
+made possible; it's now described accurately as "Claude-first, tested;
+structurally covers 8 of 9 researched platforms via generated adapters,
+none of them live-verified but all of them honestly labeled."
+
 ## Symlink as the default install mode, not copy or submodule
 
 **Status:** Settled.
