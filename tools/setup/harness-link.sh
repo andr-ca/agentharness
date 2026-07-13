@@ -14,7 +14,12 @@
 #   status    Show what's currently installed (from .agentharness-state.json).
 #   doctor    Validate the current install is healthy; nonzero exit if not.
 #   audit     Report drift: newly available/removed skills, source commits
-#             since install. --json for machine-readable output (CI/scripting).
+#             since install; the target's selected profile and whether
+#             its publish-authority flag is active (B5); whether the
+#             recorded harness checkout's own validation commands still
+#             exist. --json for machine-readable output (CI/scripting).
+#             Does not run policy-conflict detection itself — points at
+#             'python3 tools/verify-content-quality.py' instead (B7).
 #   enforce-profile
 #             Read .agentharness-profile and, for a detected Python
 #             project, gate on it for real (pytest --cov-fail-under at
@@ -604,18 +609,57 @@ cmd_audit() {
         commits_since="$(git -C "$source_path" log --oneline "$source_rev..$current_rev" -- .claude/skills patterns languages 2>/dev/null | head -20 || true)"
     fi
 
-    # --json (P2-01): machine-readable form of the same drift this
-    # subcommand already computes, for CI or scripted consumption instead
-    # of parsing the human-readable text below.
+    # B5: expanded audit scope, reusing B1/B4/B7 rather than building new
+    # detection logic for each.
+    #
+    # unsafe-authority: is the *audited target's own* .agentharness-
+    # publish-mode flag (B1) present — same file, same directory scope
+    # enforce-profile (B4) already reads its profile file from.
+    local publish_mode_active=false
+    [ -f "$target/.agentharness-publish-mode" ] && publish_mode_active=true
+
+    # selected-profile: same file/precedence enforce-profile (B4) uses.
+    local selected_profile="none (defaults to production)"
+    if [ -f "$target/$PROFILE_FILE_NAME" ]; then
+        selected_profile="$(tr -d '[:space:]' < "$target/$PROFILE_FILE_NAME")"
+    fi
+
+    # validation-commands: does the *recorded harness checkout's* own
+    # tooling still exist where docs claim it does — catches a doc
+    # referencing a script that was renamed/deleted upstream. Checked
+    # against source_path (the harness), not target (the consumer
+    # project), matching how skill availability above is also computed
+    # from source_path.
+    local validation_cmds=(
+        "tools/check.sh"
+        "tools/setup/harness-link.sh"
+        "tools/verify-manifest.sh"
+        "tools/verify-content-quality.py"
+        "tools/generate-agents-md.sh"
+    )
+    local validation_report=""
+    local cmd_path full exists executable
+    for cmd_path in "${validation_cmds[@]}"; do
+        full="$source_path/$cmd_path"
+        exists="false"; executable="false"
+        [ -e "$full" ] && exists="true"
+        [ -x "$full" ] && executable="true"
+        validation_report+="$cmd_path|$exists|$executable"$'\n'
+    done
+
+    # --json (P2-01, expanded for P2-01/B5): machine-readable form of the
+    # same drift this subcommand already computes, for CI or scripted
+    # consumption instead of parsing the human-readable text below.
     if [ "$json" = true ]; then
         python3 - "$target" "$source_path" "$source_rev" "$current_rev" "$rev_comparable" \
             "$(printf '%s\n' "${not_installed[@]}")" "$(printf '%s\n' "${no_longer_available[@]}")" \
-            "$commits_since" <<'PYEOF'
+            "$commits_since" "$publish_mode_active" "$selected_profile" "$validation_report" <<'PYEOF'
 import json
 import sys
 
 target, source_path, source_rev, current_rev, rev_comparable = sys.argv[1:6]
 not_installed_raw, no_longer_available_raw, commits_raw = sys.argv[6:9]
+publish_mode_active, selected_profile, validation_raw = sys.argv[9:12]
 
 
 def lines(s):
@@ -624,6 +668,16 @@ def lines(s):
 
 not_installed = lines(not_installed_raw)
 no_longer_available = lines(no_longer_available_raw)
+
+validation_commands = []
+for line in lines(validation_raw):
+    cmd_path, exists, executable = line.split("|")
+    validation_commands.append({
+        "command": cmd_path,
+        "exists": exists == "true",
+        "executable": executable == "true",
+    })
+
 print(json.dumps({
     "target": target,
     "source_path": source_path,
@@ -634,6 +688,9 @@ print(json.dumps({
     "installed_not_available": no_longer_available,
     "drift": bool(not_installed or no_longer_available),
     "commits_since_install": lines(commits_raw),
+    "publish_mode_active": publish_mode_active == "true",
+    "selected_profile": selected_profile,
+    "validation_commands": validation_commands,
 }, indent=2))
 PYEOF
         return
@@ -658,6 +715,26 @@ PYEOF
     else
         echo "Source revision unchanged or not comparable ($source_rev)."
     fi
+
+    echo ""
+    echo "Selected profile: $selected_profile"
+    echo "Publish-authority flag active: $publish_mode_active"
+
+    echo ""
+    echo "Validation commands (in the recorded harness checkout):"
+    while IFS='|' read -r v_path v_exists v_executable; do
+        [ -z "$v_path" ] && continue
+        if [ "$v_exists" != "true" ]; then
+            echo "  ✗ MISSING: $v_path"
+        elif [ "$v_executable" != "true" ]; then
+            echo "  ⚠ $v_path (exists, not executable)"
+        else
+            echo "  ✓ $v_path"
+        fi
+    done <<< "$validation_report"
+
+    echo ""
+    echo "Policy-conflict check: run 'python3 tools/verify-content-quality.py' in the harness checkout (not duplicated here — see B7)."
 }
 
 # ----------------------------------------------------------------------------
