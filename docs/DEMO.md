@@ -22,14 +22,16 @@ Initializing agentharness (/home/you/agentharness) into /home/you/my-project (mo
   Linked skill: python-conventions
   Linked skill: committing
   Created .gitignore from template
-  Installed trunk-protection + coverage hooks (core.hooksPath)
+  Installed trunk-protection hook (core.hooksPath) — not coverage, see --with-coverage-hook
 Done.
 ```
 
 `--skills` picks which ones to install (omit it for all of them);
 `--with-hook` additionally points `core.hooksPath` at this repo's
-enforced hooks (see "Advisory vs. enforced" in the README — this step is
-optional).
+trunk-protection hook (see "Advisory vs. enforced" in the README — this
+step is optional). It does **not** enforce test coverage on its own
+(P0-03) — use `--with-coverage-hook` instead for a generated pre-push
+hook that runs `enforce-profile` against this project on every push.
 
 ## 2. See what actually landed
 
@@ -99,6 +101,13 @@ for every consuming project's own push, even though `--with-hook` wires
 `core.hooksPath` to the same directory. See `.github/hooks/pre-push`'s
 own comments, or `docs/operational/reviews/gpt-5.6-review-status.md`
 finding 1 for the regression this design avoids.
+
+For real coverage enforcement in your *own* project (not agentharness's),
+use `init --with-coverage-hook` instead of plain `--with-hook`: it
+generates a project-owned `pre-push` hook that runs `enforce-profile`
+against your project on every push, gated on whatever
+`.agentharness-profile` tier you've selected (see
+[patterns/profiles/README.md](../patterns/profiles/README.md)).
 
 ## 4. Everything else is advisory, not enforced
 

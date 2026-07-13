@@ -454,6 +454,22 @@ print('importable')
     ! grep -q "local edit" "$TEST_PROJECT/.claude/skills/committing/SKILL.md"
 }
 
+@test "lifecycle: --mode copy --with-hook uninstall removes the copied hook files, not just core.hooksPath" {
+    # Copilot review on PR #21: uninstall's hook-file cleanup only fired
+    # when coverage_hook=true, leaving a plain '--mode copy --with-hook'
+    # install's copied prevent-trunk-commit/pre-commit/pre-push files
+    # behind after uninstall (core.hooksPath still got correctly unset).
+    git -C "$TEST_PROJECT" init --quiet
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --with-hook
+
+    [ -f "$TEST_PROJECT/.github/hooks/pre-push" ]
+
+    run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Removed the copied hook files" ]]
+    [ ! -e "$TEST_PROJECT/.github/hooks" ]
+}
+
 @test "lifecycle: --mode submodule adds this harness as a real submodule and symlinks from it" {
     git -C "$TEST_PROJECT" init --quiet
     git -C "$TEST_PROJECT" -c user.email=test@example.com -c user.name=Test commit --quiet --allow-empty -m "init"
@@ -725,4 +741,117 @@ with open('$TEST_PROJECT/.agentharness-state.json') as f:
     run node "$harness_root/bin/cli.js" status "$TEST_PROJECT"
     [ "$status" -eq 0 ]
     [[ "$output" =~ "mode:          copy" ]]
+}
+
+@test "lifecycle: --with-coverage-hook generates a real, doctor-verified pre-push hook (P0-03)" {
+    git -C "$TEST_PROJECT" init --quiet
+
+    run bash "$SCRIPT" init "$TEST_PROJECT" --skills agentic-loops --with-coverage-hook
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Generated a coverage-aware pre-push hook" ]]
+
+    [ -x "$TEST_PROJECT/.github/hooks/pre-push" ]
+    grep -q "agentharness generated coverage hook" "$TEST_PROJECT/.github/hooks/pre-push"
+    grep -q "enforce-profile" "$TEST_PROJECT/.github/hooks/pre-push"
+
+    run python3 -c "
+import json
+with open('$TEST_PROJECT/.agentharness-state.json') as f:
+    d = json.load(f)
+assert d['with_hook'] is True, d
+assert d['coverage_hook'] is True, d
+print('ok')
+"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "ok" ]]
+
+    run bash "$SCRIPT" doctor "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "coverage-aware pre-push hook present" ]]
+}
+
+@test "lifecycle: --with-coverage-hook regression — doctor fails if the generated hook is hand-edited (marker removed)" {
+    git -C "$TEST_PROJECT" init --quiet
+    run bash "$SCRIPT" init "$TEST_PROJECT" --skills agentic-loops --with-coverage-hook
+    [ "$status" -eq 0 ]
+
+    echo "#!/bin/bash" > "$TEST_PROJECT/.github/hooks/pre-push"
+    echo "exit 0" >> "$TEST_PROJECT/.github/hooks/pre-push"
+    chmod +x "$TEST_PROJECT/.github/hooks/pre-push"
+
+    run bash "$SCRIPT" doctor "$TEST_PROJECT"
+    [ "$status" -ne 0 ]
+    [[ "$output" =~ "isn't the generated coverage hook" ]]
+}
+
+@test "lifecycle: --with-coverage-hook uninstall removes the generated hook files" {
+    git -C "$TEST_PROJECT" init --quiet
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills agentic-loops --with-coverage-hook
+
+    run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Removed the generated coverage-aware pre-push hook" ]]
+    [ ! -e "$TEST_PROJECT/.github/hooks/pre-push" ]
+    run git -C "$TEST_PROJECT" config core.hooksPath
+    [ "$status" -ne 0 ]
+}
+
+@test "lifecycle: --with-coverage-hook regression — a real git push is blocked below the profile's coverage floor, and succeeds once fixed (P0-03 acceptance test)" {
+    # Direct reproduction of the gpt-5.6 third-pass P0-03 acceptance
+    # criterion: "a fixture below threshold fails a real consumer push
+    # when the product says coverage is enforced." Uses a real bare
+    # remote and a real 'git push', not a simulated hook invocation.
+    local remote
+    remote=$(mktemp -d)
+    git init --bare --quiet "$remote"
+
+    git -C "$TEST_PROJECT" init --quiet
+    git -C "$TEST_PROJECT" remote add origin "$remote"
+    git -C "$TEST_PROJECT" -c user.email=t@e.com -c user.name=t commit --quiet --allow-empty -m init
+    git -C "$TEST_PROJECT" push --quiet origin HEAD:main
+    git -C "$TEST_PROJECT" checkout -b feature/x --quiet
+
+    touch "$TEST_PROJECT/requirements.txt"
+    cat > "$TEST_PROJECT/app.py" <<'PYEOF'
+def covered():
+    return 1
+
+def uncovered_one():
+    return 2
+
+def uncovered_two():
+    return 3
+PYEOF
+    cat > "$TEST_PROJECT/test_app.py" <<'PYEOF'
+from app import covered
+
+def test_covered():
+    assert covered() == 1
+PYEOF
+
+    run bash "$SCRIPT" init "$TEST_PROJECT" --skills agentic-loops --with-coverage-hook --profile production
+    [ "$status" -eq 0 ]
+    git -C "$TEST_PROJECT" add -A
+    git -C "$TEST_PROJECT" -c user.email=t@e.com -c user.name=t commit --quiet -m "add undercovered app"
+
+    run git -C "$TEST_PROJECT" push origin feature/x
+    [ "$status" -ne 0 ]
+    [[ "$output" =~ "Coverage failure" ]] || [[ "$output" =~ "not reached" ]]
+
+    # Fix coverage — the same push must now succeed.
+    cat > "$TEST_PROJECT/test_app.py" <<'PYEOF'
+from app import covered, uncovered_one, uncovered_two
+
+def test_all():
+    assert covered() == 1
+    assert uncovered_one() == 2
+    assert uncovered_two() == 3
+PYEOF
+    git -C "$TEST_PROJECT" add -A
+    git -C "$TEST_PROJECT" -c user.email=t@e.com -c user.name=t commit --quiet -m "cover everything"
+
+    run git -C "$TEST_PROJECT" push origin feature/x
+    [ "$status" -eq 0 ]
+
+    rm -rf "$remote"
 }

@@ -13,7 +13,9 @@ this repo today — see [MANIFEST.md](../MANIFEST.md) for the inventory.
 This is `harness-link.sh`'s lifecycle CLI: `init` symlinks (or copies, or
 adds a submodule and symlinks from it — see Method 1/2/3 below) skills,
 merges `.github/.gitignore.template` into `.gitignore`, optionally
-installs the trunk-protection + coverage hooks (`--with-hook`), and
+installs the trunk-protection hook (`--with-hook`) or a real,
+project-owned coverage-enforcing pre-push hook on top of that
+(`--with-coverage-hook` — see "Coverage enforcement" below, P0-03), and
 records everything in `<project>/.agentharness-state.json` so the other
 subcommands can act on it later:
 
@@ -23,9 +25,35 @@ subcommands can act on it later:
 | `status` | What's installed, from where, and whether the source has moved on since. |
 | `doctor` | Validate the install is healthy (skills present, bundled resources resolve, hook configured); nonzero exit if not — usable as a CI check. |
 | `audit` | Report drift: skills available upstream but not installed, installed skills no longer available, commits since your recorded revision; your selected profile, whether `.agentharness-publish-mode` is active, and whether the recorded harness checkout's own validation commands still exist. `--json` for machine-readable output (CI/scripting). Doesn't run policy-conflict detection itself — points at `tools/verify-content-quality.py` instead. |
-| `enforce-profile` | Read `.agentharness-profile` and gate on it for real: Python (`pytest --cov-fail-under` at the selected tier's floor), or JS/TS if `package.json`'s `"test"` script already runs `node --test`. Other project types/test runners get "not implemented yet". Not wired into `pre-push` automatically — invoke it explicitly. |
+| `enforce-profile` | Read `.agentharness-profile` and gate on it for real: Python (`pytest --cov-fail-under` at the selected tier's floor), or JS/TS if `package.json`'s `"test"` script already runs `node --test`. Other project types/test runners get "not implemented yet". Invoked automatically by `--with-coverage-hook`'s generated pre-push hook; otherwise not wired in anywhere — invoke it explicitly. |
 | `update` | Re-sync to the current harness state; shows a diff and asks for confirmation (`--yes` to skip it) before changing anything. |
-| `uninstall` | Reverse everything `init` recorded — skills, gitignore block, hook, profile file, state file (and the submodule, in that mode). |
+| `uninstall` | Reverse everything `init` recorded — skills, gitignore block, hook (including a generated coverage hook), profile file, state file (and the submodule/durable npm copy, in those modes). |
+
+### Coverage enforcement (`--with-coverage-hook`, P0-03)
+
+`--with-hook` alone only installs `prevent-trunk-commit` — the shared
+`pre-push` hook this repo's own `core.hooksPath` points at is hardcoded
+to test *agentharness's own* suites and deliberately no-ops for any
+other repo (see `.github/hooks/pre-push`'s own comments). Calling that
+combination "coverage hooks" for a consumer was never accurate.
+
+`--with-coverage-hook` (implies `--with-hook`) generates a real,
+project-owned `pre-push` script at `<project>/.github/hooks/pre-push`
+that calls `harness-link.sh enforce-profile <project>` before allowing
+a push — this is genuinely gated on whatever `.agentharness-profile`
+tier the project has selected, regardless of install `--mode`. `doctor`
+verifies the generated script is present, executable, and hasn't been
+hand-edited (a marker comment identifies it); `uninstall` removes it
+along with everything else.
+
+The generated script hardcodes the absolute path to the
+`harness-link.sh` this repo was installed *from* at generation time —
+for `--mode link`/`copy`, that's this harness checkout's own path, not
+a copy inside the project. If that checkout moves or is deleted,
+coverage enforcement fails on the next push. `update` never touches
+hooks (same convention as `--with-hook`), so recovering requires
+re-running `init --with-coverage-hook` to regenerate the script against
+a valid `harness-link.sh` path.
 
 `harness-link.sh /path/to/your-project [options]` (no subcommand) still
 works — it's sugar for `init` with those same options, kept for anything
