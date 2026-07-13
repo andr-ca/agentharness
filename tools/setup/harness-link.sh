@@ -355,11 +355,12 @@ COVERAGE_HOOK_MARKER="# agentharness generated coverage hook — do not hand-edi
 
 generate_coverage_pre_push() {
     local target="$1" harness_link_path="$2"
-    # %q-quote the path before embedding it: it lands inside a double-quoted
-    # assignment in the GENERATED script, and double quotes still allow
-    # $()/backtick expansion — an unescaped path containing shell
-    # metacharacters (e.g. a checkout directory renamed to include "$(...)")
-    # would be evaluated as a command when the hook later runs.
+    # %q-quote the path before embedding it in the GENERATED script's
+    # HARNESS_LINK=... assignment (unquoted on the left so %q's own
+    # quoting, only added when actually needed, is what governs it) — an
+    # unescaped path containing shell metacharacters (e.g. a checkout
+    # directory renamed to include "$(...)") would otherwise be evaluated
+    # as a command when the hook later runs.
     local harness_link_quoted
     printf -v harness_link_quoted '%q' "$harness_link_path"
     cat > "$target/.github/hooks/pre-push" <<EOF

@@ -214,10 +214,10 @@ print(len(d['skills']))
 
 @test "harness-link.sh: generated coverage hook's harness-link.sh path is shell-escaped against injection" {
     # Copilot review on PR #21: the generated pre-push script's
-    # HARNESS_LINK="..." line is inside double quotes, which still allow
-    # \$()/backtick expansion — an unescaped path containing shell
-    # metacharacters would be evaluated as a command when the generated
-    # hook later runs.
+    # HARNESS_LINK=... assignment embeds this path %q-quoted but
+    # otherwise unquoted-on-the-left — an unescaped path containing
+    # shell metacharacters would be evaluated as a command when the
+    # generated hook later runs.
     git -C "$TEST_PROJECT" init --quiet
     local evil_dir="$TEST_PROJECT/../evil-\$(touch $TEST_PROJECT/PWNED)-dir"
     mkdir -p "$evil_dir"
