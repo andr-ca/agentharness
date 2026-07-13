@@ -51,3 +51,8 @@ htmlcov/
 # agentharness: per-operator publish-authority grant — never committed,
 # see CLAUDE.md's "Publish authority" section
 .agentharness-publish-mode
+
+# --mode npm's durable local package copy (P0-02) — not applicable to this
+# repo's own root normally, ignored for symmetry with the consumer-facing
+# .github/.gitignore.template entry and local test/debug runs.
+.agentharness-pkg/

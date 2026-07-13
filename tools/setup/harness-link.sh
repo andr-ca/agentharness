@@ -46,6 +46,12 @@
 #   submodule  Add this harness as a git submodule at <target>/.agentharness
 #              (version-pinned in the target's own history) and symlink
 #              skills from there instead of this checkout.
+#   npm        Copy this checkout into <target>/.agentharness-pkg (a durable
+#              local copy, gitignored) and symlink skills from there instead
+#              of this checkout. This is what the npm/npx CLI shim
+#              (bin/cli.js) defaults 'init'/'plan' to when no --mode is
+#              given — its own HARNESS_DIR is an ephemeral npx cache/temp
+#              extraction, so 'link' would silently break on cache cleanup.
 #
 # Requires python3 (used for reading/writing the JSON state file).
 # ============================================================================
@@ -57,6 +63,7 @@ STATE_FILE_NAME=".agentharness-state.json"
 PROFILE_FILE_NAME=".agentharness-profile"
 GITIGNORE_MARKER="# --- Added by agentharness harness-link.sh ---"
 SUBMODULE_PATH=".agentharness"
+NPM_DURABLE_PATH=".agentharness-pkg"
 
 usage() {
     cat <<EOF
@@ -66,8 +73,12 @@ Usage: $(basename "$0") <subcommand> [target-project-dir] [OPTIONS]
 Subcommands: init, plan, status, doctor, audit, enforce-profile, update, uninstall
 
 init options:
-  --mode link|copy|submodule   Install mode (default: link)
-  --skills a,b,c               Comma-separated list of skills (default: all)
+  --mode link|copy|submodule|npm
+                                Install mode (default: link; the npm/npx
+                                CLI shim defaults to npm instead — see
+                                docs/INTEGRATION.md#method-4-npmnpx)
+  --skills a,b,c               Comma-separated list of skills (default:
+                                all; 'none' explicitly installs zero)
   --with-hook                  Install the trunk-protection + coverage hooks
   --force                      Overwrite an existing, different core.hooksPath
   --profile prototype|internal|production
@@ -265,6 +276,55 @@ validate_skills_filter() {
 }
 
 # ----------------------------------------------------------------------------
+# npm durable source (P0-02)
+# ----------------------------------------------------------------------------
+
+# Copies HARNESS_DIR into <target>/$NPM_DURABLE_PATH, excluding .git — the
+# npm-installed package tree HARNESS_DIR points at when invoked via the npm
+# CLI shim has already been pruned to package.json's "files" allowlist by npm
+# itself, so this is a small, self-contained copy, not the whole dev repo.
+copy_npm_durable_source() {
+    local target="$1"
+    local dst="${target:?copy_npm_durable_source: target must not be empty}/$NPM_DURABLE_PATH"
+    rm -rf "$dst"
+    mkdir -p "$dst"
+    # Exclude the durable-copy directory itself from the tar source: if
+    # 'target' is HARNESS_DIR or a subdirectory of it (e.g. dogfooding this
+    # harness's own repo as an init target), the freshly-created, empty
+    # $dst would otherwise sit inside the tree being read, and get read
+    # back into itself mid-stream. Compute the exclude path relative to
+    # HARNESS_DIR (not just "./$NPM_DURABLE_PATH", which only matches when
+    # target IS HARNESS_DIR) so a target that's a subdirectory of
+    # HARNESS_DIR is covered too.
+    local tar_exclude="./$NPM_DURABLE_PATH"
+    case "$dst" in
+        "$HARNESS_DIR"/*)
+            tar_exclude="./${dst#"$HARNESS_DIR"/}"
+            ;;
+    esac
+    (cd "$HARNESS_DIR" && tar cf - --exclude=.git --exclude="$tar_exclude" .) | (cd "$dst" && tar xf -)
+}
+
+# Prefers package.json's version (meaningful for an npm-distributed source —
+# "0.2.0" tells a consumer far more than a git SHA they can't independently
+# look up) and falls back to a git revision for link/copy/submodule modes,
+# whose skills_src_root is a real git checkout.
+source_revision_for() {
+    local src_root="$1" mode="$2"
+    if [ "$mode" = "npm" ] && [ -f "$src_root/package.json" ]; then
+        # Pass src_root as argv, not interpolated into the Python source —
+        # a path containing a quote or backslash would otherwise break out
+        # of the embedded string literal.
+        python3 -c "
+import json, sys
+with open(sys.argv[1] + '/package.json') as f:
+    print(json.load(f)['version'])
+" "$src_root" 2>/dev/null && return
+    fi
+    git -C "$src_root" rev-parse HEAD 2>/dev/null || echo unknown
+}
+
+# ----------------------------------------------------------------------------
 # init / plan
 # ----------------------------------------------------------------------------
 
@@ -290,8 +350,8 @@ cmd_init() {
     target="${target:-.}"
 
     case "$mode" in
-        link|copy|submodule) ;;
-        *) echo "Error: --mode must be link, copy, or submodule (got: $mode)" >&2; exit 1 ;;
+        link|copy|submodule|npm) ;;
+        *) echo "Error: --mode must be link, copy, submodule, or npm (got: $mode)" >&2; exit 1 ;;
     esac
     if [ -n "$profile" ]; then
         case "$profile" in
@@ -313,10 +373,13 @@ cmd_init() {
 
     # P0-04: validate before any mutation (including before the dry-run
     # branch below, so 'plan' reports the same failure 'init' would rather
-    # than silently planning an empty install). For submodule mode this
-    # checks against HARNESS_DIR rather than the not-yet-created submodule —
-    # correct because 'submodule add' below pins to this exact checkout's
-    # commit, so the two are guaranteed to have identical skill directories.
+    # than silently planning an empty install). For submodule mode this is
+    # only a first pass against HARNESS_DIR, not the final word — the
+    # submodule's pinning can fall back to the remote's default branch (see
+    # below) when this checkout's exact commit isn't reachable, which can
+    # leave the submodule with a different skill set than HARNESS_DIR. A
+    # second validation runs after the submodule/npm source is finalized,
+    # against whatever skills_src_root actually ends up being.
     if ! validate_skills_filter "$skills_src_root" "$skills_filter"; then
         echo "Error: one or more requested skill names are invalid or unknown — aborting before making any changes." >&2
         echo "Use --skills none to explicitly install zero skills." >&2
@@ -339,6 +402,7 @@ cmd_init() {
 
     echo "Initializing agentharness ($HARNESS_DIR) into $target (mode: $mode)"
 
+    local submodule_newly_added=false
     if [ "$mode" = "submodule" ]; then
         if ! git -C "$target" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
             echo "Error: --mode submodule requires $target to be a git repo." >&2
@@ -352,6 +416,7 @@ cmd_init() {
         fi
         if [ ! -e "$target/$SUBMODULE_PATH/.git" ]; then
             git -C "$target" submodule add "$harness_remote" "$SUBMODULE_PATH"
+            submodule_newly_added=true
             echo "  Added agentharness as a submodule at $SUBMODULE_PATH"
             # 'submodule add' checks out the remote's default branch, which
             # is not necessarily what this checkout (HARNESS_DIR) actually
@@ -380,6 +445,48 @@ cmd_init() {
         hooks_src_dir="$target/$SUBMODULE_PATH/.github/hooks"
     fi
 
+    # P0-02: 'npm' mode exists for the npx/npm install path, whose default
+    # HARNESS_DIR is an npx cache/temp extraction — not a durable, user-owned
+    # location. Rather than symlink into that ephemeral path (the original
+    # bug: a later cache cleanup silently breaks every installed skill),
+    # copy HARNESS_DIR into a durable, version-pinned directory inside the
+    # consumer itself, then symlink skills from THAT — same mechanics as
+    # submodule mode's "durable local copy, then link from it" pattern, just
+    # populated by a plain file copy instead of a git clone (an npx-invoked
+    # HARNESS_DIR is frequently not its own git repo at all).
+    if [ "$mode" = "npm" ]; then
+        copy_npm_durable_source "$target"
+        skills_src_root="$target/$NPM_DURABLE_PATH"
+        hooks_src_dir="$target/$NPM_DURABLE_PATH/.github/hooks"
+    fi
+
+    # Second validation pass (Copilot review, PR #19): the first pass above
+    # ran against HARNESS_DIR before skills_src_root could have changed. For
+    # submodule mode specifically, a fallback to the remote's default branch
+    # (see the comment above) can leave the submodule with a different skill
+    # set than HARNESS_DIR had — re-checking here against the now-final
+    # skills_src_root is what actually keeps P0-04's atomicity guarantee
+    # true for every mode, not just the modes where skills_src_root never
+    # changes after the first check.
+    if ! validate_skills_filter "$skills_src_root" "$skills_filter"; then
+        echo "Error: one or more requested skill names are invalid or unknown in the resolved source ($skills_src_root)." >&2
+        echo "For --mode submodule, this can happen when the submodule's pin fell back to the remote's default branch instead of this checkout's exact commit — check the messages above." >&2
+        # Roll back whatever this invocation itself just created, so a
+        # failed init really does leave nothing behind (P0-04's atomicity
+        # guarantee applies to this check's own failure path too, not just
+        # to the checks that ran before any mutation).
+        if [ "$mode" = "npm" ]; then
+            rm -rf "${target:?}/${NPM_DURABLE_PATH:?}"
+            echo "  Rolled back: removed the durable npm copy this run created." >&2
+        elif [ "$mode" = "submodule" ] && [ "$submodule_newly_added" = true ]; then
+            git -C "$target" submodule deinit -f -- "$SUBMODULE_PATH" 2>/dev/null || true
+            git -C "$target" rm -f "$SUBMODULE_PATH" 2>/dev/null || true
+            rm -rf "${target:?}/.git/modules/${SUBMODULE_PATH:?}"
+            echo "  Rolled back: removed the submodule this run added." >&2
+        fi
+        exit 1
+    fi
+
     # ------------------------------------------------------------------
     # 1. Skills
     # ------------------------------------------------------------------
@@ -392,7 +499,7 @@ cmd_init() {
         local src="$skills_src_root/.claude/skills/$skill"
         local dst="$skills_dst/$skill"
         case "$mode" in
-            link|submodule)
+            link|submodule|npm)
                 if [ -L "$dst" ]; then
                     rm "$dst"
                 elif [ -e "$dst" ]; then
@@ -500,7 +607,7 @@ cmd_init() {
     # a submodule never has HARNESS_DIR's path on their machine at all; only
     # the submodule clone is theirs to track drift against.
     local source_revision
-    source_revision="$(git -C "$skills_src_root" rev-parse HEAD 2>/dev/null || echo unknown)"
+    source_revision="$(source_revision_for "$skills_src_root" "$mode")"
     local source_remote
     source_remote="$(git -C "$skills_src_root" remote get-url origin 2>/dev/null || true)"
     local skills_csv
@@ -1007,6 +1114,17 @@ cmd_update() {
     profile="$(state_field "$target" profile 2>/dev/null || echo "")"
     [ "$profile" = "None" ] && profile=""
 
+    # P0-02: 'npm' mode's whole point is that source_path (the durable local
+    # copy) must NOT be diffed against its own prior self to detect
+    # upstream changes — refresh it from HARNESS_DIR (this exact invocation
+    # of the currently-running package) FIRST, so 'current' below reflects
+    # whatever version of agentharness-toolkit this update was actually run
+    # with, not whatever was durably copied at install time.
+    if [ "$mode" = "npm" ]; then
+        echo "  Refreshing durable npm source from the currently running package ($HARNESS_DIR)..."
+        copy_npm_durable_source "$target"
+    fi
+
     if [ ! -d "$source_path" ]; then
         echo "Error: recorded source path no longer exists: $source_path" >&2
         exit 1
@@ -1064,7 +1182,7 @@ cmd_update() {
         local src="$source_path/.claude/skills/$name"
         local dst="$target/.claude/skills/$name"
         case "$mode" in
-            link|submodule)
+            link|submodule|npm)
                 [ -e "$dst" ] && [ ! -L "$dst" ] && continue
                 [ -L "$dst" ] && rm "$dst"
                 ln -s "$src" "$dst"
@@ -1097,7 +1215,7 @@ cmd_update() {
     fi
 
     local source_revision
-    source_revision="$(git -C "$source_path" rev-parse HEAD 2>/dev/null || echo unknown)"
+    source_revision="$(source_revision_for "$source_path" "$mode")"
     local source_remote
     source_remote="$(git -C "$source_path" remote get-url origin 2>/dev/null || true)"
     local new_skills_csv
@@ -1137,6 +1255,7 @@ cmd_uninstall() {
     { [ "$with_hook" = "true" ]; } && echo "  - core.hooksPath (if still pointing at agentharness)"
     [ -f "$target/$PROFILE_FILE_NAME" ] && echo "  - $PROFILE_FILE_NAME"
     [ "$mode" = "submodule" ] && [ -e "$target/$SUBMODULE_PATH/.git" ] && echo "  - the $SUBMODULE_PATH submodule"
+    [ "$mode" = "npm" ] && [ -e "$target/$NPM_DURABLE_PATH" ] && echo "  - the $NPM_DURABLE_PATH durable source copy"
     echo "  - $STATE_FILE_NAME"
 
     confirm "$yes" "Proceed with uninstall?" || { echo "Aborted."; return 1; }
@@ -1187,6 +1306,11 @@ cmd_uninstall() {
         rm -rf "$target/.git/modules/$SUBMODULE_PATH"
         git -C "$target" rm -f "$SUBMODULE_PATH" 2>/dev/null || rm -rf "${target:?}/${SUBMODULE_PATH:?}"
         echo "  Removed the $SUBMODULE_PATH submodule"
+    fi
+
+    if [ "$mode" = "npm" ] && [ -e "$target/$NPM_DURABLE_PATH" ]; then
+        rm -rf "${target:?}/${NPM_DURABLE_PATH:?}"
+        echo "  Removed the $NPM_DURABLE_PATH durable source copy"
     fi
 
     rm -f "$(state_path "$target")"

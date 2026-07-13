@@ -11,7 +11,6 @@ on:
 
 permissions:
   contents: read
-  checks: read
   actions: read
 
 jobs:
@@ -57,28 +56,31 @@ jobs:
           fi
           echo "Ancestry OK: $GITHUB_SHA is on main."
 
-          # Exclude this exact workflow run's own check run (Copilot review
-          # caught this on the first pass: the commit's check-runs list
-          # includes THIS release job itself, still in_progress with
-          # conclusion: null, at the moment this step runs — treating that
-          # as a failure would make the gate refuse to publish 100% of the
-          # time). Filtered by check_suite.id, not by name, so it's robust
-          # to the job/workflow being renamed later.
-          own_check_suite_id="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" --jq '.check_suite_id')"
-          runs_json="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs" --jq '.check_runs')"
-          other_runs="$(echo "$runs_json" | jq --argjson suite "$own_check_suite_id" '[.[] | select(.check_suite.id != $suite)]')"
-          total="$(echo "$other_runs" | jq 'length')"
+          # Query ci.yml's own runs for this exact commit specifically,
+          # rather than enumerating every check-run on the commit (Copilot
+          # review, round 2): the latter would also catch this release run's
+          # own still-in-progress check run, AND any unrelated workflow that
+          # happens to share the commit — e.g. link-check-scheduled.yml is
+          # deliberately allowed to be flaky/non-blocking (see its own
+          # comment) and could coincidentally target the same SHA as main's
+          # HEAD. Filtering to ci.yml's push-to-main runs is both narrower
+          # and more precise: it's the one workflow this repo actually
+          # treats as the merge/main gate.
+          runs_json="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${GITHUB_SHA}&branch=main&event=push" --jq '.workflow_runs')"
+          total="$(echo "$runs_json" | jq 'length')"
           if [ "$total" -eq 0 ]; then
-            echo "No CI check runs found for $GITHUB_SHA (other than this release run) — refusing to publish an unverified commit." >&2
+            echo "No ci.yml push-to-main run found for $GITHUB_SHA — refusing to publish an unverified commit." >&2
             exit 1
           fi
-          not_success="$(echo "$other_runs" | jq '[.[] | select(.conclusion != "success")] | length')"
-          if [ "$not_success" -ne 0 ]; then
-            echo "$not_success of $total check run(s) for $GITHUB_SHA did not pass — refusing to publish." >&2
-            echo "$other_runs" | jq -r '.[] | select(.conclusion != "success") | "  - \(.name): \(.conclusion // .status)"' >&2
+          # Most recent run for this SHA is authoritative (a rerun after a
+          # transient infra failure produces a newer run for the same SHA).
+          latest_status="$(echo "$runs_json" | jq -r 'sort_by(.run_started_at) | last | .status')"
+          latest_conclusion="$(echo "$runs_json" | jq -r 'sort_by(.run_started_at) | last | .conclusion')"
+          if [ "$latest_status" != "completed" ] || [ "$latest_conclusion" != "success" ]; then
+            echo "Latest ci.yml run for $GITHUB_SHA on main is $latest_status/$latest_conclusion, not completed/success — refusing to publish." >&2
             exit 1
           fi
-          echo "CI OK: all $total other check run(s) for $GITHUB_SHA passed."
+          echo "CI OK: ci.yml's latest push-to-main run for $GITHUB_SHA passed."
 
       # P0-05: prove the artifact itself works, not just that its version
       # string matches — same pack/unpack/CLI-smoke-test CI already runs on
@@ -93,8 +95,15 @@ jobs:
           [ -f "$TMP/package/.claude/skills/agentic-loops/agent_loop.py" ]
           [ ! -L "$TMP/package/.claude/skills/agentic-loops/agent_loop.py" ]
           mkdir "$TMP/consumer"
+          # A git repo, not just a bare directory (Copilot review, round 2):
+          # --with-hook silently no-ops outside a git repo, so without this
+          # the flag was never actually exercised by this smoke test.
+          git -C "$TMP/consumer" init --quiet
+          git -C "$TMP/consumer" -c user.email=ci@example.com -c user.name=ci commit --quiet --allow-empty -m init
           node "$TMP/package/bin/cli.js" init "$TMP/consumer" --skills agentic-loops --with-hook
           [ -f "$TMP/consumer/.claude/skills/agentic-loops/agent_loop.py" ]
+          hooks_path="$(git -C "$TMP/consumer" config --get core.hooksPath)"
+          [ -n "$hooks_path" ]
           rm -f agentharness-toolkit-*.tgz
 
       - name: Publish to npm

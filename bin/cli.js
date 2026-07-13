@@ -30,7 +30,35 @@ if (!isAvailable('python3')) {
   process.exit(1);
 }
 
-const result = spawnSync('bash', [SCRIPT, ...process.argv.slice(2)], {
+// P0-02: this shim always runs from wherever npm/npx placed the package for
+// this invocation — an npx cache entry or a temp extraction, not a durable,
+// user-owned location. Defaulting 'init'/'plan' (and the legacy no-subcommand
+// form) to --mode npm means the CLI copies itself into a durable directory
+// inside the consumer project before linking skills, instead of symlinking
+// straight into a path that can vanish the next time npx cleans its cache.
+// harness-link.sh's own argument parser accepts flags in any position, so
+// appending is as correct as inserting anywhere else.
+const KNOWN_SUBCOMMANDS = new Set([
+  'init', 'plan', 'status', 'doctor', 'audit', 'enforce-profile', 'update', 'uninstall',
+]);
+
+function shouldDefaultToNpmMode(args) {
+  if (args.includes('--mode') || args.includes('-h') || args.includes('--help')) {
+    return false;
+  }
+  const first = args[0];
+  if (first === undefined) return false;
+  // 'init'/'plan' explicitly, or the legacy invocation where the first
+  // argument is a target directory rather than a known subcommand name.
+  return first === 'init' || first === 'plan' || !KNOWN_SUBCOMMANDS.has(first);
+}
+
+const forwardedArgs = process.argv.slice(2);
+const finalArgs = shouldDefaultToNpmMode(forwardedArgs)
+  ? [...forwardedArgs, '--mode', 'npm']
+  : forwardedArgs;
+
+const result = spawnSync('bash', [SCRIPT, ...finalArgs], {
   stdio: 'inherit',
 });
 

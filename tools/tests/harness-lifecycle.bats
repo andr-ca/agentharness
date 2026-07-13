@@ -19,6 +19,28 @@ setup() {
 teardown() {
     cd /
     rm -rf "$TEST_PROJECT"
+    # Some tests must nest a target inside HARNESS_DIR itself (to reproduce
+    # a dogfooding scenario) rather than under $TEST_PROJECT; clean it up
+    # here so a failed assertion mid-test (which skips the rest of the
+    # test body) can't leave it behind in the real checkout.
+    [ -n "${DOGFOOD_TARGET:-}" ] && rm -rf "$DOGFOOD_TARGET"
+    true
+}
+
+# GNU coreutils' 'timeout' isn't available on stock macOS — use python3
+# (already a hard requirement of this harness) for a portable hang-guard
+# instead, so a test asserting "this completes, doesn't hang" works the
+# same on Linux CI and a contributor's Mac.
+run_with_timeout() {
+    local seconds="$1"
+    shift
+    python3 -c "
+import subprocess, sys
+try:
+    sys.exit(subprocess.run(sys.argv[2:], timeout=float(sys.argv[1])).returncode)
+except subprocess.TimeoutExpired:
+    sys.exit(124)
+" "$seconds" "$@"
 }
 
 @test "lifecycle: init writes a state file with mode, source, and skills" {
@@ -530,4 +552,177 @@ with open('$TEST_PROJECT/.agentharness-state.json') as f: print(json.load(f)['so
     run bash "$SCRIPT" doctor "$TEST_PROJECT"
     [ "$status" -eq 0 ]
     [ "$(git -C "$submodule" rev-parse HEAD)" = "$pinned_commit" ]
+}
+
+@test "lifecycle: --mode npm copies a durable source into the target instead of symlinking HARNESS_DIR (P0-02)" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode npm --skills agentic-loops
+
+    [ -d "$TEST_PROJECT/.agentharness-pkg" ]
+    [ ! -e "$TEST_PROJECT/.agentharness-pkg/.git" ]
+    target="$(readlink "$TEST_PROJECT/.claude/skills/agentic-loops")"
+    [[ "$target" == "$TEST_PROJECT/.agentharness-pkg"* ]]
+
+    run python3 -c "
+import json
+with open('$TEST_PROJECT/.agentharness-state.json') as f:
+    d = json.load(f)
+print(d['source']['path'])
+print(d['source']['revision'])
+"
+    [[ "$output" =~ "$TEST_PROJECT/.agentharness-pkg" ]]
+    # package.json's version (e.g. 0.2.0), not a git SHA — meaningful for an
+    # npm-distributed source where a consumer can look the version up.
+    revision="$(echo "$output" | tail -1)"
+    [[ "$revision" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+}
+
+@test "lifecycle: --mode npm regression — self-copy guard covers a target nested under HARNESS_DIR, not just HARNESS_DIR itself" {
+    # Copilot review on PR #20: the tar --exclude for copy_npm_durable_source
+    # only matched "./$NPM_DURABLE_PATH" (a durable copy directly under
+    # HARNESS_DIR). If 'target' is a SUBDIRECTORY of HARNESS_DIR (e.g.
+    # dogfooding this repo with a nested scratch project), the durable
+    # copy's real path relative to HARNESS_DIR is "./<subdir>/.agentharness-pkg",
+    # which the old pattern didn't exclude — the tar walk could read back
+    # the copy it was mid-write on.
+    local harness_root="$BATS_TEST_DIRNAME/../.."
+    DOGFOOD_TARGET="$harness_root/tmp-dogfood-target-$$"
+    mkdir -p "$DOGFOOD_TARGET"
+
+    run run_with_timeout 30 bash "$SCRIPT" init "$DOGFOOD_TARGET" --mode npm --skills agentic-loops
+    [ "$status" -eq 0 ]
+    [ -d "$DOGFOOD_TARGET/.agentharness-pkg" ]
+    # The durable copy must not contain itself nested inside a copy of
+    # itself — a bounded, sane size is evidence the self-inclusion never
+    # happened (an unguarded run either fails or balloons/hangs).
+    [ ! -e "$DOGFOOD_TARGET/.agentharness-pkg/.agentharness-pkg" ]
+}
+
+@test "lifecycle: --mode npm regression — doctor stays healthy after the original HARNESS_DIR-equivalent source disappears (P0-02)" {
+    # Direct reproduction of the gpt-5.6 third-pass P0-02 acceptance
+    # criterion: an npx-installed consumer must remain healthy after the
+    # original process/package directory disappears. Simulates the real
+    # npx flow — pack the actual package, extract it to a throwaway
+    # "cache" directory, install from THAT extracted copy, then delete the
+    # whole cache and confirm doctor still passes.
+    local harness_root="$BATS_TEST_DIRNAME/../.."
+    local cache pkg_tgz
+    cache=$(mktemp -d)
+    ( cd "$harness_root" && npm pack --silent --pack-destination "$cache" ) >/dev/null
+    pkg_tgz=$(ls "$cache"/agentharness-toolkit-*.tgz)
+    mkdir "$cache/extracted"
+    tar xzf "$pkg_tgz" -C "$cache/extracted"
+
+    node "$cache/extracted/package/bin/cli.js" init "$TEST_PROJECT" --skills agentic-loops
+
+    run bash "$SCRIPT" doctor "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+
+    rm -rf "$cache"
+
+    run bash "$SCRIPT" doctor "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "all checks passed" ]]
+}
+
+@test "lifecycle: --mode npm update refreshes the durable copy from the currently running package" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode npm --skills agentic-loops
+
+    # Simulate the durable copy having drifted from what's "currently
+    # running" (e.g. an older npm version was installed, then a newer one
+    # invoked update) by deleting a file from it — update should restore it
+    # by re-copying from HARNESS_DIR, not just diff the copy against itself.
+    rm "$TEST_PROJECT/.agentharness-pkg/README.md"
+
+    run bash "$SCRIPT" update "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Refreshing durable npm source" ]]
+    [ -f "$TEST_PROJECT/.agentharness-pkg/README.md" ]
+}
+
+@test "lifecycle: --mode npm update regression — symlinks a newly-in-scope skill, not just refreshes the durable copy" {
+    # Copilot review on PR #20: cmd_update's re-sync loop only handled
+    # mode in (link|submodule|copy) when creating symlinks for newly
+    # in-scope skills — 'npm' fell through the case statement, silently
+    # doing nothing, so an upgrade that introduces a new skill would never
+    # actually link it even though 'update' reported success.
+    #
+    # Simulate "a newly-in-scope skill appeared" without an unrestricted
+    # --skills filter (which would make every skill 'in scope' from the
+    # start, masking the bug) by installing everything, then manually
+    # dropping one skill from the recorded state + its symlink — from
+    # 'update's point of view this looks exactly like a skill that just
+    # became available upstream.
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode npm
+
+    rm "$TEST_PROJECT/.claude/skills/committing"
+    python3 -c "
+import json
+path = '$TEST_PROJECT/.agentharness-state.json'
+with open(path) as f:
+    d = json.load(f)
+d['skills'] = [s for s in d['skills'] if s != 'committing']
+with open(path, 'w') as f:
+    json.dump(d, f)
+"
+
+    run bash "$SCRIPT" update "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "+ add: committing" ]]
+    [ -L "$TEST_PROJECT/.claude/skills/committing" ]
+    [ "$(readlink "$TEST_PROJECT/.claude/skills/committing")" = "$TEST_PROJECT/.agentharness-pkg/.claude/skills/committing" ]
+}
+
+@test "lifecycle: --mode npm uninstall removes the durable source copy" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode npm --skills agentic-loops
+
+    run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+    [ ! -e "$TEST_PROJECT/.agentharness-pkg" ]
+    [ ! -e "$TEST_PROJECT/.agentharness-state.json" ]
+}
+
+@test "lifecycle: --mode npm's durable copy is gitignored by the merged template (P0-02)" {
+    git -C "$TEST_PROJECT" init --quiet
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode npm --skills agentic-loops
+
+    run git -C "$TEST_PROJECT" check-ignore .agentharness-pkg
+    [ "$status" -eq 0 ]
+}
+
+@test "cli.js: defaults 'init' to --mode npm when no --mode is given (P0-02)" {
+    local harness_root="$BATS_TEST_DIRNAME/../.."
+    run node "$harness_root/bin/cli.js" init "$TEST_PROJECT" --skills agentic-loops
+    [ "$status" -eq 0 ]
+
+    run python3 -c "
+import json
+with open('$TEST_PROJECT/.agentharness-state.json') as f:
+    print(json.load(f)['mode'])
+"
+    [ "$output" = "npm" ]
+}
+
+@test "cli.js: an explicit --mode is never overridden by the npm default" {
+    local harness_root="$BATS_TEST_DIRNAME/../.."
+    run node "$harness_root/bin/cli.js" init "$TEST_PROJECT" --skills agentic-loops --mode link
+    [ "$status" -eq 0 ]
+
+    run python3 -c "
+import json
+with open('$TEST_PROJECT/.agentharness-state.json') as f:
+    print(json.load(f)['mode'])
+"
+    [ "$output" = "link" ]
+}
+
+@test "cli.js: subcommands other than init/plan don't get --mode injected" {
+    local harness_root="$BATS_TEST_DIRNAME/../.."
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills agentic-loops
+
+    # 'status' takes no --mode flag at all; if cli.js injected one anyway,
+    # harness-link.sh would treat it as an unexpected extra positional
+    # argument and fail instead of reporting the recorded copy mode.
+    run node "$harness_root/bin/cli.js" status "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "mode:          copy" ]]
 }

@@ -123,6 +123,30 @@ git submodule update --remote .agentharness
 **Pros:** Version-controlled, explicit pin. **Cons:** Submodule
 operational overhead (contributors need `git submodule update --init`).
 
+### Method 4: npm/npx (durable copy, no local checkout needed)
+
+`--mode npm` is what `npx agentharness-toolkit init` defaults to
+automatically — you won't normally pass this flag by hand. It exists
+because `npx` runs the package from an ephemeral cache/temp extraction,
+not a durable path: `--mode link`'s "symlink straight from wherever this
+is running" would silently break every installed skill the next time
+`npx` cleans that cache up (P0-02). Instead, `init` copies the whole
+running package into `<project>/.agentharness-pkg` (excluding `.git`)
+and symlinks skills from that durable local copy, recording the npm
+package's own version (e.g. `0.2.0`) as the source revision instead of a
+git SHA.
+
+`harness-link.sh update` on an npm-mode install re-copies from whatever
+package is currently running the update (so `npx agentharness-toolkit@latest update ~/my-project`
+picks up a newer release), not from the old durable copy's own content —
+diffing the copy against itself would always report "nothing to do".
+
+**Pros:** No git checkout required at all, survives npx cache cleanup.
+**Cons:** Not version-controlled the way `--mode submodule` is; the
+durable copy is local-only state, not tracked in your project's git
+history (add `.agentharness-pkg/` to `.gitignore`, which the harness's
+own gitignore template already does).
+
 ## Per-Component Integration
 
 ### Claude Code Skills
