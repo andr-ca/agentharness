@@ -73,6 +73,7 @@ consumer moves their pinned reference differs.
 | **link** | Not pinned — always reads the harness checkout's current working tree. "Pin" means pin the harness checkout itself to a tag (`git -C ~/agentharness checkout vX.Y.Z`). | `git -C ~/agentharness pull` (or checkout a newer tag), then `harness-link.sh update` to pick up added/removed skills. | `git -C ~/agentharness checkout <older-tag-or-sha>`, then `harness-link.sh update`. |
 | **copy** | The copy itself is the pin — `harness-link.sh init --mode copy` records the source revision it copied from. | `harness-link.sh update` diffs the copy against the *current* source checkout and applies only changed files, after confirmation. | Restore the copied files from version control history (they're committed in the consumer's own repo) or re-run `init --mode copy` against an older harness checkout. |
 | **submodule** | `harness-link.sh init --mode submodule` adds `.agentharness` pinned to the harness's exact commit at install time — not the remote's mutable default branch. | `git -C <project> submodule update --remote .agentharness` moves the pin forward, then `harness-link.sh update` re-syncs skill symlinks to match. | `git -C <project>/.agentharness checkout <older-sha>` moves the pin back; skill symlinks resolve correctly with no further action, since they point into the submodule's working tree rather than a specific blob. |
+| **npm** (P0-02) | The durable `.agentharness-pkg` copy is the pin — recorded revision is the npm package's own `version` (e.g. `0.2.0`), not a git SHA. Not committed (gitignored) — local-only state, same as an npx cache would have been, just durable across cache cleanup. | `npx agentharness-toolkit@<newer-version> update <project>` (or plain `update` if a newer version is already what's installed globally) re-copies from whichever package version is currently running, then re-syncs skills — it does not diff the durable copy against itself. | No git history to roll back to for the copy itself; re-run `npx agentharness-toolkit@<older-version> init <project> --mode npm` to re-durable-copy an older version. |
 
 `tools/tests/harness-lifecycle.bats`'s `"--mode submodule supports pin,
 rollback, and re-upgrade against real history"` test exercises the
@@ -124,6 +125,17 @@ version (`npm install -g agentharness-toolkit@latest` or the equivalent
 in whatever manages the dependency), then run
 `npx agentharness-toolkit update` the same way a git-clone `link`/`copy`
 install would.
+
+`init`/`plan` invoked through `bin/cli.js` default to `--mode npm`
+(P0-02) rather than `--mode link`: `npx` runs the package from an
+ephemeral cache/temp extraction, and symlinking straight into that path
+used to mean a later `npx` cache cleanup silently broke every installed
+skill. `--mode npm` copies the running package into a durable
+`.agentharness-pkg` directory inside the consumer project first (see the
+Pin/Upgrade/Rollback table above), so the install survives the original
+extraction disappearing — verified directly by installing from a real
+packed tarball, deleting the extraction, and confirming `doctor` still
+passes (`tools/tests/harness-lifecycle.bats`).
 
 ## Supported Harness / Client Versions
 

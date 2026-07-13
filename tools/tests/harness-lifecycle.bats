@@ -531,3 +531,122 @@ with open('$TEST_PROJECT/.agentharness-state.json') as f: print(json.load(f)['so
     [ "$status" -eq 0 ]
     [ "$(git -C "$submodule" rev-parse HEAD)" = "$pinned_commit" ]
 }
+
+@test "lifecycle: --mode npm copies a durable source into the target instead of symlinking HARNESS_DIR (P0-02)" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode npm --skills agentic-loops
+
+    [ -d "$TEST_PROJECT/.agentharness-pkg" ]
+    [ ! -e "$TEST_PROJECT/.agentharness-pkg/.git" ]
+    target="$(readlink "$TEST_PROJECT/.claude/skills/agentic-loops")"
+    [[ "$target" == "$TEST_PROJECT/.agentharness-pkg"* ]]
+
+    run python3 -c "
+import json
+with open('$TEST_PROJECT/.agentharness-state.json') as f:
+    d = json.load(f)
+print(d['source']['path'])
+print(d['source']['revision'])
+"
+    [[ "$output" =~ "$TEST_PROJECT/.agentharness-pkg" ]]
+    # package.json's version (e.g. 0.2.0), not a git SHA — meaningful for an
+    # npm-distributed source where a consumer can look the version up.
+    revision="$(echo "$output" | tail -1)"
+    [[ "$revision" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+}
+
+@test "lifecycle: --mode npm regression — doctor stays healthy after the original HARNESS_DIR-equivalent source disappears (P0-02)" {
+    # Direct reproduction of the gpt-5.6 third-pass P0-02 acceptance
+    # criterion: an npx-installed consumer must remain healthy after the
+    # original process/package directory disappears. Simulates the real
+    # npx flow — pack the actual package, extract it to a throwaway
+    # "cache" directory, install from THAT extracted copy, then delete the
+    # whole cache and confirm doctor still passes.
+    local harness_root="$BATS_TEST_DIRNAME/../.."
+    local cache pkg_tgz
+    cache=$(mktemp -d)
+    ( cd "$harness_root" && npm pack --silent --pack-destination "$cache" ) >/dev/null
+    pkg_tgz=$(ls "$cache"/agentharness-toolkit-*.tgz)
+    mkdir "$cache/extracted"
+    tar xzf "$pkg_tgz" -C "$cache/extracted"
+
+    node "$cache/extracted/package/bin/cli.js" init "$TEST_PROJECT" --skills agentic-loops
+
+    run bash "$SCRIPT" doctor "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+
+    rm -rf "$cache"
+
+    run bash "$SCRIPT" doctor "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "all checks passed" ]]
+}
+
+@test "lifecycle: --mode npm update refreshes the durable copy from the currently running package" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode npm --skills agentic-loops
+
+    # Simulate the durable copy having drifted from what's "currently
+    # running" (e.g. an older npm version was installed, then a newer one
+    # invoked update) by deleting a file from it — update should restore it
+    # by re-copying from HARNESS_DIR, not just diff the copy against itself.
+    rm "$TEST_PROJECT/.agentharness-pkg/README.md"
+
+    run bash "$SCRIPT" update "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Refreshing durable npm source" ]]
+    [ -f "$TEST_PROJECT/.agentharness-pkg/README.md" ]
+}
+
+@test "lifecycle: --mode npm uninstall removes the durable source copy" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode npm --skills agentic-loops
+
+    run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+    [ ! -e "$TEST_PROJECT/.agentharness-pkg" ]
+    [ ! -e "$TEST_PROJECT/.agentharness-state.json" ]
+}
+
+@test "lifecycle: --mode npm's durable copy is gitignored by the merged template (P0-02)" {
+    git -C "$TEST_PROJECT" init --quiet
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode npm --skills agentic-loops
+
+    run git -C "$TEST_PROJECT" check-ignore .agentharness-pkg
+    [ "$status" -eq 0 ]
+}
+
+@test "cli.js: defaults 'init' to --mode npm when no --mode is given (P0-02)" {
+    local harness_root="$BATS_TEST_DIRNAME/../.."
+    run node "$harness_root/bin/cli.js" init "$TEST_PROJECT" --skills agentic-loops
+    [ "$status" -eq 0 ]
+
+    run python3 -c "
+import json
+with open('$TEST_PROJECT/.agentharness-state.json') as f:
+    print(json.load(f)['mode'])
+"
+    [ "$output" = "npm" ]
+}
+
+@test "cli.js: an explicit --mode is never overridden by the npm default" {
+    local harness_root="$BATS_TEST_DIRNAME/../.."
+    run node "$harness_root/bin/cli.js" init "$TEST_PROJECT" --skills agentic-loops --mode link
+    [ "$status" -eq 0 ]
+
+    run python3 -c "
+import json
+with open('$TEST_PROJECT/.agentharness-state.json') as f:
+    print(json.load(f)['mode'])
+"
+    [ "$output" = "link" ]
+}
+
+@test "cli.js: subcommands other than init/plan don't get --mode injected" {
+    local harness_root="$BATS_TEST_DIRNAME/../.."
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills agentic-loops
+
+    # 'status' takes no --mode flag at all; if cli.js injected one anyway,
+    # harness-link.sh would treat it as an unexpected extra positional
+    # argument and fail instead of reporting the recorded copy mode.
+    run node "$harness_root/bin/cli.js" status "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "mode:          copy" ]]
+}

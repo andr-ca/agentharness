@@ -94,10 +94,13 @@ lifecycle CLI — also exposes `plan`/`status`/`doctor`/`audit`/`update`/
 `uninstall`; see [docs/INTEGRATION.md](docs/INTEGRATION.md)) into a
 consuming project:
 - Selected (or all) `.claude/skills/<name>` directories, symlinked
-  (`--mode link`, default), physically copied (`--mode copy`), or
-  symlinked from a git submodule this creates at `.agentharness`
-  (`--mode submodule` — the one mode that does reach the network, to add
-  that submodule).
+  (`--mode link`, default for a `git clone` install), physically copied
+  (`--mode copy`), symlinked from a git submodule this creates at
+  `.agentharness` (`--mode submodule` — the one mode that does reach the
+  network, to add that submodule), or symlinked from a durable local copy
+  this creates at `.agentharness-pkg` (`--mode npm`, the default when
+  installed via `npx`/`npm` — see "npm distribution" below for why `link`
+  isn't safe there).
 - A merge of `.github/.gitignore.template` into the project's `.gitignore`
   (additive — never overwrites existing entries).
 - With `--with-hook`: `core.hooksPath` pointed at this repo's
@@ -236,15 +239,20 @@ run `plan` instead of `init`). Verify afterward with
 `~/agentharness/tools/setup/harness-link.sh doctor /path/to/your-project`.
 
 Or by hand — see [docs/INTEGRATION.md](docs/INTEGRATION.md) for the
-symlink/copy/submodule tradeoffs, troubleshooting, and update/uninstall.
-See [docs/DEMO.md](docs/DEMO.md) for a 5-minute walkthrough with real
-commands and real output — what `init` actually installs, and what the
-enforced trunk-protection hook looks like when it fires.
+symlink/copy/submodule/npm tradeoffs, troubleshooting, and
+update/uninstall. See [docs/DEMO.md](docs/DEMO.md) for a 5-minute
+walkthrough with real commands and real output — what `init` actually
+installs, and what the enforced trunk-protection hook looks like when it
+fires.
 
 **npm, as an alternative to `git clone`:** `npx agentharness-toolkit init /path/to/your-project`
 runs the same lifecycle CLI without a separate clone step (still needs
 `bash`/`python3` on your machine; installed globally, the CLI command
-itself is just `agentharness`). See
+itself is just `agentharness`). This defaults to `--mode npm`, which
+copies the package into a durable `.agentharness-pkg` directory inside
+your project before linking skills from it — not `--mode link` straight
+into the npx cache, which would break the next time npx cleans that
+cache up. See
 [docs/RELEASING.md#npm-distribution](docs/RELEASING.md#npm-distribution)
 for the package's current publish status.
 
