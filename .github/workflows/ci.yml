@@ -77,6 +77,8 @@ jobs:
         run: bats tools/tests/harness-link.bats
       - name: Run harness lifecycle CLI tests
         run: bats tools/tests/harness-lifecycle.bats
+      - name: Run lifecycle transition tests
+        run: bats tools/tests/lifecycle-transitions.bats
       - name: Run AGENTS.md generator tests
         run: bats tools/tests/generate-agents-md.bats
       - name: Run MANIFEST.md generator tests

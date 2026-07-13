@@ -222,12 +222,15 @@ label by the review filename cited next to it, never by number alone.
   tests, temporary language caches inside the harness, and a
   `check:offline` split from any check that genuinely needs the network.
 - **P1-06 — Test lifecycle transitions, not just happy-state snapshots.**
-  The hook-ownership defect (fixed as P0-01) survived because tests
-  checked init and uninstall in isolation, not sequences with external
-  state changes between them. Proposed: state-machine tests for install
-  → user modification → doctor → update → uninstall across hook
-  conflict, moved source, partial install, removed skill, profile edit,
-  package upgrade, and repeated uninstall.
+  **Started:** `tools/tests/lifecycle-transitions.bats` adds state-machine
+  sequences — the full init→status→doctor→update→doctor→uninstall→status
+  chain, repeated uninstall, user-file preservation across uninstall,
+  break-then-re-init heal, mid-run profile edit, and hook
+  install→uninstall restore. Still open: moved-source and package-upgrade
+  transitions, and broader partial-install matrices. (The hook-ownership
+  defect fixed as P0-01 survived because tests checked init and uninstall
+  only in isolation, never as a sequence with external state changes
+  between them.)
 - **P1-07 — Make `update` previews match the documentation.** Docs claim
   copy-mode `update` "shows a diff"; current output only lists changed
   skill names (`~ content changed upstream`), no content diff. Proposed:

@@ -48,6 +48,9 @@ bats tools/tests/harness-link.bats
 step "bats: tools/tests/harness-lifecycle.bats"
 bats tools/tests/harness-lifecycle.bats
 
+step "bats: tools/tests/lifecycle-transitions.bats"
+bats tools/tests/lifecycle-transitions.bats
+
 step "bats: tools/tests/generate-agents-md.bats"
 bats tools/tests/generate-agents-md.bats
 
