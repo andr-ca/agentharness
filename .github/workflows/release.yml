@@ -11,13 +11,19 @@ on:
 
 permissions:
   contents: read
+  checks: read
 
 jobs:
   publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
+      # fetch-depth: 0 — 'git merge-base --is-ancestor' below needs enough
+      # history to actually determine ancestry, not just the tag commit
+      # itself (the default shallow checkout would make that check vacuous).
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
@@ -32,6 +38,54 @@ jobs:
             echo "Tag v$tag_version does not match package.json version $pkg_version"
             exit 1
           fi
+
+      # P0-05: a matching tag/package.json version alone doesn't prove this
+      # commit was ever actually tested — an accidentally- or maliciously-
+      # placed tag on an untested commit could otherwise publish. Require
+      # that the tagged commit is reachable from origin/main (not a stray
+      # branch tip) and that main's own CI run for this exact commit passed.
+      - name: Verify the tagged commit is on main and its CI passed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git fetch origin main --quiet
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "Tagged commit $GITHUB_SHA is not an ancestor of origin/main — refusing to publish." >&2
+            exit 1
+          fi
+          echo "Ancestry OK: $GITHUB_SHA is on main."
+
+          runs_json="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs" --jq '.check_runs')"
+          total="$(echo "$runs_json" | jq 'length')"
+          if [ "$total" -eq 0 ]; then
+            echo "No CI check runs found for $GITHUB_SHA — refusing to publish an unverified commit." >&2
+            exit 1
+          fi
+          not_success="$(echo "$runs_json" | jq '[.[] | select(.conclusion != "success")] | length')"
+          if [ "$not_success" -ne 0 ]; then
+            echo "$not_success of $total check run(s) for $GITHUB_SHA did not pass — refusing to publish." >&2
+            echo "$runs_json" | jq -r '.[] | select(.conclusion != "success") | "  - \(.name): \(.conclusion)"' >&2
+            exit 1
+          fi
+          echo "CI OK: all $total check run(s) for $GITHUB_SHA passed."
+
+      # P0-05: prove the artifact itself works, not just that its version
+      # string matches — same pack/unpack/CLI-smoke-test CI already runs on
+      # every PR (ci.yml's npm-package job), rerun here against the exact
+      # tarball about to be published.
+      - name: Pack, unpack, and smoke-test the CLI shim before publishing
+        run: |
+          set -euo pipefail
+          npm pack
+          TMP=$(mktemp -d)
+          tar xzf agentharness-toolkit-*.tgz -C "$TMP"
+          [ -f "$TMP/package/.claude/skills/agentic-loops/agent_loop.py" ]
+          [ ! -L "$TMP/package/.claude/skills/agentic-loops/agent_loop.py" ]
+          mkdir "$TMP/consumer"
+          node "$TMP/package/bin/cli.js" init "$TMP/consumer" --skills agentic-loops --with-hook
+          [ -f "$TMP/consumer/.claude/skills/agentic-loops/agent_loop.py" ]
+          rm -f agentharness-toolkit-*.tgz
 
       - name: Publish to npm
         run: npm publish --access public
