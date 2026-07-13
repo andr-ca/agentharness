@@ -596,6 +596,39 @@ print(d['source']['revision'])
     [ -f "$TEST_PROJECT/.agentharness-pkg/README.md" ]
 }
 
+@test "lifecycle: --mode npm update regression — symlinks a newly-in-scope skill, not just refreshes the durable copy" {
+    # Copilot review on PR #20: cmd_update's re-sync loop only handled
+    # mode in (link|submodule|copy) when creating symlinks for newly
+    # in-scope skills — 'npm' fell through the case statement, silently
+    # doing nothing, so an upgrade that introduces a new skill would never
+    # actually link it even though 'update' reported success.
+    #
+    # Simulate "a newly-in-scope skill appeared" without an unrestricted
+    # --skills filter (which would make every skill 'in scope' from the
+    # start, masking the bug) by installing everything, then manually
+    # dropping one skill from the recorded state + its symlink — from
+    # 'update's point of view this looks exactly like a skill that just
+    # became available upstream.
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode npm
+
+    rm "$TEST_PROJECT/.claude/skills/committing"
+    python3 -c "
+import json
+path = '$TEST_PROJECT/.agentharness-state.json'
+with open(path) as f:
+    d = json.load(f)
+d['skills'] = [s for s in d['skills'] if s != 'committing']
+with open(path, 'w') as f:
+    json.dump(d, f)
+"
+
+    run bash "$SCRIPT" update "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "+ add: committing" ]]
+    [ -L "$TEST_PROJECT/.claude/skills/committing" ]
+    [ "$(readlink "$TEST_PROJECT/.claude/skills/committing")" = "$TEST_PROJECT/.agentharness-pkg/.claude/skills/committing" ]
+}
+
 @test "lifecycle: --mode npm uninstall removes the durable source copy" {
     bash "$SCRIPT" init "$TEST_PROJECT" --mode npm --skills agentic-loops
 

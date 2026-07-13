@@ -285,10 +285,15 @@ validate_skills_filter() {
 # itself, so this is a small, self-contained copy, not the whole dev repo.
 copy_npm_durable_source() {
     local target="$1"
-    local dst="$target/$NPM_DURABLE_PATH"
+    local dst="${target:?copy_npm_durable_source: target must not be empty}/$NPM_DURABLE_PATH"
     rm -rf "$dst"
     mkdir -p "$dst"
-    (cd "$HARNESS_DIR" && tar cf - --exclude=.git .) | (cd "$dst" && tar xf -)
+    # Exclude the durable-copy directory itself from the tar source: if
+    # 'target' is HARNESS_DIR or a subdirectory of it (e.g. dogfooding this
+    # harness's own repo as an init target), the freshly-created, empty
+    # $dst would otherwise sit inside the tree being read, and get read
+    # back into itself mid-stream.
+    (cd "$HARNESS_DIR" && tar cf - --exclude=.git --exclude="./$NPM_DURABLE_PATH" .) | (cd "$dst" && tar xf -)
 }
 
 # Prefers package.json's version (meaningful for an npm-distributed source —
@@ -298,11 +303,14 @@ copy_npm_durable_source() {
 source_revision_for() {
     local src_root="$1" mode="$2"
     if [ "$mode" = "npm" ] && [ -f "$src_root/package.json" ]; then
+        # Pass src_root as argv, not interpolated into the Python source —
+        # a path containing a quote or backslash would otherwise break out
+        # of the embedded string literal.
         python3 -c "
-import json
-with open('$src_root/package.json') as f:
+import json, sys
+with open(sys.argv[1] + '/package.json') as f:
     print(json.load(f)['version'])
-" 2>/dev/null && return
+" "$src_root" 2>/dev/null && return
     fi
     git -C "$src_root" rev-parse HEAD 2>/dev/null || echo unknown
 }
@@ -385,6 +393,7 @@ cmd_init() {
 
     echo "Initializing agentharness ($HARNESS_DIR) into $target (mode: $mode)"
 
+    local submodule_newly_added=false
     if [ "$mode" = "submodule" ]; then
         if ! git -C "$target" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
             echo "Error: --mode submodule requires $target to be a git repo." >&2
@@ -398,6 +407,7 @@ cmd_init() {
         fi
         if [ ! -e "$target/$SUBMODULE_PATH/.git" ]; then
             git -C "$target" submodule add "$harness_remote" "$SUBMODULE_PATH"
+            submodule_newly_added=true
             echo "  Added agentharness as a submodule at $SUBMODULE_PATH"
             # 'submodule add' checks out the remote's default branch, which
             # is not necessarily what this checkout (HARNESS_DIR) actually
@@ -452,6 +462,19 @@ cmd_init() {
     if ! validate_skills_filter "$skills_src_root" "$skills_filter"; then
         echo "Error: one or more requested skill names are invalid or unknown in the resolved source ($skills_src_root)." >&2
         echo "For --mode submodule, this can happen when the submodule's pin fell back to the remote's default branch instead of this checkout's exact commit — check the messages above." >&2
+        # Roll back whatever this invocation itself just created, so a
+        # failed init really does leave nothing behind (P0-04's atomicity
+        # guarantee applies to this check's own failure path too, not just
+        # to the checks that ran before any mutation).
+        if [ "$mode" = "npm" ]; then
+            rm -rf "${target:?}/${NPM_DURABLE_PATH:?}"
+            echo "  Rolled back: removed the durable npm copy this run created." >&2
+        elif [ "$mode" = "submodule" ] && [ "$submodule_newly_added" = true ]; then
+            git -C "$target" submodule deinit -f -- "$SUBMODULE_PATH" 2>/dev/null || true
+            git -C "$target" rm -f "$SUBMODULE_PATH" 2>/dev/null || true
+            rm -rf "${target:?}/.git/modules/${SUBMODULE_PATH:?}"
+            echo "  Rolled back: removed the submodule this run added." >&2
+        fi
         exit 1
     fi
 
@@ -1150,7 +1173,7 @@ cmd_update() {
         local src="$source_path/.claude/skills/$name"
         local dst="$target/.claude/skills/$name"
         case "$mode" in
-            link|submodule)
+            link|submodule|npm)
                 [ -e "$dst" ] && [ ! -L "$dst" ] && continue
                 [ -L "$dst" ] && rm "$dst"
                 ln -s "$src" "$dst"
