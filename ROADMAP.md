@@ -18,9 +18,11 @@ Custom agent definitions for specialized tasks (code explorers,
 architects, reviewers, debuggers). One shipped so far:
 `coding-guidelines-reviewer` (a read-only reviewer scoped to
 `.github/CODING_GUIDELINES.md`'s rigor tiers), ported to every
-delegation-capable non-Claude tool researched (Codex CLI, OpenCode,
-Cursor, Kilo Code — see `docs/CLIENT_COMPATIBILITY.md`'s custom-agent
-table and `docs/INTEGRATION.md` for the generators). Explorers,
+delegation-capable non-Claude tool confirmed (Codex CLI, OpenCode,
+Cursor, Kilo Code, GitHub Copilot — see `docs/CLIENT_COMPATIBILITY.md`'s
+custom-agent table and `docs/INTEGRATION.md`'s "Custom Agents" section
+for the generators; Copilot was initially misclassified as persona-only
+and corrected the same day, see that table's dated note). Explorers,
 architects, and debuggers remain unstarted.
 
 ### `.claude/hooks/`
