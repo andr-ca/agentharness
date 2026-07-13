@@ -20,16 +20,26 @@ or `production`:
 echo production > .agentharness-profile
 ```
 
-**Current state — enforced for Python projects, advisory for everything
-else.** `harness-link.sh enforce-profile <project>` (B4) reads
-`.agentharness-profile` and, for a detected Python project
-(`pyproject.toml`/`setup.py`/`requirements.txt` present), actually gates
-on it: skips the test run entirely at a tier where `tests.required` is
-`false` (prototype), otherwise runs
-`pytest --cov-fail-under=<tier's coverage_min>` for real and fails if it
-doesn't pass. A project this can't yet classify (non-Python, or no
-recognizable project file) gets a clear "not implemented yet" and exits
-0 — it never falsely blocks or falsely passes something it can't
+**Current state — enforced for Python and JS/TS projects, advisory for
+everything else.** `harness-link.sh enforce-profile <project>` reads
+`.agentharness-profile` and gates on it for real, at a tier where
+`tests.required` is not `false` (prototype skips entirely):
+
+- **Python** (`pyproject.toml`/`setup.py`/`requirements.txt` present):
+  runs `pytest --cov-fail-under=<tier's coverage_min>` and fails if it
+  doesn't pass.
+- **JS/TS** (`package.json` present): narrower by necessity — only a
+  project whose `package.json` `"test"` script already invokes Node's
+  own built-in `node --test` gets real enforcement (the one JS/TS test
+  runner with a stable, zero-extra-dependency coverage output this repo
+  can parse). A project using Jest, Vitest, Mocha, or anything else gets
+  a clear "isn't Node's built-in test runner" and exits 0 — guessing at
+  a third-party tool's output format risked a wrong result more than an
+  absent one.
+
+A project this can't classify at all (no recognizable project file)
+gets "not implemented yet" and exits 0 — like the JS/TS-runner case
+above, it never falsely blocks or falsely passes something it can't
 actually check.
 
 This is **not** wired into `.github/hooks/pre-push` automatically —
@@ -41,9 +51,9 @@ Silently changing that default for every project that already has
 first as an explicitly-invoked subcommand, same posture as
 `audit`/`doctor`, so a project or CI job opts in by calling it.
 
-Non-Python profile enforcement (Go, TypeScript, etc.) remains
-unimplemented — tracked in `ROADMAP.md` as a natural extension once this
-Python v1 has real usage to learn from.
+Go profile enforcement, and JS/TS enforcement for runners other than
+`node --test`, remain unimplemented — tracked in `ROADMAP.md` as natural
+extensions once there's real usage to learn from.
 
 ## Precedence order
 

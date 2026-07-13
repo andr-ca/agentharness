@@ -23,7 +23,7 @@ subcommands can act on it later:
 | `status` | What's installed, from where, and whether the source has moved on since. |
 | `doctor` | Validate the install is healthy (skills present, bundled resources resolve, hook configured); nonzero exit if not — usable as a CI check. |
 | `audit` | Report drift: skills available upstream but not installed, installed skills no longer available, commits since your recorded revision; your selected profile, whether `.agentharness-publish-mode` is active, and whether the recorded harness checkout's own validation commands still exist. `--json` for machine-readable output (CI/scripting). Doesn't run policy-conflict detection itself — points at `tools/verify-content-quality.py` instead. |
-| `enforce-profile` | Read `.agentharness-profile` and, for a detected Python project, gate on it for real (`pytest --cov-fail-under` at the selected tier's floor). Not wired into `pre-push` automatically — invoke it explicitly. |
+| `enforce-profile` | Read `.agentharness-profile` and gate on it for real: Python (`pytest --cov-fail-under` at the selected tier's floor), or JS/TS if `package.json`'s `"test"` script already runs `node --test`. Other project types/test runners get "not implemented yet". Not wired into `pre-push` automatically — invoke it explicitly. |
 | `update` | Re-sync to the current harness state; shows a diff and asks for confirmation (`--yes` to skip it) before changing anything. |
 | `uninstall` | Reverse everything `init` recorded — skills, gitignore block, hook, profile file, state file (and the submodule, in that mode). |
 

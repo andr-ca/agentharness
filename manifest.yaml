@@ -87,7 +87,7 @@ sections:
   - asset: Rigor-tier profiles
     path: patterns/profiles/README.md
     type: guide
-    when_to_use: Selecting a tier via `.agentharness-profile`, precedence order, current enforcement state (Python-only via `enforce-profile`, advisory for other project types)
+    when_to_use: Selecting a tier via `.agentharness-profile`, precedence order, current enforcement state (Python and JS/TS via `enforce-profile`, advisory for other project types/runners)
   - asset: Prototype profile
     path: patterns/profiles/prototype.yaml
     type: config

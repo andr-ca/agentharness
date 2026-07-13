@@ -91,13 +91,18 @@ follow the same template.
   environment variable interpolation. Documentation integrated into
   `LOGGING_STANDARDS.md`.
 
-- **Profile-enforcement wiring in `.github/hooks/pre-push`, and
-  non-Python enforcement.** Partially done. `harness-link.sh
-  enforce-profile` (B4) reads `.agentharness-profile` and gates on it
-  for real, but only for detected Python projects
-  (`pytest --cov-fail-under` at the selected tier's `coverage_min`) —
-  Go, TypeScript, and other project types still get "not implemented
-  yet" and a clean exit 0. Also still not started: wiring
+- **Profile-enforcement wiring in `.github/hooks/pre-push`, and wider
+  JS/TS + Go enforcement.** Partially done. `harness-link.sh
+  enforce-profile` reads `.agentharness-profile` and gates on it for
+  real for Python (`pytest --cov-fail-under` at the selected tier's
+  `coverage_min`) and for JS/TS projects whose `package.json` `"test"`
+  script already invokes Node's own built-in `node --test` (the one
+  JS/TS runner with a stable, dependency-free coverage output this repo
+  can parse). Still "not implemented yet" and a clean exit 0: Go
+  projects, and JS/TS projects using Jest/Vitest/Mocha/anything else —
+  extending to those needs a per-tool coverage-output parser (fragile
+  across versions) or a per-tool convention this repo would have to pick
+  and document, not a small addition. Also still not started: wiring
   `enforce-profile` into `.github/hooks/pre-push` itself. The hook
   currently only ever runs *this* repo's own hardcoded test suites and
   no-ops for a consumer's push; changing that default for every project
