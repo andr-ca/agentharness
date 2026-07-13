@@ -511,7 +511,9 @@ def check_cursor_rules_sync() -> list[str]:
         return _diff_generated_subdir(tmp_path, ".cursor/rules", regen_hint)
 
 
-def _check_agent_generator_sync(generator_rel: str, output_subdir_rel: str) -> list[str]:
+def _check_agent_generator_sync(
+    generator_rel: str, output_subdir_rel: str
+) -> list[str]:
     # Shared by the four custom-agent-porting generators
     # (Codex/OpenCode/Cursor/Kilo) below — each owns a whole directory
     # of variable-length output (one file per .claude/agents/*.md), the
@@ -533,15 +535,21 @@ def _check_agent_generator_sync(generator_rel: str, output_subdir_rel: str) -> l
 
 
 def check_codex_agents_sync() -> list[str]:
-    return _check_agent_generator_sync("tools/generate-codex-agents.sh", ".codex/agents")
+    return _check_agent_generator_sync(
+        "tools/generate-codex-agents.sh", ".codex/agents"
+    )
 
 
 def check_opencode_agents_sync() -> list[str]:
-    return _check_agent_generator_sync("tools/generate-opencode-agents.sh", ".opencode/agents")
+    return _check_agent_generator_sync(
+        "tools/generate-opencode-agents.sh", ".opencode/agents"
+    )
 
 
 def check_cursor_agents_sync() -> list[str]:
-    return _check_agent_generator_sync("tools/generate-cursor-agents.sh", ".cursor/agents")
+    return _check_agent_generator_sync(
+        "tools/generate-cursor-agents.sh", ".cursor/agents"
+    )
 
 
 def check_kilo_agents_sync() -> list[str]:
