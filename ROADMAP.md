@@ -6,7 +6,10 @@ available. If you're an agent reading this to decide whether to symlink,
 copy, or reference something: **check the actual directory first.** This
 file describes intent, not inventory.
 
-See [MANIFEST.md](MANIFEST.md) for what actually exists today.
+See [MANIFEST.md](MANIFEST.md) for what actually exists today, and
+[docs/CLIENT_COMPATIBILITY.md](docs/CLIENT_COMPATIBILITY.md) for current
+per-agentic-tool support status (what's built and dogfooded vs.
+passively covered vs. a genuine gap, and why).
 
 ## Planned Components
 
@@ -171,12 +174,19 @@ label by the review filename cited next to it, never by number alone.
 ### P1 — coherence and maintainability
 
 - **P1-01 — Client entry point beyond skill directories.** `init` never
-  installs/generates a project `CLAUDE.md`/`AGENTS.md` router or wires
-  language/framework/pattern guides — only skills, `.gitignore`, hooks,
-  profile, and state. Proposed: `--client claude|codex|both` generating a
-  small repo-local router with stable relative references, tracked
-  through state/update/doctor/uninstall via marked managed blocks so
-  user-owned project instructions are never overwritten.
+  installs/generates a project `CLAUDE.md`/`AGENTS.md`/`GEMINI.md`/etc.
+  router or wires language/framework/pattern guides into a consumer
+  project — only skills, `.gitignore`, hooks, profile, and state. The
+  cross-platform-parity work (`docs/CLIENT_COMPATIBILITY.md`) already
+  built the reusable building blocks this item would call —
+  `tools/generate-{agents,gemini}-md.sh`, `generate-copilot-instructions.sh`,
+  `generate-kilo-rules.sh`, `generate-cursor-rules.sh` — each currently a
+  manual, per-project regeneration step (see `docs/INTEGRATION.md`), not
+  wired into `init`/`update` itself. Proposed: `--client
+  claude|codex|gemini|copilot|kilo|cursor|all` invoking the matching
+  generator(s) into the consumer project with stable relative references,
+  tracked through state/update/doctor/uninstall via marked managed blocks
+  so user-owned project instructions are never overwritten.
 - **P1-02 — Complete profile enforcement for mainstream projects.** Go
   and non-`node --test` JS/TS runners (Vitest/Jest/Mocha) still exit 0 as
   unsupported. Proposed: runner adapters with explicit commands and

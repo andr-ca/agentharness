@@ -71,26 +71,37 @@ coding agent, who want git/testing/logging/language conventions written
 once and referenced everywhere instead of re-authored (and drifting) per
 project.
 
-**Supported clients:** Claude-first. The skills under `.claude/skills/`
-and the `CLAUDE.md` router are built for and tested with Claude Code. The
-language/pattern guides under `languages/` and `patterns/` are plain
-Markdown and usable by any agent or human that can read a file, but no
-other agent's skill/tool-loading mechanism has been tested against this
-repo yet — don't assume Cursor, Copilot, or another harness picks up
-`.claude/skills/` the same way Claude Code does.
+**Supported clients:** Claude Code is the only client this repo is
+*tested* against — the skills under `.claude/skills/` and the
+`CLAUDE.md` router are built for and dogfooded there. Structurally,
+though, this harness now generates an always-on routing file plus a
+skill index for every major agentic coding tool researched, since 6 of
+7 non-Claude platforms (Codex, Gemini CLI/Antigravity, GitHub Copilot,
+Kilo Code — OpenCode/Zed too, via the plain `AGENTS.md` they already
+read) recognize `.agents/skills/` as an Agent-Skills-standard-compliant
+path, the same directory `harness-link.sh` already populates for every
+consumer. Cursor is the one platform with no confirmed Agent Skills
+support, so it gets a structurally different generator instead
+(`.cursor/rules/*.mdc`). None of this is a claim of end-to-end testing
+outside Claude Code — every generated file says so, and
+`docs/CLIENT_COMPATIBILITY.md` is the full per-platform matrix with
+sources and caveats.
 
-Codex CLI is supported via its real on-demand skill mechanism (the Agent
-Skills open standard, shared with Claude Code): every skill is installed
-into `.agents/skills/<name>` alongside `.claude/skills/<name>` (same
-source, no separate flag), which Codex scans and loads on demand by
-matching each `SKILL.md`'s description — not by front-loading every
-skill's full body. `AGENTS.md` at the repo root covers routing rules
-only, generated from `CLAUDE.md` by `tools/generate-agents-md.sh` (kept
-in sync by a CI check, not hand-maintained; see `docs/INTEGRATION.md`'s
-Codex section for the design and the measured before/after size). This
-has not been verified against a live Codex CLI session end-to-end — the
-mechanism is implemented against Codex's published skill-discovery
-behavior, not yet dogfooded in a real session.
+| Platform | Always-on file | Skill/rule mechanism | Status |
+|---|---|---|---|
+| Claude Code | `CLAUDE.md` | `.claude/skills/*/SKILL.md` | ✅ built + dogfooded |
+| Codex CLI | `AGENTS.md` | `.agents/skills/*/SKILL.md` | ✅ built, not live-tested |
+| OpenCode | `AGENTS.md` | `.agents/skills/*/SKILL.md` | ⚠️ passively covered |
+| Zed | `AGENTS.md` | `.agents/skills/*/SKILL.md` | ⚠️ passively covered |
+| Gemini CLI / Antigravity | `GEMINI.md` | `.agents/skills/*/SKILL.md` | ✅ built, not live-tested |
+| GitHub Copilot | `.github/copilot-instructions.md` | `.github/instructions/*.instructions.md` (`applyTo` glob) + `.agents/skills/` | ✅ built, not live-tested |
+| Kilo Code | `.kilo/rules/agentharness.md` | `.agents/skills/*/SKILL.md` | ✅ built, not live-tested |
+| Cursor | `.cursor/rules/agentharness-router.mdc` (`alwaysApply: true`) | `.cursor/rules/<skill>.mdc` (full body, no Agent Skills support) | ✅ built, not live-tested |
+
+Each generator is a manual-regeneration script
+(`tools/generate-*.sh --output[-dir] ...`), not auto-wired into
+`harness-link.sh init` — see each platform's section in
+`docs/INTEGRATION.md` for the exact recipe.
 
 **Supported platforms:** Linux and macOS (Bash scripts, POSIX shell
 conditionals, `bats-core` for shell tests). Windows is untested; WSL
