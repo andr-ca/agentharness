@@ -620,39 +620,48 @@ cmd_init() {
             # real-file hook installation into target/.github/hooks the same
             # way --mode copy already does, regardless of what --mode is.
             if [ "$mode" = "copy" ] || [ "$coverage_hook" = true ]; then
-                mkdir -p "$target/.github/hooks"
-                cp "$hooks_src_dir/prevent-trunk-commit" "$hooks_src_dir/pre-commit" "$target/.github/hooks/"
-                if [ "$coverage_hook" = true ]; then
-                    generate_coverage_pre_push "$target" "$skills_src_root/tools/setup/harness-link.sh"
-                    echo "  Generated a coverage-aware pre-push hook (calls 'enforce-profile' on every push)"
-                else
-                    cp "$hooks_src_dir/pre-push" "$target/.github/hooks/"
-                fi
                 hooks_path="$target/.github/hooks"
             else
                 hooks_path="$hooks_src_dir"
             fi
+            # Decide whether this install will actually own core.hooksPath
+            # BEFORE writing any hook files (Copilot review): generating/
+            # copying files first and only then discovering a conflicting
+            # existing core.hooksPath left real filesystem side effects
+            # behind on a declined install, even though with_hook/
+            # coverage_hook were correctly recorded as false.
             local existing_hooks_path
             existing_hooks_path="$(git -C "$target" config --get core.hooksPath 2>/dev/null || true)"
-            if [ -z "$existing_hooks_path" ] || [ "$existing_hooks_path" = "$hooks_path" ]; then
-                git -C "$target" config core.hooksPath "$hooks_path"
-                if [ "$coverage_hook" = true ]; then
-                    echo "  Installed trunk-protection + coverage-aware pre-push hooks (core.hooksPath)"
-                else
-                    echo "  Installed trunk-protection hook (core.hooksPath) — not coverage, see --with-coverage-hook"
-                fi
-                installed_hooks_path="$hooks_path"
-            elif [ "$force" = true ]; then
-                git -C "$target" config core.hooksPath "$hooks_path"
-                echo "  Overwrote existing core.hooksPath ($existing_hooks_path) with agentharness hooks (--force)"
-                installed_hooks_path="$hooks_path"
-            else
+            if [ -n "$existing_hooks_path" ] && [ "$existing_hooks_path" != "$hooks_path" ] && [ "$force" != true ]; then
                 echo "  --with-hook requested but $target already has a different core.hooksPath set:" >&2
                 echo "    $existing_hooks_path" >&2
                 echo "  Not overwriting — rerun with --force, or 'git -C $target config --unset core.hooksPath' first." >&2
                 echo "  Recording with_hook=false — this install does not own $target's hook configuration." >&2
                 with_hook=false
                 coverage_hook=false
+            else
+                if [ "$mode" = "copy" ] || [ "$coverage_hook" = true ]; then
+                    mkdir -p "$target/.github/hooks"
+                    cp "$hooks_src_dir/prevent-trunk-commit" "$hooks_src_dir/pre-commit" "$target/.github/hooks/"
+                    if [ "$coverage_hook" = true ]; then
+                        generate_coverage_pre_push "$target" "$skills_src_root/tools/setup/harness-link.sh"
+                        echo "  Generated a coverage-aware pre-push hook (calls 'enforce-profile' on every push)"
+                    else
+                        cp "$hooks_src_dir/pre-push" "$target/.github/hooks/"
+                    fi
+                fi
+                if [ -n "$existing_hooks_path" ] && [ "$existing_hooks_path" != "$hooks_path" ]; then
+                    git -C "$target" config core.hooksPath "$hooks_path"
+                    echo "  Overwrote existing core.hooksPath ($existing_hooks_path) with agentharness hooks (--force)"
+                else
+                    git -C "$target" config core.hooksPath "$hooks_path"
+                    if [ "$coverage_hook" = true ]; then
+                        echo "  Installed trunk-protection + coverage-aware pre-push hooks (core.hooksPath)"
+                    else
+                        echo "  Installed trunk-protection hook (core.hooksPath) — not coverage, see --with-coverage-hook"
+                    fi
+                fi
+                installed_hooks_path="$hooks_path"
             fi
         fi
     fi

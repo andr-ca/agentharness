@@ -184,6 +184,23 @@ print(len(d['skills']))
     [ "$hooks_path" = "some/other/hooks" ]
 }
 
+@test "harness-link.sh: --with-coverage-hook refusing a conflicting core.hooksPath leaves no generated hook files behind" {
+    # Copilot review on PR #21: the generated/copied hook files used to be
+    # written to $target/.github/hooks BEFORE the core.hooksPath conflict
+    # check ran, so a declined install (with_hook=false recorded) could
+    # still leave real files behind as a side effect. Verify the decline
+    # path is now genuinely a no-op on the filesystem, not just on state.
+    git -C "$TEST_PROJECT" init --quiet
+    git -C "$TEST_PROJECT" config core.hooksPath "some/other/hooks"
+
+    run bash "$SCRIPT" "$TEST_PROJECT" --with-coverage-hook
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "already has a different core.hooksPath" ]]
+    [ ! -e "$TEST_PROJECT/.github/hooks" ]
+    hooks_path=$(git -C "$TEST_PROJECT" config core.hooksPath)
+    [ "$hooks_path" = "some/other/hooks" ]
+}
+
 @test "harness-link.sh: --with-hook --force overwrites a different existing core.hooksPath" {
     git -C "$TEST_PROJECT" init --quiet
     git -C "$TEST_PROJECT" config core.hooksPath "some/other/hooks"

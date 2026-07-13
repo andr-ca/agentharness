@@ -756,7 +756,8 @@ print('ok')
 
 @test "lifecycle: --with-coverage-hook regression — doctor fails if the generated hook is hand-edited (marker removed)" {
     git -C "$TEST_PROJECT" init --quiet
-    bash "$SCRIPT" init "$TEST_PROJECT" --skills agentic-loops --with-coverage-hook
+    run bash "$SCRIPT" init "$TEST_PROJECT" --skills agentic-loops --with-coverage-hook
+    [ "$status" -eq 0 ]
 
     echo "#!/bin/bash" > "$TEST_PROJECT/.github/hooks/pre-push"
     echo "exit 0" >> "$TEST_PROJECT/.github/hooks/pre-push"
@@ -812,7 +813,8 @@ def test_covered():
     assert covered() == 1
 PYEOF
 
-    bash "$SCRIPT" init "$TEST_PROJECT" --skills agentic-loops --with-coverage-hook --profile production >/dev/null
+    run bash "$SCRIPT" init "$TEST_PROJECT" --skills agentic-loops --with-coverage-hook --profile production
+    [ "$status" -eq 0 ]
     git -C "$TEST_PROJECT" add -A
     git -C "$TEST_PROJECT" -c user.email=t@e.com -c user.name=t commit --quiet -m "add undercovered app"
 
