@@ -738,11 +738,10 @@ PYEOF
 }
 
 # ----------------------------------------------------------------------------
-# enforce-profile (B4) — makes .agentharness-profile do something
-# mechanical instead of being a lookup table nothing reads. Python-only
-# v1, deliberately: this repo's own tooling only has full, consistent
-# conventions for pytest+coverage today. Never falsely blocks or falsely
-# passes something it can't actually check — a project type this doesn't
+# enforce-profile (B4, extended for JS/TS) — makes .agentharness-profile do
+# something mechanical instead of being a lookup table nothing reads.
+# Never falsely blocks or falsely passes something it can't actually
+# check — a project type (or, within JS/TS, a test runner) this doesn't
 # recognize gets a clear "not implemented yet" and exit 0, not a silent
 # pass framed as a real check. Reads the profile file directly (works for
 # any project with one, not just projects initialized via this CLI's
@@ -758,6 +757,68 @@ profile_field() {
         intests && $0 ~ "^  " field ":" { print $2; exit }
         /^[a-zA-Z]/ { intests=0 }
     ' "$1"
+}
+
+# JS/TS v1, deliberately narrow: this repo's own tooling has full,
+# zero-extra-dependency conventions for exactly one JS/TS test runner —
+# Node's own built-in `node --test` (stable since Node 18/20), the same
+# way the Python path assumes pytest+pytest-cov specifically rather than
+# "any test runner." Real-world JS/TS projects overwhelmingly use Jest,
+# Vitest, or Mocha instead — those have no single stable, dependency-free
+# way to invoke and parse coverage from the outside, so rather than
+# guess at (and mis-parse) an arbitrary tool's output, a project whose
+# own package.json `scripts.test` doesn't already opt into `node --test`
+# gets an honest "not implemented for this test runner yet" and exit 0 —
+# never a false pass or a false block on a tool this doesn't understand.
+enforce_js_ts_profile() {
+    local target="$1" profile_name="$2" coverage_min="$3"
+
+    if ! command -v node >/dev/null 2>&1; then
+        echo "Error: node not available — cannot enforce the '$profile_name' tier's test requirement for this JS/TS project." >&2
+        return 1
+    fi
+
+    local test_script
+    test_script="$(node -p "(require('$target/package.json').scripts || {}).test || ''" 2>/dev/null)"
+
+    if [ -z "$test_script" ]; then
+        echo "Error: no 'test' script defined in package.json — cannot enforce the '$profile_name' tier's test requirement." >&2
+        return 1
+    fi
+
+    case "$test_script" in
+        *"node --test"*|*"node:test"*) ;;
+        *)
+            echo "  JS/TS project detected, but its 'test' script ('$test_script') isn't Node's built-in test runner — profile enforcement is currently limited to projects using \`node --test\` (v1 scope). See ROADMAP.md."
+            return 0
+            ;;
+    esac
+
+    echo "  JS/TS project detected (Node built-in test runner); tests.required: true, coverage_min: ${coverage_min:-none}"
+
+    local coverage_output
+    if ! coverage_output="$(cd "$target" && node --test --experimental-test-coverage 2>&1)"; then
+        echo "$coverage_output"
+        return 1
+    fi
+    echo "$coverage_output"
+
+    if [ -z "$coverage_min" ]; then
+        return 0
+    fi
+
+    local pct
+    pct="$(echo "$coverage_output" | grep "all files" | awk -F'|' '{gsub(/[^0-9.]/,"",$2); print $2}')"
+    if [ -z "$pct" ]; then
+        echo "Error: could not parse a coverage percentage from the test run — cannot enforce coverage_min=$coverage_min." >&2
+        return 1
+    fi
+
+    if (( $(echo "$pct < $coverage_min" | bc -l) )); then
+        echo "Coverage $pct% is below the '$profile_name' tier's minimum of $coverage_min%."
+        return 1
+    fi
+    echo "  Coverage $pct% meets the '$profile_name' tier's minimum of $coverage_min%."
 }
 
 cmd_enforce_profile() {
@@ -796,22 +857,28 @@ cmd_enforce_profile() {
         return 0
     fi
 
-    if [ ! -f "$target/pyproject.toml" ] && [ ! -f "$target/setup.py" ] && [ ! -f "$target/requirements.txt" ]; then
-        echo "  Profile enforcement isn't implemented yet for this project type (Python-only v1) — see ROADMAP.md."
-        return 0
+    if [ -f "$target/pyproject.toml" ] || [ -f "$target/setup.py" ] || [ -f "$target/requirements.txt" ]; then
+        if ! python3 -m pytest --version >/dev/null 2>&1; then
+            echo "Error: pytest not available — cannot enforce the '$profile_name' tier's test requirement." >&2
+            return 1
+        fi
+
+        echo "  Python project detected; tests.required: true, coverage_min: ${coverage_min:-none}"
+        local pytest_args=(-q)
+        if [ -n "$coverage_min" ]; then
+            pytest_args+=("--cov=$target" "--cov-fail-under=$coverage_min")
+        fi
+        (cd "$target" && python3 -m pytest "${pytest_args[@]}")
+        return
     fi
 
-    if ! python3 -m pytest --version >/dev/null 2>&1; then
-        echo "Error: pytest not available — cannot enforce the '$profile_name' tier's test requirement." >&2
-        return 1
+    if [ -f "$target/package.json" ]; then
+        enforce_js_ts_profile "$target" "$profile_name" "$coverage_min"
+        return
     fi
 
-    echo "  Python project detected; tests.required: true, coverage_min: ${coverage_min:-none}"
-    local pytest_args=(-q)
-    if [ -n "$coverage_min" ]; then
-        pytest_args+=("--cov=$target" "--cov-fail-under=$coverage_min")
-    fi
-    (cd "$target" && python3 -m pytest "${pytest_args[@]}")
+    echo "  Profile enforcement isn't implemented yet for this project type — see ROADMAP.md."
+    return 0
 }
 
 # ----------------------------------------------------------------------------

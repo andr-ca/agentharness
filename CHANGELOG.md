@@ -6,6 +6,15 @@ section into a tagged version.
 
 ## [Unreleased]
 
+### Added
+- `harness-link.sh enforce-profile` now also gates JS/TS projects, not
+  just Python — narrowly scoped to projects whose `package.json`
+  `"test"` script already invokes Node's own built-in `node --test`
+  (the one JS/TS runner with a stable, dependency-free coverage output
+  this repo can parse). Jest/Vitest/Mocha/other runners get an honest
+  "isn't Node's built-in test runner" and exit 0, same "never falsely
+  block or pass" principle as the Python path.
+
 ## [0.2.0] - 2026-07-13
 
 ### Added
