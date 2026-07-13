@@ -48,7 +48,11 @@ setup() {
 @test "generate-agents-md: context size — output is a small fraction of concatenating every skill's full body" {
     run bash "$SCRIPT"
     [ "$status" -eq 0 ]
-    output_bytes="${#output}"
+    # printf | wc -c, not ${#output}: bash's ${#var} counts characters per
+    # the active locale, not bytes — under a UTF-8 locale it undercounts
+    # multibyte characters (this output has several em dashes), which
+    # would silently weaken the "well under half" comparison below.
+    output_bytes="$(printf '%s' "$output" | wc -c)"
     full_body_bytes=0
     for skill_dir in "$HARNESS_ROOT"/.claude/skills/*/; do
         skill_md="$skill_dir/SKILL.md"
