@@ -5,7 +5,8 @@
 # generate-copilot-instructions.sh, generate-kilo-rules.sh,
 # generate-cursor-rules.sh, generate-codex-agents.sh,
 # generate-opencode-agents.sh, generate-cursor-agents.sh,
-# generate-kilo-agents.sh).
+# generate-kilo-agents.sh, generate-copilot-agents.sh,
+# generate-gemini-agents.sh).
 # ============================================================================
 #
 # Every "routing-rules-only" adapter (AGENTS.md, GEMINI.md, Kilo's rules

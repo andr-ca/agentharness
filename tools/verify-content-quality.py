@@ -515,8 +515,8 @@ def check_cursor_rules_sync() -> list[str]:
 def _check_agent_generator_sync(
     generator_rel: str, output_subdir_rel: str
 ) -> list[str]:
-    # Shared by the four custom-agent-porting generators
-    # (Codex/OpenCode/Cursor/Kilo) below — each owns a whole directory
+    # Shared by the six custom-agent-porting generators
+    # (Codex/OpenCode/Cursor/Kilo/Copilot/Gemini) below — each owns a whole directory
     # of variable-length output (one file per .claude/agents/*.md), the
     # same shape check_cursor_rules_sync() already handles via
     # _diff_generated_subdir().

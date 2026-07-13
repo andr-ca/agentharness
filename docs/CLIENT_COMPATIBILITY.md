@@ -107,11 +107,12 @@ delegation to a separate specialized agent with a confirmed,
 file-based custom-agent config — structurally close enough that this
 repo now ports its one real subagent (`coding-guidelines-reviewer`, a
 read-only reviewer scoped to `.github/CODING_GUIDELINES.md`'s rigor
-tiers) across all seven via
+tiers) from Claude Code to the other six via
 `tools/generate-{codex,opencode,cursor,kilo,copilot,gemini}-agents.sh`,
 the same relationship `.claude/skills/` has to `.agents/skills/`. Zed
-CLI and Zed only offer persona switching for the *same* agent — there's
-nothing to port delegation *to* on those two.
+likely has real delegation too, architecturally, but no confirmed
+config-file format was found to port into — so there's nothing to
+generate there yet, not because it's persona-only.
 
 **Explicit scope boundary — cross-tool tool/permission scoping is NOT
 translated.** Each target platform's own tool-name and permission
