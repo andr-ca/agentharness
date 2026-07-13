@@ -20,6 +20,7 @@ or `production`:
 echo production > .agentharness-profile
 ```
 
+<<<<<<< HEAD
 **Current state — this is advisory, not (yet) enforced.** No script in
 this repo reads `.agentharness-profile` today. `.github/hooks/pre-push`
 would be the natural place to enforce it, but that hook currently only
@@ -36,6 +37,32 @@ real to enforce.
 Until then, these YAML files are a lookup a project or an agent can
 consult directly instead of re-parsing the prose table — a real
 improvement over prose-only tiers, just not a mechanical gate.
+=======
+**Current state — enforced for Python projects, advisory for everything
+else.** `harness-link.sh enforce-profile <project>` (B4) reads
+`.agentharness-profile` and, for a detected Python project
+(`pyproject.toml`/`setup.py`/`requirements.txt` present), actually gates
+on it: skips the test run entirely at a tier where `tests.required` is
+`false` (prototype), otherwise runs
+`pytest --cov-fail-under=<tier's coverage_min>` for real and fails if it
+doesn't pass. A project this can't yet classify (non-Python, or no
+recognizable project file) gets a clear "not implemented yet" and exits
+0 — it never falsely blocks or falsely passes something it can't
+actually check.
+
+This is **not** wired into `.github/hooks/pre-push` automatically —
+that hook still only ever runs *this* repo's own hardcoded test suites
+and no-ops for a consumer's push (see the hook's own comments and
+`docs/operational/reviews/gpt-5.6-review-status.md`, finding 1).
+Silently changing that default for every project that already has
+`--with-hook` installed is its own decision; `enforce-profile` ships
+first as an explicitly-invoked subcommand, same posture as
+`audit`/`doctor`, so a project or CI job opts in by calling it.
+
+Non-Python profile enforcement (Go, TypeScript, etc.) remains
+unimplemented — tracked in `ROADMAP.md` as a natural extension once this
+Python v1 has real usage to learn from.
+>>>>>>> origin/main
 
 ## Precedence order
 
