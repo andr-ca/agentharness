@@ -122,11 +122,14 @@ happens if you asked for that mode.
   An agent (or a human) can ignore these; nothing stops them mechanically.
 - *Enforced* (a script that actually blocks an action): the
   `prevent-trunk-commit` pre-commit hook (blocks direct commits to trunk
-  branches) and the `pre-push` hook (blocks a push below 80% test
-  coverage or a failing test suite) — both only apply once a project
-  opts in via `--with-hook`, and both only test *this* repo's own
-  suites when pushing to *this* repo (see `.github/hooks/pre-push`'s
-  own comments for how it detects and no-ops for a borrowing consumer).
+  branches), installed once a project opts in via `--with-hook`. The
+  shared `pre-push` hook this repo installs on *itself* (blocks a push
+  below 80% test coverage or a failing suite) only ever tests *this*
+  repo's own suites, and no-ops for a consumer that's merely borrowed
+  `core.hooksPath` (see `.github/hooks/pre-push`'s own comments) — for
+  coverage enforcement in *your own* project, use
+  `init --with-coverage-hook` instead, which generates a project-owned
+  `pre-push` hook that runs `enforce-profile` against your project (P0-03).
 
 **Agent publish authority is opt-in, not default.** `CLAUDE.md` has an
 agent verify and stage work locally, then stop and ask before pushing,
@@ -228,7 +231,8 @@ it's the default above.)
 
 Integrate into a project with the setup script (installs skills, merges
 the gitignore template, and — if you opt in via `--with-hook` — the
-branch-protection + coverage hooks):
+trunk-protection hook; `--with-coverage-hook` adds a generated
+coverage-enforcing pre-push hook on top of that):
 
 ```bash
 ~/agentharness/tools/setup/harness-link.sh init /path/to/your-project

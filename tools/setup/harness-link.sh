@@ -79,8 +79,14 @@ init options:
                                 docs/INTEGRATION.md#method-4-npmnpx)
   --skills a,b,c               Comma-separated list of skills (default:
                                 all; 'none' explicitly installs zero)
-  --with-hook                  Install the trunk-protection + coverage hooks
-  --force                      Overwrite an existing, different core.hooksPath
+  --with-hook                   Install the trunk-protection hook (blocks
+                                direct commits to trunk branches). Does NOT
+                                enforce coverage on its own — see
+                                --with-coverage-hook for that (P0-03).
+  --with-coverage-hook          Like --with-hook, plus a generated
+                                pre-push hook that runs 'enforce-profile'
+                                against this project on every push
+  --force                       Overwrite an existing, different core.hooksPath
   --profile prototype|internal|production
                                 Write .agentharness-profile
   --dry-run                    Show the plan; change nothing (same as 'plan')
@@ -116,9 +122,11 @@ state_write() {
     # $6=profile(or "") $7=source_path $8=source_revision $9=source_remote(or "")
     # $10=hooks_path(or "" — the exact core.hooksPath value this CLI actually
     #     set; only present when with_hook installation genuinely succeeded)
+    # $11=coverage_hook(true/false — P0-03, whether the generated
+    #     enforce-profile-calling pre-push script was actually installed)
     local target="$1" mode="$2" skills_csv="$3" skills_filter="$4" with_hook="$5"
     local profile="$6" source_path="$7" source_revision="$8" source_remote="$9"
-    local hooks_path="${10:-}"
+    local hooks_path="${10:-}" coverage_hook="${11:-false}"
     local existing_installed_at=""
     if [ -f "$(state_path "$target")" ]; then
         existing_installed_at="$(state_field "$target" "installed_at" || true)"
@@ -126,7 +134,7 @@ state_write() {
     AH_MODE="$mode" AH_SKILLS_CSV="$skills_csv" AH_SKILLS_FILTER="$skills_filter" \
     AH_WITH_HOOK="$with_hook" AH_PROFILE="$profile" AH_SOURCE_PATH="$source_path" \
     AH_SOURCE_REVISION="$source_revision" AH_SOURCE_REMOTE="$source_remote" \
-    AH_HOOKS_PATH="$hooks_path" \
+    AH_HOOKS_PATH="$hooks_path" AH_COVERAGE_HOOK="$coverage_hook" \
     AH_EXISTING_INSTALLED_AT="$existing_installed_at" \
     python3 - "$(state_path "$target")" <<'PYEOF'
 import datetime
@@ -151,6 +159,7 @@ data = {
     "skills_filter": os.environ.get("AH_SKILLS_FILTER") or None,
     "with_hook": os.environ.get("AH_WITH_HOOK") == "true",
     "hooks_path": os.environ.get("AH_HOOKS_PATH") or None,
+    "coverage_hook": os.environ.get("AH_COVERAGE_HOOK") == "true",
     "profile": os.environ.get("AH_PROFILE") or None,
     "installed_at": existing_installed_at,
     "updated_at": now,
@@ -325,18 +334,60 @@ with open(sys.argv[1] + '/package.json') as f:
 }
 
 # ----------------------------------------------------------------------------
+# Coverage-aware pre-push hook (P0-03, opt-in via --with-coverage-hook)
+# ----------------------------------------------------------------------------
+#
+# --with-hook alone only ever installed trunk-protection for a consumer —
+# the shared pre-push script this harness uses for ITSELF is hardcoded to
+# test agentharness's own suites and deliberately no-ops for any other repo
+# (see .github/hooks/pre-push's own comments). Calling that combination
+# "coverage hooks" in docs/CLI output was therefore never accurate for a
+# consumer. This generates a real, consumer-owned pre-push script instead —
+# unlike prevent-trunk-commit/pre-commit (universal, safe to copy verbatim),
+# this one is written fresh per install because it has to call
+# 'enforce-profile' against THIS target, using a harness-link.sh path that's
+# only known at install time.
+#
+# A marker string ("agentharness generated coverage hook") lets doctor
+# confirm the file at $target/.github/hooks/pre-push is genuinely this
+# generated script and not something else that happens to share the name.
+COVERAGE_HOOK_MARKER="# agentharness generated coverage hook — do not hand-edit, regenerate with 'init --with-coverage-hook'"
+
+generate_coverage_pre_push() {
+    local target="$1" harness_link_path="$2"
+    cat > "$target/.github/hooks/pre-push" <<EOF
+#!/bin/bash
+$COVERAGE_HOOK_MARKER
+set -euo pipefail
+
+TARGET_ROOT="\$(git rev-parse --show-toplevel)"
+HARNESS_LINK="$harness_link_path"
+
+if [ ! -f "\$HARNESS_LINK" ]; then
+    echo "agentharness coverage hook: harness-link.sh not found at \$HARNESS_LINK" >&2
+    echo "(the recorded harness source may have moved or been deleted — run 'doctor' to check, or re-run 'init --with-coverage-hook' to regenerate this hook)." >&2
+    exit 1
+fi
+
+exec bash "\$HARNESS_LINK" enforce-profile "\$TARGET_ROOT"
+EOF
+    chmod +x "$target/.github/hooks/pre-push"
+}
+
+# ----------------------------------------------------------------------------
 # init / plan
 # ----------------------------------------------------------------------------
 
 cmd_init() {
     local target="" mode="link" skills_filter="" with_hook=false force=false
-    local profile="" dry_run=false
+    local profile="" dry_run=false coverage_hook=false
 
     while [ $# -gt 0 ]; do
         case "$1" in
             --mode) mode="$2"; shift 2 ;;
             --skills) skills_filter="$2"; shift 2 ;;
             --with-hook) with_hook=true; shift ;;
+            --with-coverage-hook) with_hook=true; coverage_hook=true; shift ;;
             --force) force=true; shift ;;
             --profile) profile="$2"; shift 2 ;;
             --dry-run) dry_run=true; shift ;;
@@ -391,8 +442,10 @@ cmd_init() {
         echo "  Skills to install:"
         resolve_wanted_skills "$skills_src_root" "$skills_filter" | sed 's/^/    - /'
         echo "  .gitignore: merge $HARNESS_DIR/.github/.gitignore.template (additive)"
-        if [ "$with_hook" = true ]; then
-            echo "  Hook: install trunk-protection + coverage hooks (mode: $mode)"
+        if [ "$coverage_hook" = true ]; then
+            echo "  Hook: install trunk-protection + a generated coverage-aware pre-push hook (mode: $mode)"
+        elif [ "$with_hook" = true ]; then
+            echo "  Hook: install trunk-protection hook only — not coverage (mode: $mode; see --with-coverage-hook)"
         fi
         [ -n "$profile" ] && echo "  Profile: write $PROFILE_FILE_NAME = $profile"
         echo "  State: write $target/$STATE_FILE_NAME"
@@ -557,11 +610,24 @@ cmd_init() {
         if ! git -C "$target" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
             echo "  --with-hook requested but $target is not a git repo — skipping." >&2
             with_hook=false
+            coverage_hook=false
         else
             local hooks_path
-            if [ "$mode" = "copy" ]; then
+            # --with-coverage-hook needs a real, consumer-owned pre-push
+            # script (P0-03) — it can't be the harness's own shared/symlinked
+            # pre-push (that one is hardcoded to test agentharness itself and
+            # deliberately no-ops for any other repo). So coverage_hook forces
+            # real-file hook installation into target/.github/hooks the same
+            # way --mode copy already does, regardless of what --mode is.
+            if [ "$mode" = "copy" ] || [ "$coverage_hook" = true ]; then
                 mkdir -p "$target/.github/hooks"
-                cp "$hooks_src_dir/prevent-trunk-commit" "$hooks_src_dir/pre-commit" "$hooks_src_dir/pre-push" "$target/.github/hooks/"
+                cp "$hooks_src_dir/prevent-trunk-commit" "$hooks_src_dir/pre-commit" "$target/.github/hooks/"
+                if [ "$coverage_hook" = true ]; then
+                    generate_coverage_pre_push "$target" "$skills_src_root/tools/setup/harness-link.sh"
+                    echo "  Generated a coverage-aware pre-push hook (calls 'enforce-profile' on every push)"
+                else
+                    cp "$hooks_src_dir/pre-push" "$target/.github/hooks/"
+                fi
                 hooks_path="$target/.github/hooks"
             else
                 hooks_path="$hooks_src_dir"
@@ -570,7 +636,11 @@ cmd_init() {
             existing_hooks_path="$(git -C "$target" config --get core.hooksPath 2>/dev/null || true)"
             if [ -z "$existing_hooks_path" ] || [ "$existing_hooks_path" = "$hooks_path" ]; then
                 git -C "$target" config core.hooksPath "$hooks_path"
-                echo "  Installed trunk-protection + coverage hooks (core.hooksPath)"
+                if [ "$coverage_hook" = true ]; then
+                    echo "  Installed trunk-protection + coverage-aware pre-push hooks (core.hooksPath)"
+                else
+                    echo "  Installed trunk-protection hook (core.hooksPath) — not coverage, see --with-coverage-hook"
+                fi
                 installed_hooks_path="$hooks_path"
             elif [ "$force" = true ]; then
                 git -C "$target" config core.hooksPath "$hooks_path"
@@ -582,6 +652,7 @@ cmd_init() {
                 echo "  Not overwriting — rerun with --force, or 'git -C $target config --unset core.hooksPath' first." >&2
                 echo "  Recording with_hook=false — this install does not own $target's hook configuration." >&2
                 with_hook=false
+                coverage_hook=false
             fi
         fi
     fi
@@ -613,7 +684,7 @@ cmd_init() {
     local skills_csv
     skills_csv="$(IFS=,; echo "${linked_skills[*]}")"
     state_write "$target" "$mode" "$skills_csv" "$skills_filter" "$with_hook" \
-        "$profile" "$skills_src_root" "$source_revision" "$source_remote" "$installed_hooks_path"
+        "$profile" "$skills_src_root" "$source_revision" "$source_remote" "$installed_hooks_path" "$coverage_hook"
 
     echo "Done."
 }
@@ -644,6 +715,7 @@ cmd_status() {
     hooks_path="$(state_field "$target" hooks_path 2>/dev/null || echo "(none)")"
     [ "$hooks_path" = "None" ] && hooks_path="(none)"
     echo "  hooks_path:    $hooks_path"
+    echo "  coverage_hook: $(state_field "$target" coverage_hook 2>/dev/null || echo "false")"
     local profile
     profile="$(state_field "$target" profile 2>/dev/null || echo "(none)")"
     echo "  profile:       $profile"
@@ -719,6 +791,24 @@ cmd_doctor() {
             failed=1
         else
             echo "  ✓ core.hooksPath set ($actual_hooks_path)"
+        fi
+
+        # P0-03: a coverage-hook install's pre-push MUST be the generated
+        # script, not the harness's own agentharness-specific one (that one
+        # would just no-op for this consumer, silently enforcing nothing).
+        local coverage_hook
+        coverage_hook="$(state_field "$target" coverage_hook 2>/dev/null || echo "false")"
+        if [ "$coverage_hook" = "true" ]; then
+            local pre_push_path="$target/.github/hooks/pre-push"
+            if [ ! -x "$pre_push_path" ]; then
+                echo "  ✗ coverage_hook is recorded true, but $pre_push_path is missing or not executable" >&2
+                failed=1
+            elif ! grep -qF "$COVERAGE_HOOK_MARKER" "$pre_push_path"; then
+                echo "  ✗ $pre_push_path exists but isn't the generated coverage hook (marker missing) — hand-edited or overwritten?" >&2
+                failed=1
+            else
+                echo "  ✓ coverage-aware pre-push hook present and generated by this CLI"
+            fi
         fi
     fi
 
@@ -1100,17 +1190,19 @@ cmd_update() {
     [ -d "$target" ] && target="$(cd "$target" && pwd)"
     require_state "$target"
 
-    local mode source_path skills_filter with_hook profile hooks_path
+    local mode source_path skills_filter with_hook profile hooks_path coverage_hook
     mode="$(state_field "$target" mode)"
     source_path="$(state_field "$target" source.path)"
     skills_filter="$(state_field "$target" skills_filter 2>/dev/null || echo "")"
     [ "$skills_filter" = "None" ] && skills_filter=""
     with_hook="$(state_field "$target" with_hook)"
-    # update never touches hooks — carry the previously recorded path through
-    # unchanged (P0-01: this must stay in sync with whatever init/doctor last
-    # verified, not silently reset to empty just because update doesn't ask).
+    # update never touches hooks — carry the previously recorded path/flag
+    # through unchanged (P0-01/P0-03: this must stay in sync with whatever
+    # init/doctor last verified, not silently reset just because update
+    # doesn't ask).
     hooks_path="$(state_field "$target" hooks_path 2>/dev/null || echo "")"
     [ "$hooks_path" = "None" ] && hooks_path=""
+    coverage_hook="$(state_field "$target" coverage_hook 2>/dev/null || echo "false")"
     profile="$(state_field "$target" profile 2>/dev/null || echo "")"
     [ "$profile" = "None" ] && profile=""
 
@@ -1221,7 +1313,7 @@ cmd_update() {
     local new_skills_csv
     new_skills_csv="$(IFS=,; echo "${current[*]}")"
     state_write "$target" "$mode" "$new_skills_csv" "$skills_filter" "$with_hook" \
-        "$profile" "$source_path" "$source_revision" "$source_remote" "$hooks_path"
+        "$profile" "$source_path" "$source_revision" "$source_remote" "$hooks_path" "$coverage_hook"
     echo "Updated."
 }
 
@@ -1294,6 +1386,20 @@ cmd_uninstall() {
         elif [ "$actual_hooks_path" = "$recorded_hooks_path" ]; then
             git -C "$target" config --unset core.hooksPath 2>/dev/null || true
             echo "  Unset core.hooksPath"
+            # P0-03: a coverage-hook install wrote real, consumer-owned
+            # files at $target/.github/hooks/ (unlike link/submodule/npm's
+            # symlink-to-the-shared-dir case, which has nothing here to
+            # remove) — clean those up too, but only in this
+            # verified-still-ours branch, same ownership guard as the
+            # config unset above.
+            local coverage_hook
+            coverage_hook="$(state_field "$target" coverage_hook 2>/dev/null || echo "false")"
+            if [ "$coverage_hook" = "true" ] && [ "$recorded_hooks_path" = "$target/.github/hooks" ]; then
+                rm -f "$target/.github/hooks/pre-push" "$target/.github/hooks/pre-commit" "$target/.github/hooks/prevent-trunk-commit"
+                rmdir "$target/.github/hooks" 2>/dev/null || true
+                rmdir "$target/.github" 2>/dev/null || true
+                echo "  Removed the generated coverage-aware pre-push hook"
+            fi
         else
             echo "  core.hooksPath has changed since install (recorded: $recorded_hooks_path, actual: $actual_hooks_path) — leaving it untouched" >&2
         fi
