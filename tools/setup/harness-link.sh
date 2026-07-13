@@ -292,8 +292,17 @@ copy_npm_durable_source() {
     # 'target' is HARNESS_DIR or a subdirectory of it (e.g. dogfooding this
     # harness's own repo as an init target), the freshly-created, empty
     # $dst would otherwise sit inside the tree being read, and get read
-    # back into itself mid-stream.
-    (cd "$HARNESS_DIR" && tar cf - --exclude=.git --exclude="./$NPM_DURABLE_PATH" .) | (cd "$dst" && tar xf -)
+    # back into itself mid-stream. Compute the exclude path relative to
+    # HARNESS_DIR (not just "./$NPM_DURABLE_PATH", which only matches when
+    # target IS HARNESS_DIR) so a target that's a subdirectory of
+    # HARNESS_DIR is covered too.
+    local tar_exclude="./$NPM_DURABLE_PATH"
+    case "$dst" in
+        "$HARNESS_DIR"/*)
+            tar_exclude="./${dst#"$HARNESS_DIR"/}"
+            ;;
+    esac
+    (cd "$HARNESS_DIR" && tar cf - --exclude=.git --exclude="$tar_exclude" .) | (cd "$dst" && tar xf -)
 }
 
 # Prefers package.json's version (meaningful for an npm-distributed source —

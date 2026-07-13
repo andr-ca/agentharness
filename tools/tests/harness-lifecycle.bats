@@ -19,6 +19,12 @@ setup() {
 teardown() {
     cd /
     rm -rf "$TEST_PROJECT"
+    # Some tests must nest a target inside HARNESS_DIR itself (to reproduce
+    # a dogfooding scenario) rather than under $TEST_PROJECT; clean it up
+    # here so a failed assertion mid-test (which skips the rest of the
+    # test body) can't leave it behind in the real checkout.
+    [ -n "${DOGFOOD_TARGET:-}" ] && rm -rf "$DOGFOOD_TARGET"
+    true
 }
 
 @test "lifecycle: init writes a state file with mode, source, and skills" {
@@ -552,6 +558,27 @@ print(d['source']['revision'])
     # npm-distributed source where a consumer can look the version up.
     revision="$(echo "$output" | tail -1)"
     [[ "$revision" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+}
+
+@test "lifecycle: --mode npm regression — self-copy guard covers a target nested under HARNESS_DIR, not just HARNESS_DIR itself" {
+    # Copilot review on PR #20: the tar --exclude for copy_npm_durable_source
+    # only matched "./$NPM_DURABLE_PATH" (a durable copy directly under
+    # HARNESS_DIR). If 'target' is a SUBDIRECTORY of HARNESS_DIR (e.g.
+    # dogfooding this repo with a nested scratch project), the durable
+    # copy's real path relative to HARNESS_DIR is "./<subdir>/.agentharness-pkg",
+    # which the old pattern didn't exclude — the tar walk could read back
+    # the copy it was mid-write on.
+    local harness_root="$BATS_TEST_DIRNAME/../.."
+    DOGFOOD_TARGET="$harness_root/tmp-dogfood-target-$$"
+    mkdir -p "$DOGFOOD_TARGET"
+
+    run timeout 30 bash "$SCRIPT" init "$DOGFOOD_TARGET" --mode npm --skills agentic-loops
+    [ "$status" -eq 0 ]
+    [ -d "$DOGFOOD_TARGET/.agentharness-pkg" ]
+    # The durable copy must not contain itself nested inside a copy of
+    # itself — a bounded, sane size is evidence the self-inclusion never
+    # happened (an unguarded run either fails or balloons/hangs).
+    [ ! -e "$DOGFOOD_TARGET/.agentharness-pkg/.agentharness-pkg" ]
 }
 
 @test "lifecycle: --mode npm regression — doctor stays healthy after the original HARNESS_DIR-equivalent source disappears (P0-02)" {
