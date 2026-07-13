@@ -129,11 +129,12 @@ follow the same template.
   snapshots; see
   `docs/operational/reviews/gpt-5.6-completion-reaudit-status.md`.
 
-- **P0-03's remote-write authorization model is unresolved.** Flagged as
-  a missed gap by the 2026-07-13 re-audit: `CLAUDE.md`'s Agent Workflow
-  Completion section still mandates commit/push/PR for every finished
-  task by default, with no opt-in profile that keeps an agent
-  inspection/review-only. This is a product-direction change (it alters
-  the harness's default trust model), not a scoped fix — see
+- ~~P0-03's remote-write authorization model is unresolved.~~ —
+  **IMPLEMENTED** (B1). `CLAUDE.md`'s Agent Workflow Completion section
+  now defaults to verify-and-stage-only: an agent commits locally, then
+  stops and asks before pushing, opening a PR, or auto-implementing a
+  recommendation. Full publish authority requires a local, gitignored
+  `.agentharness-publish-mode` flag file or explicit per-task
+  authorization — see `docs/DECISIONS.md` and
   `docs/operational/reviews/gpt-5.6-completion-reaudit-status.md` for the
-  scoping question posed to the user before any change is made.
+  scoping question this resolved.

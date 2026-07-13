@@ -32,7 +32,9 @@ found is real. This response:
   every "new subsystem" item (generated manifest, operational profile
   enforcement, expanded audit scope, comprehensive snippet execution,
   duplicate-policy detection, a real release cut). See "Larger items —
-  pending your confirmation" below.
+  pending your confirmation" below — **update:** all 7 were later
+  confirmed and shipped as `v0.2.0`; see "Final disposition" below the
+  table.
 - **Leaves 2 items exactly where they are** — P2-05 (real dogfooding)
   and the live-eval half of P2-04 both require your own action (pinning
   the harness in real projects; spending your API budget), not code this
@@ -163,6 +165,25 @@ P2 batch): do all seven now, pick a subset, or leave the backlog as
 scoped-but-not-started for a future session. Whichever is chosen, that
 confirmation covers the agreed batch — no further per-item asks within
 it, per `CLAUDE.md`.
+
+## Final disposition (2026-07-13T04:50:00Z)
+
+The user confirmed: B1 as an opt-in profile; B2, B3, B4, B5, B7 built in
+full (the most ambitious option offered); B6 cut as a real release. All
+seven shipped, each as its own commit/PR, verified locally
+(`tools/check.sh`) and confirmed green on hosted CI before the next item
+started — see `docs/DECISIONS.md` for the design record on B1 and B2
+specifically.
+
+| # | Item | Disposition |
+|---|---|---|
+| B1 | Remote-write authorization model | Shipped. `.agentharness-publish-mode` (gitignored, per-operator) gates full publish authority; default is verify-and-stage-only. `docs/DECISIONS.md`, `docs/INTEGRATION.md`. |
+| B2 | Generated manifest | Shipped. `manifest.yaml` + `tools/generate-manifest.py` render `MANIFEST.md`; CI drift-check (`check_manifest_md_sync()`) proven to actually fire on injected drift. Migration verified byte-for-byte against the prior hand-written file. |
+| B3 | Wider runnable-snippet validation | Shipped, scoped as planned. `check_bash_snippets()` (`docs/INTEGRATION.md`, `COVERAGE_REQUIREMENTS.md`) and `check_console_snippets()` (`docs/DEMO.md`) via `bash -n`. `languages/*/CONVENTIONS.md`, `TDD.md`, `error-handling/README.md` deliberately left untouched (intentional pseudocode). |
+| B4 | Operational profile enforcement | Shipped, Python-only v1 as planned. `harness-link.sh enforce-profile` gates real `pytest --cov-fail-under` runs per tier. Not wired into `pre-push` automatically — invoked explicitly, same posture as `audit`/`doctor`. Non-Python enforcement remains a `ROADMAP.md` item. |
+| B5 | Expanded audit scope | Shipped. `audit --json` gained `publish_mode_active`, `selected_profile`, `validation_commands`, reusing B1/B4 rather than new detection logic. Policy-conflict detection intentionally not duplicated — points at B7's tool instead. |
+| B6 | Real release proof | Shipped as `v0.2.0` — see `CHANGELOG.md`. Discovered mid-cut that the P2 batch (npm/eval/Codex/encyclopedia) was never actually merged to `main` despite being CI-green on its own branch; merged it first (with a follow-up corrective PR after an automated merge-conflict resolution from GitHub's Copilot coding agent silently dropped 3 files' worth of `main`-side content) so the release accurately reflects what's shipped. |
+| B7 | Duplicate-policy detection | Shipped. `check_duplicate_policy_numbers()`, explicit registry (currently: coverage percentage), per-line mandate-signal matching after two more naive designs produced real false positives against this repo's own content. |
 
 ## Verification
 
