@@ -51,13 +51,11 @@ noted — resolve any label against the review filename cited next to it in
 
 ## Content coverage
 
-- **Languages:** only Python, TypeScript, and Go. Rust and others are not
-  started. → ROADMAP "Planned Components".
+- **Languages:** Python, TypeScript, Go, and Rust. Java and others are
+  not started. → ROADMAP "Planned Components".
 - **Frameworks:** only React. Vue/Angular/Django/Express/etc. are not
   started.
-- **Patterns:** no accessibility or API-design pattern yet (the earlier
-  accessibility draft was removed for being VS-Code-source-internal; a
-  real ARIA/WCAG version is still owed). → ROADMAP "Planned Components".
+- **Patterns:** no API-design pattern yet. → ROADMAP "Planned Components".
 
 ## Maintenance & robustness
 

@@ -29,6 +29,7 @@ they drift (`check_manifest_md_sync()` in `tools/verify-content-quality.py`).
 | Python agent instructions | `languages/python/COPILOT_INSTRUCTIONS.md` | guide | General-purpose agent operating principles for Python repos |
 | TypeScript conventions | `languages/typescript/CONVENTIONS.md` | guide | Naming, type safety for `.ts` / `.tsx` files (React specifics are a separate framework add-on) |
 | Go conventions | `languages/go/CONVENTIONS.md` | guide | Naming, concurrency, interfaces, testing for `.go` files |
+| Rust conventions | `languages/rust/CONVENTIONS.md` | guide | Naming, unwrap/expect by rigor tier, error-crate choice, unsafe policy, testing for `.rs` files |
 | React conventions | `frameworks/react/CONVENTIONS.md` | guide | Component naming, props typing — layered on top of the TypeScript guide |
 
 ## Testing & Quality Patterns
@@ -36,7 +37,7 @@ they drift (`check_manifest_md_sync()` in `tools/verify-content-quality.py`).
 | Asset | Path | Type | When to use |
 |---|---|---|---|
 | Rigor tiers | `.github/CODING_GUIDELINES.md#rigor-tiers` | policy | **Read first** — decides which mandates below actually apply to the code you're writing |
-| Rigor-tier profiles | `patterns/profiles/README.md` | guide | Selecting a tier via `.agentharness-profile`, precedence order, current enforcement state (Python and JS/TS via `enforce-profile`, advisory for other project types/runners) |
+| Rigor-tier profiles | `patterns/profiles/README.md` | guide | Selecting a tier via `.agentharness-profile`, precedence order, current enforcement state (Python, Go, and JS/TS `node --test`/Vitest via `enforce-profile`, advisory for other project types/runners) |
 | Prototype profile | `patterns/profiles/prototype.yaml` | config | Machine-readable form of the Rigor Tiers table's Prototype column |
 | Internal profile | `patterns/profiles/internal.yaml` | config | Machine-readable form of the Rigor Tiers table's Internal Tool column |
 | Production profile | `patterns/profiles/production.yaml` | config | Machine-readable form of the Rigor Tiers table's Production Service column |
@@ -44,6 +45,7 @@ they drift (`check_manifest_md_sync()` in `tools/verify-content-quality.py`).
 | Coverage requirements | `patterns/testing/COVERAGE_REQUIREMENTS.md` | policy | Single source of truth for the 80% coverage tiers — other docs link here, don't restate |
 | Completion checklist | `patterns/testing/COMPLETION_CHECKLIST.md` | checklist | Before marking any task done |
 | Playwright UI testing | `patterns/testing/PLAYWRIGHT_UI_TESTING.md` | guide | Web UI work at Production tier only |
+| Accessibility patterns | `patterns/accessibility/README.md` | guide | Cross-framework WCAG 2.2 AA / ARIA baseline — semantic HTML, keyboard, contrast, custom-widget roles, testing |
 
 ## Error Handling & Reliability
 

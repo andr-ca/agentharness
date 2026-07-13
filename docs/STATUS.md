@@ -64,9 +64,9 @@ custom-agent table.
 
 | Area | Built today | Source of truth |
 |---|---|---|
-| Languages | Python, TypeScript, Go | [languages/](../languages/) |
+| Languages | Python, TypeScript, Go, Rust | [languages/](../languages/) |
 | Frameworks | React | [frameworks/react/](../frameworks/react/) |
-| Patterns | testing, logging, agentic-loops, error-handling, profiles | [patterns/](../patterns/) |
+| Patterns | testing, logging, agentic-loops, error-handling, profiles, accessibility | [patterns/](../patterns/) |
 | Skills | 6 (`agentic-loops`, `audit-review-followup`, `branching`, `committing`, `error-handling`, `python-conventions`) | [.claude/skills/](../.claude/skills/) |
 
 ## Enforcement (partial)

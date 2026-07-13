@@ -69,6 +69,10 @@ sections:
     path: languages/go/CONVENTIONS.md
     type: guide
     when_to_use: Naming, concurrency, interfaces, testing for `.go` files
+  - asset: Rust conventions
+    path: languages/rust/CONVENTIONS.md
+    type: guide
+    when_to_use: Naming, unwrap/expect by rigor tier, error-crate choice, unsafe policy, testing for `.rs` files
   - asset: React conventions
     path: frameworks/react/CONVENTIONS.md
     type: guide
@@ -87,7 +91,7 @@ sections:
   - asset: Rigor-tier profiles
     path: patterns/profiles/README.md
     type: guide
-    when_to_use: Selecting a tier via `.agentharness-profile`, precedence order, current enforcement state (Python and JS/TS via `enforce-profile`, advisory for other project types/runners)
+    when_to_use: Selecting a tier via `.agentharness-profile`, precedence order, current enforcement state (Python, Go, and JS/TS `node --test`/Vitest via `enforce-profile`, advisory for other project types/runners)
   - asset: Prototype profile
     path: patterns/profiles/prototype.yaml
     type: config
@@ -116,6 +120,10 @@ sections:
     path: patterns/testing/PLAYWRIGHT_UI_TESTING.md
     type: guide
     when_to_use: Web UI work at Production tier only
+  - asset: Accessibility patterns
+    path: patterns/accessibility/README.md
+    type: guide
+    when_to_use: Cross-framework WCAG 2.2 AA / ARIA baseline — semantic HTML, keyboard, contrast, custom-widget roles, testing
 - name: Error Handling & Reliability
   columns:
   - Asset

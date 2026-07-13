@@ -42,23 +42,22 @@ for these frameworks. `frameworks/react/CONVENTIONS.md` is implemented
 `languages/typescript/CONVENTIONS.md` so the language guide isn't
 React-specific.
 
-### `languages/{rust,java,...}/`
+### `languages/{java,...}/`
 Additional language convention guides, following the shape of the
-existing `languages/{python,typescript,go}/`. Python, TypeScript, and Go
-are implemented; Rust and others are not started.
+existing `languages/{python,typescript,go,rust}/`. Python, TypeScript,
+Go, and Rust are implemented; Java and others are not started.
 
-### `patterns/{api-design,accessibility}/`
+### `patterns/{api-design}/`
 Additional pattern categories, following the shape of the existing
-`patterns/{testing,logging,agentic-loops,error-handling,profiles}/`.
-Those five exist today; API design and accessibility are not started.
+`patterns/{testing,logging,agentic-loops,error-handling,profiles,accessibility}/`.
+Those six exist today; API design is not started.
 
-A genuine cross-framework accessibility pattern doc is a real gap — an
-earlier draft (`accessibility.instructions.md`) was removed because it
-was entirely VS Code source-internal (`AccessibleContentProvider`,
-`CONTEXT_ACCESSIBILITY_MODE_ENABLED`, references to specific VS Code
-PRs) despite claiming general applicability. A real version needs to be
-written from ARIA/WCAG fundamentals, not adapted from one codebase's
-internal APIs.
+The cross-framework accessibility pattern that used to be a gap here is
+now **built** (`patterns/accessibility/README.md`), written from WCAG 2.2
+/ ARIA APG fundamentals rather than the VS-Code-source-internal draft
+(`AccessibleContentProvider`, `CONTEXT_ACCESSIBILITY_MODE_ENABLED`,
+references to specific VS Code PRs) that was removed for claiming general
+applicability it didn't have.
 
 ### `tools/{lint,build,deploy}/`
 Standalone per-language lint/build/deploy utility scripts — not started.
