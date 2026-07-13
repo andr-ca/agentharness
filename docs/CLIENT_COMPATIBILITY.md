@@ -1,9 +1,10 @@
 # Client Compatibility Matrix
 
 What each major agentic coding tool reads for always-on project
-instructions and on-demand skills, and what this harness currently does
-about it. Researched from each tool's public documentation as of
-2026-07-14 — **not verified against a live session of any tool except
+instructions, on-demand skills, and custom-agent/sub-agent delegation,
+and what this harness currently does about it. Researched from each
+tool's public documentation as of 2026-07-14 (custom-agent section:
+2026-07-13) — **not verified against a live session of any tool except
 Claude Code.** Treat every other row's "built" claim the same way this
 repo already treats its Codex support: implemented against the tool's
 published behavior, not dogfooded end-to-end. See
@@ -56,6 +57,41 @@ every mode) is the one action with the widest payoff — six tools
 recognize that exact directory as a compatibility path today. Cursor is
 the outlier requiring a genuinely different mechanism.
 
+## Custom agents / sub-agent delegation
+
+A third dimension, distinct from the two tables above: several tools let
+a **primary agent delegate a task to a separate, specialized agent
+instance** — its own system prompt, its own tool/model scope, running in
+its own thread — rather than just switching the current agent's
+instructions or loading a skill's body inline. Claude Code's own
+`.claude/agents/*.md` + the Task/Agent tool (`subagent_type`) is the
+origin case this table is framed against. Researched 2026-07-13, same
+caveat as the rest of this document (public docs only, not verified
+against a live session) — one row below carries an extra confidence flag
+where a primary source couldn't be confirmed directly.
+
+| Tool | Mechanism | Config format | Delegation? | This repo |
+|---|---|---|---|---|
+| Claude Code | Subagents via the Task/Agent tool (`subagent_type`) | `.claude/agents/*.md` (Markdown + YAML frontmatter: name, description, tools, model) | ✅ true delegation — separate thread, restricted tools/model | ❌ none defined — `.claude/agents/` is listed in `ROADMAP.md` as not started |
+| Codex CLI | Subagents | `.codex/agents/` or `~/.codex/agents/` (TOML: name, description, developer_instructions, model, mcp_servers) | ✅ true delegation — separate threads, per-agent token budget, up to 6 parallel by default | ❌ none defined |
+| OpenCode | Custom Agents | `.opencode/agents/*.md` (Markdown + YAML) or `opencode.json` | ✅ true delegation — auto-invoke by a primary agent, manual `@mention`, or the Task tool | ❌ none defined |
+| Cursor | Subagents | `.cursor/agents/*.md` (YAML: name, description, model, readonly, is_background) | ✅ true delegation — parallel threads, optional async/background execution | ❌ none defined |
+| Kilo Code | Custom Subagents | `.kilo/agents/*.md`, `~/.config/kilo/agents/`, or `kilo.jsonc`'s `agent` section | ✅ true delegation — Task-tool auto-invoke or manual `@agent-name`; `permission.task` scopes which subagents a primary agent may call | ❌ none defined |
+| Antigravity | Custom agents over the A2A (Agent2Agent) protocol | Unconfirmed — the A2A protocol itself is real and Google-authored (<https://a2a-protocol.org>), but Antigravity's own custom-agent config format couldn't be confirmed from a primary doc (its docs page returned no substantive content on fetch) | ✅ claimed — bidirectional agent-to-agent handoffs | ❌ none defined; **lower confidence than the rest of this table** |
+| GitHub Copilot | Agent Profiles | `.github/agents/*.agent.md` (YAML frontmatter + Markdown) | ❌ persona-only — different prompt/tool/MCP scoping, still one agent, no spawning | — no delegation capability to target |
+| Gemini CLI | Subagents | `.gemini/agents/*.md` (YAML frontmatter) | ❌ explicitly blocked — docs state subagents cannot call other subagents | — no delegation capability to target |
+| Zed | Agent profiles | `settings.json`'s `agent.profiles` | ❌ persona/tool-scope switch only, no inter-profile invocation | — no delegation capability to target |
+
+**Practical read:** five tools (Claude Code, Codex CLI, OpenCode, Cursor,
+Kilo Code) support genuine task delegation to a separate specialized
+agent — structurally close enough that a single agent definition could
+plausibly be ported across them, the same relationship `.claude/skills/`
+has to `.agents/skills/`. Copilot, Gemini CLI, and Zed only offer persona
+switching for the *same* agent — there's nothing to port delegation
+*to* on those three. This repo has no custom subagents defined for any
+tool yet (see `ROADMAP.md`); the table above describes what each tool
+*could* receive, not something built and dogfooded here today.
+
 ## Distinctive per-tool mechanisms worth knowing
 
 - **Cursor's four activation modes** (`.mdc` frontmatter): `alwaysApply:
@@ -95,3 +131,14 @@ research-agent transcripts; representative sources:
 - Antigravity: <https://developers.googleblog.com/build-with-google-antigravity-our-new-agentic-development-platform/>
 - Zed: <https://zed.dev/docs/ai/instructions>, <https://github.com/zed-industries/zed/discussions/36609>
 - Kilo Code: <https://kilo.ai/docs/customize/skills>, <https://kilo.ai/docs/customize/custom-rules>
+
+Custom-agent/sub-agent delegation section researched 2026-07-13:
+
+- Codex CLI subagents: <https://learn.chatgpt.com/docs/agent-configuration/subagents>
+- OpenCode agents: <https://opencode.ai/docs/agents/>
+- Cursor subagents: <https://cursor.com/docs/context/subagents>
+- Kilo Code custom subagents: <https://kilo.ai/docs/customize/custom-subagents>
+- GitHub Copilot agent profiles: <https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/create-custom-agents>
+- Gemini CLI subagents: <https://geminicli.com/docs/core/subagents/>
+- Zed agent profiles: <https://zed.dev/docs/ai/agent-profiles> (page unavailable at fetch time; corroborated via <https://github.com/zed-industries/zed/discussions/35956>)
+- A2A protocol (Antigravity's underlying claim): <https://a2a-protocol.org/latest/>, <https://github.com/a2aproject/A2A> — Antigravity's own custom-agent config format is unconfirmed; treat that one row as directional, not sourced

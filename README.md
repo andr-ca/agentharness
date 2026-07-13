@@ -103,6 +103,18 @@ Each generator is a manual-regeneration script
 `harness-link.sh init` — see each platform's section in
 `docs/INTEGRATION.md` for the exact recipe.
 
+The table above is always-on instructions + on-demand skills only. A
+third, separate dimension — **custom agents that a primary agent can
+delegate a task to** (Claude Code's own `.claude/agents/*.md` + Task
+tool is the origin case) — isn't covered by any of the generators above
+and isn't built here at all yet: `.claude/agents/` is listed in
+`ROADMAP.md` as not started. Five of the nine researched tools (Claude
+Code, Codex CLI, OpenCode, Cursor, Kilo Code) support genuine
+delegation to a separate agent instance; Copilot, Gemini CLI, and Zed
+only offer persona/tool-scope switching for the same agent, not
+delegation. See `docs/CLIENT_COMPATIBILITY.md`'s "Custom agents /
+sub-agent delegation" section for the full per-tool table and sources.
+
 **Supported platforms:** Linux and macOS (Bash scripts, POSIX shell
 conditionals, `bats-core` for shell tests). Windows is untested; WSL
 should work but hasn't been verified.
