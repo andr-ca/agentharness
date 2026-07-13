@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Content-quality gate (P1-08): catches structural doc/content bugs that
 markdown-links and markdownlint don't — bad YAML, malformed skill
-frontmatter, and syntax errors in the two docs whose Python examples are
+frontmatter, syntax errors in the two docs whose Python examples are
 explicitly maintained as tested, runnable reference implementations (not
 every illustrative snippet in the repo — most are deliberately partial
-pseudocode, and syntax-checking those would just be noise).
+pseudocode, and syntax-checking those would just be noise), and
+duplicate-policy detection (B7): the same numeric mandate restated with a
+*different* number somewhere outside its source of truth.
 """
 
 from __future__ import annotations
@@ -14,8 +16,15 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import TypedDict
 
 import yaml
+
+
+class PolicyRegistryEntry(TypedDict):
+    name: str
+    source_rel: str
+    topic_word: re.Pattern[str]
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -30,10 +39,53 @@ PYTHON_SNIPPET_SOURCES = [
 
 FRONTMATTER_RE = re.compile(r"\A---\n(.*?\n)---\n", re.DOTALL)
 PYTHON_FENCE_RE = re.compile(r"```python\n(.*?)```", re.DOTALL)
+ANY_FENCE_RE = re.compile(r"```.*?```|~~~.*?~~~", re.DOTALL)
+
+# B7: duplicate-policy detection. Registry of (name, source-of-truth file,
+# topic word) triples for numeric mandates this repo has *actually*
+# drifted on before (the coverage floor was independently reconciled from
+# a 79%/75%/80% three-way conflict — see CHANGELOG.md's v0.1.0 entry).
+#
+# Deliberately NOT "flag any percentage near the topic word" — a first
+# pass at that flagged .claude/skills/agentic-loops/SKILL.md's "(100%
+# coverage)" as a mandate conflict, when it's actually describing that
+# one file's *measured* test result, not restating what the mandate
+# requires. And a stricter "flag any restatement without a nearby
+# cross-reference" design was rejected too:
+# patterns/testing/COMPLETION_CHECKLIST.md alone legitimately repeats
+# "80%" a dozen times as checklist shorthand, none of it wrong, and
+# flagging every occurrence would be almost pure noise (the
+# ~15-false-positive risk ROADMAP.md's prior analysis already named).
+#
+# What's left, cheap to get right, and unambiguous: a number near the
+# topic word AND near a *mandate-signal* word/symbol (minimum, required,
+# floor, at least, below, >=, <) — "80% coverage minimum" and "coverage
+# drops below 80%" both count; "(100% coverage)" describing a measured
+# result does not, because nothing near it signals a requirement.
+DUPLICATE_POLICY_REGISTRY: list[PolicyRegistryEntry] = [
+    {
+        "name": "test coverage percentage mandate",
+        "source_rel": "patterns/testing/COVERAGE_REQUIREMENTS.md",
+        "topic_word": re.compile(r"coverage", re.IGNORECASE),
+    },
+]
+
+_PERCENT_RE = re.compile(r"\b(\d{1,3})%")
+_MANDATE_SIGNAL_RE = re.compile(
+    r"minimum|floor|required?|requirement|mandatory|at least|no less than"
+    r"|>=|<=?|below|must\s+(?:have|be|reach)",
+    re.IGNORECASE,
+)
+
+# Historical/generated/fixture content isn't live policy prose — scanning
+# it would just surface old snapshots and illustrative examples as if they
+# were current, contradictory policy.
+DUPLICATE_POLICY_EXCLUDED_DIR_PREFIXES = ("docs/operational/", "examples/")
+DUPLICATE_POLICY_EXCLUDED_FILENAMES = {"MANIFEST.md", "AGENTS.md", "CHANGELOG.md"}
 
 
 def find_yaml_files() -> list[Path]:
-    files = []
+    files: list[Path] = []
     for pattern in ("*.yaml", "*.yml"):
         files.extend(REPO_ROOT.rglob(pattern))
     return [f for f in files if ".git" not in f.parts]
@@ -50,7 +102,7 @@ def check_yaml_files() -> list[str]:
 
 
 def check_skill_frontmatter() -> list[str]:
-    errors = []
+    errors: list[str] = []
     skills_dir = REPO_ROOT / ".claude/skills"
     if not skills_dir.is_dir():
         return errors
@@ -103,6 +155,68 @@ def check_python_snippets() -> list[str]:
     return errors
 
 
+def _strip_fences(text: str) -> str:
+    # Fenced code blocks (```...``` / ~~~...~~~) can legitimately contain
+    # illustrative "wrong" numbers — e.g. README.md's before/after example
+    # of two projects' drifted CLAUDE.md snippets — that aren't this
+    # repo's actual live policy and shouldn't be scanned as if they were.
+    return ANY_FENCE_RE.sub("", text)
+
+
+def _extract_mandate_numbers(text: str, topic_word: re.Pattern[str]) -> set[str]:
+    # A percentage counts as a mandate statement only if BOTH the topic
+    # word (e.g. "coverage") and a mandate-signal word/symbol (minimum,
+    # required, below, >=, ...) appear on the SAME line as it — see the
+    # registry comment above for why a bare "N% <topic>" isn't enough on
+    # its own. Scoped to a single line rather than a character window
+    # around the match: a character window bled across adjacent list
+    # items in testing, e.g. COMPLETION_CHECKLIST.md's "- [ ] Coverage >=
+    # 80% (minimum requirement)" immediately followed by "- [ ] Strive for
+    # 90%+ coverage" — a window wide enough to reach "minimum requirement"
+    # from the 90% line would have wrongly flagged the aspirational
+    # "strive for" stretch goal as a conflicting mandate. Scoping to
+    # single lines trades a few missed same-file legitimate mentions that
+    # happen to wrap across lines (never counted, never flagged either —
+    # safe failure mode) for zero false conflicts from a neighboring line.
+    numbers = set()
+    for line in text.split("\n"):
+        if not (topic_word.search(line) and _MANDATE_SIGNAL_RE.search(line)):
+            continue
+        for match in _PERCENT_RE.finditer(line):
+            numbers.add(match.group(1))
+    return numbers
+
+
+def check_duplicate_policy_numbers(scan_root: Path = REPO_ROOT) -> list[str]:
+    errors = []
+    for entry in DUPLICATE_POLICY_REGISTRY:
+        source_path = scan_root / entry["source_rel"]
+        if not source_path.is_file():
+            errors.append(f"{entry['source_rel']}: expected source-of-truth file not found")
+            continue
+        source_numbers = _extract_mandate_numbers(_strip_fences(source_path.read_text()), entry["topic_word"])
+
+        for md_file in sorted(scan_root.rglob("*.md")):
+            if ".git" in md_file.parts or md_file == source_path:
+                continue
+            rel = md_file.relative_to(scan_root)
+            rel_str = str(rel)
+            if rel_str.startswith(DUPLICATE_POLICY_EXCLUDED_DIR_PREFIXES):
+                continue
+            if md_file.name in DUPLICATE_POLICY_EXCLUDED_FILENAMES:
+                continue
+
+            found_numbers = _extract_mandate_numbers(_strip_fences(md_file.read_text()), entry["topic_word"])
+            conflicting = found_numbers - source_numbers
+            if conflicting:
+                errors.append(
+                    f"{rel_str}: states {entry['name']} as {sorted(conflicting)}, "
+                    f"but {entry['source_rel']} (source of truth) says "
+                    f"{sorted(source_numbers)} — fix the restatement or update the source"
+                )
+    return errors
+
+
 def check_agents_md_sync() -> list[str]:
     # P2-02: AGENTS.md is generated from CLAUDE.md + .claude/skills/ by
     # tools/generate-agents-md.sh, not hand-maintained — the same drift
@@ -133,6 +247,7 @@ def main() -> int:
     errors += check_yaml_files()
     errors += check_skill_frontmatter()
     errors += check_python_snippets()
+    errors += check_duplicate_policy_numbers()
     errors += check_agents_md_sync()
 
     if errors:

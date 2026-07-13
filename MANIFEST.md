@@ -114,7 +114,8 @@ generator script yet (see ROADMAP.md).
 | Scheduled link check | `.github/workflows/link-check-scheduled.yml` | workflow | Weekly online external-link validation, separate from the offline PR gate (P1-08) |
 | Release workflow | `.github/workflows/release.yml` | workflow | Runs `npm publish` on a `v*` tag push; inert until `NPM_TOKEN` secret exists (P2-03) |
 | Markdownlint config | `.markdownlint-cli2.yaml` | config | Rules enforced in CI's content-quality job; documents why purely-stylistic rules are off (P1-08) |
-| Content-quality checker | `tools/verify-content-quality.py` | script | YAML validity, skill frontmatter schema, tested-snippet syntax (P1-08); also checks `AGENTS.md` sync (P2-02) |
+| Content-quality checker | `tools/verify-content-quality.py` | script | YAML validity, skill frontmatter schema, tested-snippet syntax (P1-08); `AGENTS.md` sync (P2-02); duplicate-policy number detection (B7) |
+| Duplicate-policy detection tests | `tools/tests/test_verify_content_quality.py` | tests | Tests for `check_duplicate_policy_numbers()` — real conflicts vs. measured-result/cross-reference/fenced-example false positives (B7) |
 | AGENTS.md generator | `tools/generate-agents-md.sh` | script | Builds the Codex adapter from `CLAUDE.md` + `.claude/skills/` (P2-02) |
 
 ## Meta
