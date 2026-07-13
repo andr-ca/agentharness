@@ -57,6 +57,10 @@ Documents ready to be promoted to harness or archived:
   per-item response to the re-audit above: scoped/low-risk items fixed
   directly, larger product-direction items scoped and put to the user for
   confirmation before implementation.
+- `reviews/pr9-16-comments-status.md` — disposition of review-comment
+  findings that were missed on PRs #9–#15 (merged on CI status alone,
+  before `CLAUDE.md` required checking comments too) plus the one Copilot
+  found on PR #16 itself, which added that requirement.
 
 ## 📚 Archives
 
