@@ -14,6 +14,7 @@ their structured sources.
 from __future__ import annotations
 
 import ast
+import os
 import re
 import subprocess
 import sys
@@ -112,11 +113,18 @@ DUPLICATE_POLICY_EXCLUDED_DIR_PREFIXES = ("docs/operational/", "examples/")
 DUPLICATE_POLICY_EXCLUDED_FILENAMES = {"MANIFEST.md", "AGENTS.md", "CHANGELOG.md"}
 
 
+# Generated/dependency/venv trees a developer might have on disk locally
+# (gitignored, so not tracked content) but that rglob() would still walk
+# into — scanning them is pure noise at best and a slow/broken run at
+# worst (e.g. node_modules can contain thousands of unrelated YAML files).
+_YAML_SCAN_EXCLUDED_DIR_NAMES = {".git", "node_modules", "venv", ".venv", "__pycache__"}
+
+
 def find_yaml_files() -> list[Path]:
     files: list[Path] = []
     for pattern in ("*.yaml", "*.yml"):
         files.extend(REPO_ROOT.rglob(pattern))
-    return [f for f in files if ".git" not in f.parts]
+    return [f for f in files if not _YAML_SCAN_EXCLUDED_DIR_NAMES & set(f.parts)]
 
 
 def check_yaml_files() -> list[str]:
@@ -198,13 +206,20 @@ def _display_path(path: Path) -> str:
 def _bash_syntax_error(script: str) -> str | None:
     # -n is syntax-check-only — never executes the script (the recipes
     # here do real things like `git submodule add` or `touch`, which must
-    # never run as a side effect of linting docs).
+    # never run as a side effect of linting docs). BASH_ENV is explicitly
+    # cleared: a non-interactive bash normally sources it on startup
+    # (verified this build's `bash -n` doesn't actually execute it, but
+    # that's an implementation detail of one bash version, not a
+    # documented guarantee) — this checker shouldn't depend on whatever
+    # happens to be in the invoking environment's BASH_ENV.
+    env = {**os.environ, "BASH_ENV": ""}
     result = subprocess.run(
         ["bash", "-n"],
         input=script,
         capture_output=True,
         text=True,
         check=False,
+        env=env,
     )
     if result.returncode != 0:
         return result.stderr.strip()

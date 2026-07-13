@@ -19,6 +19,13 @@ teardown() {
     rm -rf "$TEST_PROJECT"
 }
 
+# sha256sum isn't available by default on macOS (it uses `shasum` instead)
+# — python3 is already a hard requirement for harness-link.sh itself, so
+# it's a portable hash implementation both linux and macOS actually have.
+file_hash() {
+    python3 -c "import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())" "$1"
+}
+
 @test "harness-link.sh: help message shows usage" {
     run bash "$SCRIPT" -h
     [ "$status" -eq 0 ]
@@ -180,14 +187,14 @@ print('importable')
     run bash "$SCRIPT" "$TEST_PROJECT" --with-hook
     [ "$status" -eq 0 ]
     initial_links=$(find "$TEST_PROJECT/.claude" -type l | sort)
-    initial_gitignore=$(sha256sum "$TEST_PROJECT/.gitignore" | cut -d' ' -f1)
+    initial_gitignore=$(file_hash "$TEST_PROJECT/.gitignore")
     initial_hooks_path=$(git -C "$TEST_PROJECT" config core.hooksPath)
 
     # Run again
     run bash "$SCRIPT" "$TEST_PROJECT" --with-hook
     [ "$status" -eq 0 ]
     final_links=$(find "$TEST_PROJECT/.claude" -type l | sort)
-    final_gitignore=$(sha256sum "$TEST_PROJECT/.gitignore" | cut -d' ' -f1)
+    final_gitignore=$(file_hash "$TEST_PROJECT/.gitignore")
     final_hooks_path=$(git -C "$TEST_PROJECT" config core.hooksPath)
 
     [ "$initial_links" = "$final_links" ]
