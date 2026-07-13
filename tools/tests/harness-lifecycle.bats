@@ -27,6 +27,22 @@ teardown() {
     true
 }
 
+# GNU coreutils' 'timeout' isn't available on stock macOS — use python3
+# (already a hard requirement of this harness) for a portable hang-guard
+# instead, so a test asserting "this completes, doesn't hang" works the
+# same on Linux CI and a contributor's Mac.
+run_with_timeout() {
+    local seconds="$1"
+    shift
+    python3 -c "
+import subprocess, sys
+try:
+    sys.exit(subprocess.run(sys.argv[2:], timeout=float(sys.argv[1])).returncode)
+except subprocess.TimeoutExpired:
+    sys.exit(124)
+" "$seconds" "$@"
+}
+
 @test "lifecycle: init writes a state file with mode, source, and skills" {
     bash "$SCRIPT" init "$TEST_PROJECT" --skills committing,branching
 
@@ -572,7 +588,7 @@ print(d['source']['revision'])
     DOGFOOD_TARGET="$harness_root/tmp-dogfood-target-$$"
     mkdir -p "$DOGFOOD_TARGET"
 
-    run timeout 30 bash "$SCRIPT" init "$DOGFOOD_TARGET" --mode npm --skills agentic-loops
+    run run_with_timeout 30 bash "$SCRIPT" init "$DOGFOOD_TARGET" --mode npm --skills agentic-loops
     [ "$status" -eq 0 ]
     [ -d "$DOGFOOD_TARGET/.agentharness-pkg" ]
     # The durable copy must not contain itself nested inside a copy of
