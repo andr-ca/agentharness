@@ -91,30 +91,6 @@ follow the same template.
   environment variable interpolation. Documentation integrated into
   `LOGGING_STANDARDS.md`.
 
-<<<<<<< HEAD
-- **Profile-enforcement wiring in `.github/hooks/pre-push`.** Not started.
-  `patterns/profiles/` defines `.agentharness-profile` (prototype/internal/
-  production) as a lookup a project or agent can consult, but no script
-  reads it yet. The hook currently only ever runs *this* repo's own
-  hardcoded test suites and no-ops for a consumer's push, so there's
-  nothing for a profile to gate there today. Wiring this up depends on
-  the hook (or a successor lifecycle CLI) first learning to discover and
-  run a *consumer's own* test suite — do both together, not the gate
-  alone with nothing real to enforce.
-
-- **Duplicate-policy detection in CI (part of P1-08).** Not started.
-  The rest of P1-08's content-quality gate is implemented (`git diff
-  --check`, markdownlint, YAML/frontmatter validation, tested-snippet
-  syntax checks — see `.github/workflows/ci.yml`'s `content-quality` job).
-  Automated detection of the *same rule restated with a different number*
-  across docs (this repo's actual "one source of truth per rule" bug
-  class) is deliberately deferred until after P1-10 consolidates the
-  testing/logging policy docs — building the detector first would either
-  need to hard-fail on ~15 pre-existing, legitimate cross-references
-  (e.g. "80%" appearing in files that correctly link back to
-  `COVERAGE_REQUIREMENTS.md` rather than restating the rule) or be too
-  narrowly allow-listed to catch anything new.
-=======
 - **Profile-enforcement wiring in `.github/hooks/pre-push`, and
   non-Python enforcement.** Partially done. `harness-link.sh
   enforce-profile` (B4) reads `.agentharness-profile` and gates on it
@@ -161,4 +137,3 @@ follow the same template.
   the harness's default trust model), not a scoped fix — see
   `docs/operational/reviews/gpt-5.6-completion-reaudit-status.md` for the
   scoping question posed to the user before any change is made.
->>>>>>> origin/main

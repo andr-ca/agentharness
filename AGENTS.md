@@ -23,21 +23,6 @@ This file is loaded into every session that touches this repo. Keep it
 short — everything else is one link away. Full index: [MANIFEST.md](MANIFEST.md).
 Planned-but-not-built: [ROADMAP.md](ROADMAP.md).
 
-<<<<<<< HEAD
-### 🤖 Agent Workflow Completion (MANDATORY)
-
-**When an agent finishes work on a task, it MUST always complete the workflow:**
-
-1. ✅ **Verify all work is done** — tests pass, coverage meets the applicable rigor tier (see `.github/CODING_GUIDELINES.md#rigor-tiers`), lint passes, no TODOs
-2. ✅ **Create atomic commits** — one logical unit per commit, clear message explaining WHY
-3. ✅ **Push to remote** — push branch to origin with tracking (`git push -u origin branch-name`)
-4. ✅ **Create pull request** — use `gh pr create` with title, body summary, and checklist
-5. ✅ **Never leave work uncommitted** — work in progress that isn't pushed is work that doesn't exist
-
-**An agent claiming work is "complete" without a PR/commit is incomplete.** Always finish the workflow.
-
-### 🔍 Agent Recommendation Assessment (MANDATORY)
-=======
 ### 🤖 Agent Workflow Completion
 
 **Default (no publish authority): verify and stage, then stop.**
@@ -70,23 +55,16 @@ see `docs/DECISIONS.md` for why this replaced the old always-on default,
 and `docs/INTEGRATION.md` for how to create/remove it.
 
 ### 🔍 Agent Recommendation Assessment
->>>>>>> origin/main
 
 **When an agent is asked to address/review/look into recommendations:**
 
 1. **Assess each item** — evaluate positive vs. negative impact (complexity, effort, risk, benefit)
 2. **Scoped, low-risk fixes** — a bug fix, a correctness/security fix with one
    clear resolution, closing a gap in something already built:
-<<<<<<< HEAD
-   - ✅ Implement directly, regardless of effort. Follow the normal
-     commit/push/PR workflow above. Don't ask permission for these —
-     assessing and then fixing a clear bug *is* the job.
-=======
    - ✅ Implement directly, regardless of effort — don't ask permission to
      *fix* it. Whether the fix gets **published** still follows the
      Agent Workflow Completion default above (verify + stage, or full
      publish if authorized).
->>>>>>> origin/main
 3. **Anything larger** — a new subsystem, a product-direction decision
    (target users, supported clients, distribution model), an architecture
    change, or a recommendation batch that amounts to a roadmap rather than
@@ -116,14 +94,10 @@ and `docs/INTEGRATION.md` for how to create/remove it.
 deliberately. Complexity is not a reason to decline a scoped fix — but
 silently treating an unbounded backlog as blanket authorization turns
 "assess recommendations" into unrequested product decisions the user
-<<<<<<< HEAD
-never actually signed off on.
-=======
 never actually signed off on. The same logic applies one level up: a
 mandate that grants an agent standing remote-write authority by default
 is itself a product-direction decision the user should make explicitly,
 not inherit silently from a template — see "Publish authority" above.
->>>>>>> origin/main
 
 ---
 

@@ -12,11 +12,6 @@
 
 ## Summary
 
-<<<<<<< HEAD
-Since the `43604a7` snapshot, the entire P1 backlog (P1-06 through
-P1-14) was implemented, verified locally, and confirmed green on hosted
-CI for every push:
-=======
 **Scope note (added 2026-07-13 per the independent re-audit below):** "the
 entire P1 backlog" in this section's original title means specifically
 the P1-06–P1-14 slice — it does not cover P1-01 through P1-05. P1-02
@@ -29,7 +24,6 @@ full current disposition of every backlog item, including P1-01–P1-05.
 Since the `43604a7` snapshot, the P1-06–P1-14 slice of the P1 backlog
 was implemented, verified locally, and confirmed green on hosted CI for
 every push:
->>>>>>> origin/main
 
 | Item | What shipped |
 |---|---|
@@ -76,11 +70,6 @@ the safe half now, write up the rest as options.
 - **P2-08:** README gained a one-line positioning subtitle and a "Why
   not just CLAUDE.md?" section.
 
-<<<<<<< HEAD
-## P2 items — expanded scope, now implemented
-
-**Timestamp:** 2026-07-12T22:10:00Z
-=======
 ## P2 items — expanded scope, built to their respective boundaries
 
 **Timestamp:** 2026-07-12T22:10:00Z
@@ -95,7 +84,6 @@ published package, real evaluation results) the original review asked
 for. See
 `docs/operational/reviews/gpt-5.6-completion-reaudit-status.md` for the
 precise per-item verdicts.
->>>>>>> origin/main
 
 After the options memo below was written, the user reviewed it and chose
 the most ambitious option for all four remaining items. Given the size

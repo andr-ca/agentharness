@@ -14,9 +14,6 @@
 #   status    Show what's currently installed (from .agentharness-state.json).
 #   doctor    Validate the current install is healthy; nonzero exit if not.
 #   audit     Report drift: newly available/removed skills, source commits
-<<<<<<< HEAD
-#             since install. --json for machine-readable output (CI/scripting).
-=======
 #             since install; the target's selected profile and whether
 #             its publish-authority flag is active (B5); whether the
 #             recorded harness checkout's own validation commands still
@@ -31,7 +28,6 @@
 #             types report "not implemented yet" and exit 0 rather than
 #             falsely passing or blocking. Not wired into pre-push
 #             automatically; invoke it explicitly, same as audit/doctor.
->>>>>>> origin/main
 #   update    Re-sync an existing install to the current harness state.
 #   uninstall Reverse everything 'init' recorded.
 #
@@ -67,11 +63,7 @@ usage() {
 Usage: $(basename "$0") <subcommand> [target-project-dir] [OPTIONS]
        $(basename "$0") <target-project-dir> [OPTIONS]   (legacy: same as init)
 
-<<<<<<< HEAD
-Subcommands: init, plan, status, doctor, audit, update, uninstall
-=======
 Subcommands: init, plan, status, doctor, audit, enforce-profile, update, uninstall
->>>>>>> origin/main
 
 init options:
   --mode link|copy|submodule   Install mode (default: link)
@@ -94,10 +86,7 @@ Examples:
   $(basename "$0") status ~/my-project
   $(basename "$0") doctor ~/my-project
   $(basename "$0") audit ~/my-project --json
-<<<<<<< HEAD
-=======
   $(basename "$0") enforce-profile ~/my-project
->>>>>>> origin/main
   $(basename "$0") update ~/my-project --yes
   $(basename "$0") uninstall ~/my-project
 EOF
@@ -620,15 +609,6 @@ cmd_audit() {
         commits_since="$(git -C "$source_path" log --oneline "$source_rev..$current_rev" -- .claude/skills patterns languages 2>/dev/null | head -20 || true)"
     fi
 
-<<<<<<< HEAD
-    # --json (P2-01): machine-readable form of the same drift this
-    # subcommand already computes, for CI or scripted consumption instead
-    # of parsing the human-readable text below.
-    if [ "$json" = true ]; then
-        python3 - "$target" "$source_path" "$source_rev" "$current_rev" "$rev_comparable" \
-            "$(printf '%s\n' "${not_installed[@]}")" "$(printf '%s\n' "${no_longer_available[@]}")" \
-            "$commits_since" <<'PYEOF'
-=======
     # B5: expanded audit scope, reusing B1/B4/B7 rather than building new
     # detection logic for each.
     #
@@ -674,16 +654,12 @@ cmd_audit() {
         python3 - "$target" "$source_path" "$source_rev" "$current_rev" "$rev_comparable" \
             "$(printf '%s\n' "${not_installed[@]}")" "$(printf '%s\n' "${no_longer_available[@]}")" \
             "$commits_since" "$publish_mode_active" "$selected_profile" "$validation_report" <<'PYEOF'
->>>>>>> origin/main
 import json
 import sys
 
 target, source_path, source_rev, current_rev, rev_comparable = sys.argv[1:6]
 not_installed_raw, no_longer_available_raw, commits_raw = sys.argv[6:9]
-<<<<<<< HEAD
-=======
 publish_mode_active, selected_profile, validation_raw = sys.argv[9:12]
->>>>>>> origin/main
 
 
 def lines(s):
@@ -692,8 +668,6 @@ def lines(s):
 
 not_installed = lines(not_installed_raw)
 no_longer_available = lines(no_longer_available_raw)
-<<<<<<< HEAD
-=======
 
 validation_commands = []
 for line in lines(validation_raw):
@@ -704,7 +678,6 @@ for line in lines(validation_raw):
         "executable": executable == "true",
     })
 
->>>>>>> origin/main
 print(json.dumps({
     "target": target,
     "source_path": source_path,
@@ -715,12 +688,9 @@ print(json.dumps({
     "installed_not_available": no_longer_available,
     "drift": bool(not_installed or no_longer_available),
     "commits_since_install": lines(commits_raw),
-<<<<<<< HEAD
-=======
     "publish_mode_active": publish_mode_active == "true",
     "selected_profile": selected_profile,
     "validation_commands": validation_commands,
->>>>>>> origin/main
 }, indent=2))
 PYEOF
         return
@@ -745,8 +715,6 @@ PYEOF
     else
         echo "Source revision unchanged or not comparable ($source_rev)."
     fi
-<<<<<<< HEAD
-=======
 
     echo ""
     echo "Selected profile: $selected_profile"
@@ -844,7 +812,6 @@ cmd_enforce_profile() {
         pytest_args+=("--cov=$target" "--cov-fail-under=$coverage_min")
     fi
     (cd "$target" && python3 -m pytest "${pytest_args[@]}")
->>>>>>> origin/main
 }
 
 # ----------------------------------------------------------------------------
@@ -1062,11 +1029,7 @@ cmd_uninstall() {
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     case "${1:-}" in
-<<<<<<< HEAD
-        init|plan|status|doctor|audit|update|uninstall)
-=======
         init|plan|status|doctor|audit|enforce-profile|update|uninstall)
->>>>>>> origin/main
             cmd="$1"; shift
             ;;
         -h|--help)
@@ -1083,9 +1046,6 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
             ;;
     esac
 
-<<<<<<< HEAD
-    "cmd_$cmd" "$@"
-=======
     # cmd_$cmd would break for "enforce-profile" (hyphen doesn't match the
     # underscore-named function) — translate explicitly instead of
     # renaming the function to something inconsistent with the rest.
@@ -1094,5 +1054,4 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
         *) cmd_fn="cmd_$cmd" ;;
     esac
     "$cmd_fn" "$@"
->>>>>>> origin/main
 fi

@@ -138,8 +138,6 @@ print('ok')
     [[ "$output" =~ "ok" ]]
 }
 
-<<<<<<< HEAD
-=======
 @test "lifecycle: audit --json reports publish_mode_active, selected_profile, and validation_commands (B5)" {
     bash "$SCRIPT" init "$TEST_PROJECT" --skills committing --profile internal
     touch "$TEST_PROJECT/.agentharness-publish-mode"
@@ -229,7 +227,6 @@ print('ok')
     [[ "$output" =~ "verify-content-quality.py" ]]
 }
 
->>>>>>> origin/main
 @test "lifecycle: update adds newly-in-scope skills and refreshes the state file" {
     bash "$SCRIPT" init "$TEST_PROJECT" --skills committing
     # Simulate "install was set to track all skills, and a new one has since

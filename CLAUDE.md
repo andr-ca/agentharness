@@ -21,9 +21,6 @@ Planned-but-not-built: [ROADMAP.md](ROADMAP.md).
   standing file the same way rigor-tier precedence already works (see
   `patterns/profiles/README.md#precedence-order`).
 
-<<<<<<< HEAD
-## 🔍 Agent Recommendation Assessment (MANDATORY)
-=======
 Under full publish authority, the original mandate applies as written:
 push to remote with tracking, create a PR with `gh pr create`, and never
 leave verified work uncommitted-and-unpushed — an agent claiming work is
@@ -39,23 +36,16 @@ see `docs/DECISIONS.md` for why this replaced the old always-on default,
 and `docs/INTEGRATION.md` for how to create/remove it.
 
 ## 🔍 Agent Recommendation Assessment
->>>>>>> origin/main
 
 **When an agent is asked to address/review/look into recommendations:**
 
 1. **Assess each item** — evaluate positive vs. negative impact (complexity, effort, risk, benefit)
 2. **Scoped, low-risk fixes** — a bug fix, a correctness/security fix with one
    clear resolution, closing a gap in something already built:
-<<<<<<< HEAD
-   - ✅ Implement directly, regardless of effort. Follow the normal
-     commit/push/PR workflow above. Don't ask permission for these —
-     assessing and then fixing a clear bug *is* the job.
-=======
    - ✅ Implement directly, regardless of effort — don't ask permission to
      *fix* it. Whether the fix gets **published** still follows the
      Agent Workflow Completion default above (verify + stage, or full
      publish if authorized).
->>>>>>> origin/main
 3. **Anything larger** — a new subsystem, a product-direction decision
    (target users, supported clients, distribution model), an architecture
    change, or a recommendation batch that amounts to a roadmap rather than
@@ -85,14 +75,10 @@ and `docs/INTEGRATION.md` for how to create/remove it.
 deliberately. Complexity is not a reason to decline a scoped fix — but
 silently treating an unbounded backlog as blanket authorization turns
 "assess recommendations" into unrequested product decisions the user
-<<<<<<< HEAD
-never actually signed off on.
-=======
 never actually signed off on. The same logic applies one level up: a
 mandate that grants an agent standing remote-write authority by default
 is itself a product-direction decision the user should make explicitly,
 not inherit silently from a template — see "Publish authority" above.
->>>>>>> origin/main
 
 ---
 

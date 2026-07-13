@@ -41,14 +41,6 @@ Documents ready to be promoted to harness or archived:
 - `reviews/pr4-comments-status.md` — disposition and verification record for
   PR #4's review-comment fixes and later coverage/pre-push work.
 - `reviews/gpt-5.6-p1-p2-followup-status.md` — completion status for the
-<<<<<<< HEAD
-  entire P1 backlog (P1-06 through P1-14), the confirmed-scope half of
-  the P2 batch, and (as of 2026-07-12T22:10:00Z) the remaining four P2
-  product-direction items (P2-02, P2-03, P2-04, P2-06), which the user
-  chose the most ambitious option for after reviewing the doc's original
-  options memo (kept in the same file for the record). P2-05 (real
-  dogfooding) remains a non-coding item, not tracked as a build task.
-=======
   P1-06–P1-14 slice of the P1 backlog, the confirmed-scope half of the P2
   batch, and (as of 2026-07-12T22:10:00Z) the remaining four P2
   product-direction items (P2-02, P2-03, P2-04, P2-06), which the user
@@ -65,7 +57,6 @@ Documents ready to be promoted to harness or archived:
   per-item response to the re-audit above: scoped/low-risk items fixed
   directly, larger product-direction items scoped and put to the user for
   confirmation before implementation.
->>>>>>> origin/main
 
 ## 📚 Archives
 
