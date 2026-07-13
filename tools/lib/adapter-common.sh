@@ -45,6 +45,19 @@ frontmatter_field() {
         | sed -E 's/^"(.*)"$/\1/'
 }
 
+# Escapes a value for safe embedding inside a YAML double-quoted scalar
+# (backslash first, then double quote — reversing the order would
+# double-escape the backslashes this same call just inserted). Every
+# generator that re-embeds a frontmatter value extracted by
+# frontmatter_field()/skill_description() into a NEW double-quoted
+# frontmatter field (Copilot's applyTo/description, Cursor's description)
+# must pass it through this first — a source description containing a
+# literal `"` (quoting an example prompt, say) would otherwise produce
+# invalid YAML in the generated file.
+yaml_dquote_escape() {
+    printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+}
+
 # Extracts a SKILL.md's frontmatter `description:` value — the same
 # metadata every Agent-Skills-compliant client reads before deciding
 # whether to load a skill's full body.

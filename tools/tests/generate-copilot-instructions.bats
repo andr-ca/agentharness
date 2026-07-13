@@ -37,6 +37,17 @@ setup() {
     done
 }
 
+@test "generate-copilot-instructions: every generated instructions file's frontmatter is valid YAML (regression: unescaped quotes in applyTo/description)" {
+    bash "$SCRIPT" "$HARNESS_ROOT" --output-dir "$BATS_TEST_TMPDIR"
+    for instructions_md in "$BATS_TEST_TMPDIR"/.github/instructions/*.instructions.md; do
+        run python3 -c "
+import yaml
+yaml.safe_load(open('$instructions_md').read().split('---')[1])
+"
+        [ "$status" -eq 0 ]
+    done
+}
+
 @test "generate-copilot-instructions: committed files match the generator's current output" {
     # Regression guard duplicating check_copilot_instructions_sync() in
     # tools/verify-content-quality.py so a local 'bats' run alone catches
