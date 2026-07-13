@@ -115,6 +115,8 @@ against your project on every push, gated on whatever
 `patterns/` are conventions an agent (or a human) is expected to follow
 — nothing mechanically stops anyone from ignoring them. See the
 README's "Advisory vs. enforced" section for the exact boundary, and
-`docs/operational/reviews/gpt-5.6-completion-reaudit-status.md` (P0-03)
-for the open question about how much default authority an agent gets
-once it's read `CLAUDE.md`.
+`docs/DECISIONS.md`'s "Publish authority split from workflow completion"
+entry for how much default authority an agent gets once it's read
+`CLAUDE.md` — resolved (P0-03): verify-and-stage by default, with full
+push/PR authority gated behind the opt-in `.agentharness-publish-mode`
+flag.

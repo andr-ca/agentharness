@@ -26,7 +26,9 @@ harness, not a completed measurement. See `tools/eval/README.md`.
 
 ## npm as the low-friction distribution channel, published as agentharness-toolkit
 
-**Status:** Settled on the channel and package name; publish itself in progress.
+**Status:** Settled and shipped — published to npm as `agentharness-toolkit`
+(first release `v0.2.0`); see Consequences for the two one-time manual
+resolutions the first publish needed.
 
 **Context:** `harness-link.sh init --mode submodule` already gives a
 pinned install path, but "clone this repo first" is friction compared to

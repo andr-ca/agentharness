@@ -192,13 +192,16 @@ label by the review filename cited next to it, never by number alone.
   unsupported. Proposed: runner adapters with explicit commands and
   machine-readable results for Go plus one mainstream JS runner, and a
   `--strict` flag so CI can fail on "unsupported" instead of passing.
-- **P1-03 — Fix profile/workflow documentation drift.** Several concrete
-  contradictions found: `.github/CODING_GUIDELINES.md` calls profile
+- **P1-03 — Fix profile/workflow documentation drift.** The four concrete
+  contradictions are now **fixed** (verified by hand against ground truth
+  — `package.json`/tags, `enforce-profile`,
+  `patterns/profiles/README.md`):
+  `.github/CODING_GUIDELINES.md` calls profile
   enforcement "advisory only" (false — see `enforce-profile`);
   `docs/DEMO.md` calls the authority model an "open question" (settled,
   see B1 above); `docs/RELEASING.md` names `v0.1.0` as current (superseded
   by `v0.2.0`); `docs/DECISIONS.md` describes npm publishing as
-  simultaneously "in progress" and completed. Proposed: a generated
+  simultaneously "in progress" and completed. Still open: a generated
   current-capabilities table (client × install mode × enforcement ×
   distribution × verification) plus targeted contradiction tests — the
   numeric-only duplicate detector (B7) can't catch these semantic
