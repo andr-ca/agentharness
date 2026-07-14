@@ -10,8 +10,9 @@ list):
 - **typescript/** – `CONVENTIONS.md`
 - **python/** – `README.md`, `CONVENTIONS.md`, `COPILOT_INSTRUCTIONS.md`
 - **go/** – `CONVENTIONS.md`
+- **rust/** – `CONVENTIONS.md`
 
-Other languages (Rust, Java, …) aren't built yet — see
+Other languages (Java, …) aren't built yet — see
 [ROADMAP.md](../ROADMAP.md) before assuming one exists.
 
 ## 📦 What a Language Directory Can Contain

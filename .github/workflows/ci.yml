@@ -46,12 +46,20 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          # Hermetic submodule tests clone this checkout into a local bare
+          # remote; the pin/rollback case needs full history + the v0.1.0
+          # tag, so fetch everything (P1-05).
+          fetch-depth: 0
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.x"
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: "20"
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: "1.21"
       # enforce-profile.bats' JS/TS cases need `node --test --experimental-test-coverage`
       # (stable flag spelling since Node 18.15/19.7, present through 20+).
       - name: Install bats-core (pinned tag, no sudo — installs to a runner-local prefix on PATH)
@@ -74,16 +82,22 @@ jobs:
         run: bats tools/tests/harness-link.bats
       - name: Run harness lifecycle CLI tests
         run: bats tools/tests/harness-lifecycle.bats
+      - name: Run lifecycle transition tests
+        run: bats tools/tests/lifecycle-transitions.bats
       - name: Run AGENTS.md generator tests
         run: bats tools/tests/generate-agents-md.bats
       - name: Run MANIFEST.md generator tests
         run: bats tools/tests/generate-manifest.bats
       - name: Run symlink materializer tests
         run: bats tools/tests/materialize-skill-symlinks.bats
+      - name: Run skill-symlink integrity tests
+        run: bats tools/tests/verify-skill-symlinks.bats
       - name: Run publish-authority flag tests
         run: bats tools/tests/publish-authority.bats
       - name: Run enforce-profile tests
         run: bats tools/tests/enforce-profile.bats
+      - name: Run generate-clients tests
+        run: bats tools/tests/generate-clients.bats
 
   python-tests:
     runs-on: ubuntu-latest
@@ -171,6 +185,8 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Verify MANIFEST.md against actual files
         run: bash tools/verify-manifest.sh
+      - name: Verify skill symlinks (.claude/skills <-> .agents/skills)
+        run: bash tools/verify-skill-symlinks.sh
 
   sample-project-integration:
     runs-on: ubuntu-latest

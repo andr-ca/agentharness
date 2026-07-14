@@ -12,6 +12,7 @@ list):
 - **testing/** – TDD, coverage, Playwright, completion checklist
 - **logging/** – Logging standards + example config + loader
 - **profiles/** – Rigor-tier profiles (prototype/internal/production)
+- **accessibility/** – Cross-framework WCAG 2.2 AA / ARIA baseline
 
 Other pattern categories (API design, …) aren't built yet — see
 [ROADMAP.md](../ROADMAP.md) before assuming one exists.

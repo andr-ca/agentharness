@@ -8,6 +8,8 @@ Guides for understanding and using the agentharness repository.
 - **[CLAUDE.md](../CLAUDE.md)** – agent-facing router and mandatory rules
 - **[MANIFEST.md](../MANIFEST.md)** – full index of every real asset
 - **[ROADMAP.md](../ROADMAP.md)** – what's planned but not built
+- **[STATUS.md](./STATUS.md)** – current state at a glance (what works today)
+- **[KNOWN_LIMITATIONS.md](./KNOWN_LIMITATIONS.md)** – open gaps and caveats
 - **[CHANGELOG.md](../CHANGELOG.md)** – release history
 - **[SECURITY.md](../SECURITY.md)** – secrets-in-history procedure
 - **[INTEGRATION.md](./INTEGRATION.md)** – symlink/copy/submodule methods, per-component steps
@@ -19,8 +21,8 @@ Guides for understanding and using the agentharness repository.
 1. Read the main README for what exists today.
 2. Run `tools/setup/harness-link.sh` (see INTEGRATION.md) or follow the
    manual steps there.
-3. Reference `languages/python/` for conventions (only language
-   available today).
+3. Reference `languages/` for conventions (Python, TypeScript, Go, and
+   Rust available today).
 
 ### "I want to improve my coding practices"
 1. Check `.github/CODING_GUIDELINES.md` — start with the Rigor Tiers
@@ -46,8 +48,8 @@ Guides for understanding and using the agentharness repository.
 |-----------|--------|---------|
 | `.claude/` | [README](../.claude/README.md) | Claude Code skills |
 | `frameworks/` | [README](../frameworks/README.md) | Placeholder — no framework content built yet |
-| `languages/` | [README](../languages/README.md) | Language conventions (Python only so far) |
-| `patterns/` | [README](../patterns/README.md) | Reusable patterns (testing, logging) |
+| `languages/` | [README](../languages/README.md) | Language conventions (Python, TypeScript, Go, Rust) |
+| `patterns/` | [README](../patterns/README.md) | Reusable patterns (testing, logging, error-handling, agentic-loops, profiles, accessibility) |
 | `tools/` | [README](../tools/README.md) | Utility scripts |
 | `.github/hooks/` | [README](../.github/hooks/README.md) | Git hooks |
 

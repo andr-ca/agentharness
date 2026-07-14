@@ -29,6 +29,7 @@ they drift (`check_manifest_md_sync()` in `tools/verify-content-quality.py`).
 | Python agent instructions | `languages/python/COPILOT_INSTRUCTIONS.md` | guide | General-purpose agent operating principles for Python repos |
 | TypeScript conventions | `languages/typescript/CONVENTIONS.md` | guide | Naming, type safety for `.ts` / `.tsx` files (React specifics are a separate framework add-on) |
 | Go conventions | `languages/go/CONVENTIONS.md` | guide | Naming, concurrency, interfaces, testing for `.go` files |
+| Rust conventions | `languages/rust/CONVENTIONS.md` | guide | Naming, unwrap/expect by rigor tier, error-crate choice, unsafe policy, testing for `.rs` files |
 | React conventions | `frameworks/react/CONVENTIONS.md` | guide | Component naming, props typing — layered on top of the TypeScript guide |
 
 ## Testing & Quality Patterns
@@ -36,7 +37,7 @@ they drift (`check_manifest_md_sync()` in `tools/verify-content-quality.py`).
 | Asset | Path | Type | When to use |
 |---|---|---|---|
 | Rigor tiers | `.github/CODING_GUIDELINES.md#rigor-tiers` | policy | **Read first** — decides which mandates below actually apply to the code you're writing |
-| Rigor-tier profiles | `patterns/profiles/README.md` | guide | Selecting a tier via `.agentharness-profile`, precedence order, current enforcement state (Python and JS/TS via `enforce-profile`, advisory for other project types/runners) |
+| Rigor-tier profiles | `patterns/profiles/README.md` | guide | Selecting a tier via `.agentharness-profile`, precedence order, current enforcement state (Python, Go, and JS/TS `node --test`/Vitest via `enforce-profile`, advisory for other project types/runners) |
 | Prototype profile | `patterns/profiles/prototype.yaml` | config | Machine-readable form of the Rigor Tiers table's Prototype column |
 | Internal profile | `patterns/profiles/internal.yaml` | config | Machine-readable form of the Rigor Tiers table's Internal Tool column |
 | Production profile | `patterns/profiles/production.yaml` | config | Machine-readable form of the Rigor Tiers table's Production Service column |
@@ -44,6 +45,7 @@ they drift (`check_manifest_md_sync()` in `tools/verify-content-quality.py`).
 | Coverage requirements | `patterns/testing/COVERAGE_REQUIREMENTS.md` | policy | Single source of truth for the 80% coverage tiers — other docs link here, don't restate |
 | Completion checklist | `patterns/testing/COMPLETION_CHECKLIST.md` | checklist | Before marking any task done |
 | Playwright UI testing | `patterns/testing/PLAYWRIGHT_UI_TESTING.md` | guide | Web UI work at Production tier only |
+| Accessibility patterns | `patterns/accessibility/README.md` | guide | Cross-framework WCAG 2.2 AA / ARIA baseline — semantic HTML, keyboard, contrast, custom-widget roles, testing |
 
 ## Error Handling & Reliability
 
@@ -101,8 +103,9 @@ they drift (`check_manifest_md_sync()` in `tools/verify-content-quality.py`).
 
 | Asset | Path | Type | When to use |
 |---|---|---|---|
-| Harness lifecycle CLI | `tools/setup/harness-link.sh` | script | init/plan/status/doctor/audit/enforce-profile/update/uninstall; link/copy/submodule modes; state tracked in `<project>/.agentharness-state.json` |
-| Local check entrypoint | `tools/check.sh` | script | Runs every check CI runs (shellcheck, bats, ruff, mypy, pytest+coverage, manifest verify) in one command (P1-06) |
+| Harness lifecycle CLI | `tools/setup/harness-link.sh` | script | init/plan/status/doctor/audit/enforce-profile/generate-clients/update/uninstall; link/copy/submodule modes; state tracked in `<project>/.agentharness-state.json` |
+| Local check entrypoint | `tools/check.sh` | script | Runs every check CI runs (shellcheck, bats, ruff, mypy, pytest+coverage, manifest verify, skill-symlink integrity) in one command (P1-06) |
+| Skill-symlink verifier | `tools/verify-skill-symlinks.sh` | script | Verifies `.agents/skills/` stays 1:1 with `.claude/skills/` — every Agent-Skills-standard tool (Codex, Copilot, Gemini, ...) reads the symlinks, so drift silently hides a skill from them while Claude still sees it |
 | Pinned dev/CI toolchain | `requirements-dev.txt` | config | Exact pinned versions of pytest/ruff/mypy/etc. — `pip install -r requirements-dev.txt` (P1-06) |
 | Sample project | `examples/sample-project/` | project | Blank/generic fixture; demonstrates harness integration, validates INTEGRATION.md commands work |
 | Integration verification | `examples/sample-project/verify.sh` | script | Checks that skills, hooks, and guidelines are properly integrated |
@@ -163,6 +166,8 @@ they drift (`check_manifest_md_sync()` in `tools/verify-content-quality.py`).
 | Client compatibility matrix (always-on instructions + on-demand skills, per agentic tool) | `docs/CLIENT_COMPATIBILITY.md` | doc |
 | 5-minute scripted demo (real commands, real output) | `docs/DEMO.md` | doc |
 | Planned-but-not-built components | `ROADMAP.md` | doc |
+| Current status (what works today, single snapshot) | `docs/STATUS.md` | doc |
+| Known limitations (open gaps and caveats, single list) | `docs/KNOWN_LIMITATIONS.md` | doc |
 | Release history | `CHANGELOG.md` | doc |
 | Release policy (versioning, checklist, pin/upgrade/rollback) | `docs/RELEASING.md` | doc |
 | Security / secrets procedure | `SECURITY.md` | doc |

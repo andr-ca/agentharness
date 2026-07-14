@@ -58,23 +58,22 @@ for these frameworks. `frameworks/react/CONVENTIONS.md` is implemented
 `languages/typescript/CONVENTIONS.md` so the language guide isn't
 React-specific.
 
-### `languages/{rust,java,...}/`
+### `languages/{java,...}/`
 Additional language convention guides, following the shape of the
-existing `languages/{python,typescript,go}/`. Python, TypeScript, and Go
-are implemented; Rust and others are not started.
+existing `languages/{python,typescript,go,rust}/`. Python, TypeScript,
+Go, and Rust are implemented; Java and others are not started.
 
-### `patterns/{api-design,accessibility}/`
+### `patterns/{api-design}/`
 Additional pattern categories, following the shape of the existing
-`patterns/{testing,logging,agentic-loops,error-handling,profiles}/`.
-Those five exist today; API design and accessibility are not started.
+`patterns/{testing,logging,agentic-loops,error-handling,profiles,accessibility}/`.
+Those six exist today; API design is not started.
 
-A genuine cross-framework accessibility pattern doc is a real gap — an
-earlier draft (`accessibility.instructions.md`) was removed because it
-was entirely VS Code source-internal (`AccessibleContentProvider`,
-`CONTEXT_ACCESSIBILITY_MODE_ENABLED`, references to specific VS Code
-PRs) despite claiming general applicability. A real version needs to be
-written from ARIA/WCAG fundamentals, not adapted from one codebase's
-internal APIs.
+The cross-framework accessibility pattern that used to be a gap here is
+now **built** (`patterns/accessibility/README.md`), written from WCAG 2.2
+/ ARIA APG fundamentals rather than the VS-Code-source-internal draft
+(`AccessibleContentProvider`, `CONTEXT_ACCESSIBILITY_MODE_ENABLED`,
+references to specific VS Code PRs) that was removed for claiming general
+applicability it didn't have.
 
 ### `tools/{lint,build,deploy}/`
 Standalone per-language lint/build/deploy utility scripts — not started.
@@ -156,7 +155,10 @@ follow the same template.
   against and letting friction surface over real use, then feeding
   findings back. Tracked here so it isn't silently dropped between status
   snapshots; see
-  `docs/operational/reviews/gpt-5.6-completion-reaudit-status.md`.
+  `docs/operational/reviews/gpt-5.6-completion-reaudit-status.md`. An
+  executable plan + tracking template now exists at
+  `docs/operational/planning/DOGFOODING.md`; the run itself is still the
+  (user-triggered) open item.
 
 - ~~P0-03's remote-write authorization model is unresolved.~~ —
   **IMPLEMENTED** (B1). `CLAUDE.md`'s Agent Workflow Completion section
@@ -189,32 +191,34 @@ label by the review filename cited next to it, never by number alone.
 
 ### P1 — coherence and maintainability
 
-- **P1-01 — Client entry point beyond skill directories.** `init` never
-  installs/generates a project `CLAUDE.md`/`AGENTS.md`/`GEMINI.md`/etc.
-  router or wires language/framework/pattern guides into a consumer
-  project — only skills, `.gitignore`, hooks, profile, and state. The
-  cross-platform-parity work (`docs/CLIENT_COMPATIBILITY.md`) already
-  built the reusable building blocks this item would call —
-  `tools/generate-{agents,gemini}-md.sh`, `generate-copilot-instructions.sh`,
-  `generate-kilo-rules.sh`, `generate-cursor-rules.sh` — each currently a
-  manual, per-project regeneration step (see `docs/INTEGRATION.md`), not
-  wired into `init`/`update` itself. Proposed: `--client
-  claude|codex|gemini|copilot|kilo|cursor|all` invoking the matching
-  generator(s) into the consumer project with stable relative references,
-  tracked through state/update/doctor/uninstall via marked managed blocks
-  so user-owned project instructions are never overwritten.
-- **P1-02 — Complete profile enforcement for mainstream projects.** Go
-  and non-`node --test` JS/TS runners (Vitest/Jest/Mocha) still exit 0 as
-  unsupported. Proposed: runner adapters with explicit commands and
-  machine-readable results for Go plus one mainstream JS runner, and a
-  `--strict` flag so CI can fail on "unsupported" instead of passing.
-- **P1-03 — Fix profile/workflow documentation drift.** Several concrete
-  contradictions found: `.github/CODING_GUIDELINES.md` calls profile
+- **P1-01 — Client entry point beyond skill directories.** **First
+  increment done:** a `harness-link.sh generate-clients <project>
+  [--client codex|gemini|copilot|cursor|kilo|all]` subcommand now runs the
+  matching adapter generators into a consumer project in one command
+  (previously a per-generator manual step — see `docs/INTEGRATION.md`).
+  Ships standalone, the same posture `enforce-profile` did. Still open
+  (the larger managed-block part): wiring generation into `init`/`update`
+  itself, tracking generated files through state/doctor/uninstall via
+  marked managed blocks so user-owned project instructions are never
+  overwritten, and wiring language/framework/pattern guides in too.
+- **P1-02 — Complete profile enforcement for mainstream projects.**
+  Largely **done**: `enforce-profile` now has real runner adapters for
+  **Go** (`go test -coverprofile` + `go tool cover`) and **Vitest**
+  (`coverage-summary.json`), plus a **`--strict`** flag that turns an
+  unsupported project/runner into a failure instead of a non-blocking
+  exit 0. Still open: Jest and Mocha adapters, and wiring
+  `enforce-profile` into `.github/hooks/pre-push` (its own decision — see
+  `patterns/profiles/README.md`).
+- **P1-03 — Fix profile/workflow documentation drift.** The four concrete
+  contradictions are now **fixed** (verified by hand against ground truth
+  — `package.json`/tags, `enforce-profile`,
+  `patterns/profiles/README.md`):
+  `.github/CODING_GUIDELINES.md` calls profile
   enforcement "advisory only" (false — see `enforce-profile`);
   `docs/DEMO.md` calls the authority model an "open question" (settled,
   see B1 above); `docs/RELEASING.md` names `v0.1.0` as current (superseded
   by `v0.2.0`); `docs/DECISIONS.md` describes npm publishing as
-  simultaneously "in progress" and completed. Proposed: a generated
+  simultaneously "in progress" and completed. Still open: a generated
   current-capabilities table (client × install mode × enforcement ×
   distribution × verification) plus targeted contradiction tests — the
   numeric-only duplicate detector (B7) can't catch these semantic
@@ -226,19 +230,22 @@ label by the review filename cited next to it, never by number alone.
   on-disk backup `materialize` itself creates, not from Git, and test
   against an isolated fixture.
 - **P1-05 (this review's numbering) — Make tests hermetic by default.**
-  Submodule lifecycle tests clone the checkout's configured `origin`
-  (live SSH GitHub dependency in the shared checkout); the Go scorer
-  assumes a writable default Go cache; markdown lint may invoke `npx`
-  network resolution. Proposed: a local bare fixture remote for submodule
-  tests, temporary language caches inside the harness, and a
-  `check:offline` split from any check that genuinely needs the network.
+  **Done:** submodule lifecycle tests now clone a local bare remote
+  (`setup_local_bare_remote`, via the new `AGENTHARNESS_SUBMODULE_REMOTE`
+  override) instead of the network `origin`; the Go eval scorer pins
+  `GOCACHE`/`GOPATH` inside its scratch dir; and `tools/check.sh
+  --offline` (or `CHECK_OFFLINE=1`) skips the one `npx`-fetching step. The
+  enforce-profile Go tests also pin `GOCACHE` per-test.
 - **P1-06 — Test lifecycle transitions, not just happy-state snapshots.**
-  The hook-ownership defect (fixed as P0-01) survived because tests
-  checked init and uninstall in isolation, not sequences with external
-  state changes between them. Proposed: state-machine tests for install
-  → user modification → doctor → update → uninstall across hook
-  conflict, moved source, partial install, removed skill, profile edit,
-  package upgrade, and repeated uninstall.
+  **Started:** `tools/tests/lifecycle-transitions.bats` adds state-machine
+  sequences — the full init→status→doctor→update→doctor→uninstall→status
+  chain, repeated uninstall, user-file preservation across uninstall,
+  break-then-re-init heal, mid-run profile edit, and hook
+  install→uninstall restore. Still open: moved-source and package-upgrade
+  transitions, and broader partial-install matrices. (The hook-ownership
+  defect fixed as P0-01 survived because tests checked init and uninstall
+  only in isolation, never as a sequence with external state changes
+  between them.)
 - **P1-07 — Make `update` previews match the documentation.** Docs claim
   copy-mode `update` "shows a diff"; current output only lists changed
   skill names (`~ content changed upstream`), no content diff. Proposed:
@@ -279,7 +286,10 @@ label by the review filename cited next to it, never by number alone.
   outside the core package, pinned model/prompt versions, multiple seeds,
   recorded cost/turns/context/test score, published raw results, and
   tasks that test policy adherence and instruction conflicts, not just
-  final code correctness.
+  final code correctness. **Scaffolded:** `tools/eval/.env.sample`
+  provides the live-run env template (API key + optional model/cost
+  ceiling); `invoke_agent_via_api` is still deliberately unimplemented
+  (spends real money — a user-triggered step).
 - **P2-02 (this review's numbering) — Dogfood in real repositories.**
   Same substance as the already-tracked "P2-05 (real dogfood) has no
   target" entry above (different review's numbering, same gap): adopt a
@@ -292,6 +302,9 @@ label by the review filename cited next to it, never by number alone.
   irrelevant-skill avoidance, rule precedence, refusal to publish without
   authority, existing-hook preservation, and resistance to malicious
   instruction changes — named as the product's actual differentiator.
+  **Scaffolded:** `tools/eval/README.md`'s "Instruction-quality evals"
+  section documents the task shapes; the deterministic action/transcript
+  scorer they need isn't built yet.
 - **P2-04 (this review's numbering) — Add a policy provenance model.**
   For each normative rule: owner/source, rationale, applicability,
   enforcement mechanism, last review date, as structured data (the

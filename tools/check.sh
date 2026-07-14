@@ -3,7 +3,7 @@
 # check.sh — one entrypoint for every check CI runs (P1-06)
 # ============================================================================
 #
-# Usage: bash tools/check.sh
+# Usage: bash tools/check.sh [--offline]
 #
 # Runs, in order: shellcheck (if installed), bats suites, ruff, mypy,
 # pytest with coverage gates, MANIFEST.md verification, and the P1-08
@@ -23,6 +23,14 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
+
+# --offline (or CHECK_OFFLINE=1) skips the one step that may reach the
+# network — markdownlint via `npx --yes` fetching markdownlint-cli2 on a
+# cold cache (P1-05). Everything else here is already local.
+OFFLINE="${CHECK_OFFLINE:-0}"
+for arg in "$@"; do
+    [ "$arg" = "--offline" ] && OFFLINE=1
+done
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -48,6 +56,9 @@ bats tools/tests/harness-link.bats
 step "bats: tools/tests/harness-lifecycle.bats"
 bats tools/tests/harness-lifecycle.bats
 
+step "bats: tools/tests/lifecycle-transitions.bats"
+bats tools/tests/lifecycle-transitions.bats
+
 step "bats: tools/tests/generate-agents-md.bats"
 bats tools/tests/generate-agents-md.bats
 
@@ -57,11 +68,17 @@ bats tools/tests/generate-manifest.bats
 step "bats: tools/tests/materialize-skill-symlinks.bats"
 bats tools/tests/materialize-skill-symlinks.bats
 
+step "bats: tools/tests/verify-skill-symlinks.bats"
+bats tools/tests/verify-skill-symlinks.bats
+
 step "bats: tools/tests/publish-authority.bats"
 bats tools/tests/publish-authority.bats
 
 step "bats: tools/tests/enforce-profile.bats"
 bats tools/tests/enforce-profile.bats
+
+step "bats: tools/tests/generate-clients.bats"
+bats tools/tests/generate-clients.bats
 
 step "ruff"
 ruff check patterns/logging/config_loader.py patterns/logging/test_config_loader.py \
@@ -97,7 +114,12 @@ python3 -m pytest tools/tests/test_verify_content_quality.py -q
 step "MANIFEST.md verification"
 bash tools/verify-manifest.sh
 
-if command -v npx >/dev/null 2>&1; then
+step "skill symlink integrity (.claude/skills <-> .agents/skills)"
+bash tools/verify-skill-symlinks.sh
+
+if [ "$OFFLINE" = 1 ]; then
+    echo -e "${YELLOW}skipping markdownlint (--offline) — the only step that may fetch markdownlint-cli2 via npx; CI still runs it.${NC}"
+elif command -v npx >/dev/null 2>&1; then
     step "markdownlint"
     npx --yes markdownlint-cli2 "**/*.md"
 else

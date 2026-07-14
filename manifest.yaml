@@ -69,6 +69,10 @@ sections:
     path: languages/go/CONVENTIONS.md
     type: guide
     when_to_use: Naming, concurrency, interfaces, testing for `.go` files
+  - asset: Rust conventions
+    path: languages/rust/CONVENTIONS.md
+    type: guide
+    when_to_use: Naming, unwrap/expect by rigor tier, error-crate choice, unsafe policy, testing for `.rs` files
   - asset: React conventions
     path: frameworks/react/CONVENTIONS.md
     type: guide
@@ -87,7 +91,7 @@ sections:
   - asset: Rigor-tier profiles
     path: patterns/profiles/README.md
     type: guide
-    when_to_use: Selecting a tier via `.agentharness-profile`, precedence order, current enforcement state (Python and JS/TS via `enforce-profile`, advisory for other project types/runners)
+    when_to_use: Selecting a tier via `.agentharness-profile`, precedence order, current enforcement state (Python, Go, and JS/TS `node --test`/Vitest via `enforce-profile`, advisory for other project types/runners)
   - asset: Prototype profile
     path: patterns/profiles/prototype.yaml
     type: config
@@ -116,6 +120,10 @@ sections:
     path: patterns/testing/PLAYWRIGHT_UI_TESTING.md
     type: guide
     when_to_use: Web UI work at Production tier only
+  - asset: Accessibility patterns
+    path: patterns/accessibility/README.md
+    type: guide
+    when_to_use: Cross-framework WCAG 2.2 AA / ARIA baseline — semantic HTML, keyboard, contrast, custom-widget roles, testing
 - name: Error Handling & Reliability
   columns:
   - Asset
@@ -256,11 +264,15 @@ sections:
   - asset: Harness lifecycle CLI
     path: tools/setup/harness-link.sh
     type: script
-    when_to_use: init/plan/status/doctor/audit/enforce-profile/update/uninstall; link/copy/submodule modes; state tracked in `<project>/.agentharness-state.json`
+    when_to_use: init/plan/status/doctor/audit/enforce-profile/generate-clients/update/uninstall; link/copy/submodule modes; state tracked in `<project>/.agentharness-state.json`
   - asset: Local check entrypoint
     path: tools/check.sh
     type: script
-    when_to_use: Runs every check CI runs (shellcheck, bats, ruff, mypy, pytest+coverage, manifest verify) in one command (P1-06)
+    when_to_use: Runs every check CI runs (shellcheck, bats, ruff, mypy, pytest+coverage, manifest verify, skill-symlink integrity) in one command (P1-06)
+  - asset: Skill-symlink verifier
+    path: tools/verify-skill-symlinks.sh
+    type: script
+    when_to_use: Verifies `.agents/skills/` stays 1:1 with `.claude/skills/` — every Agent-Skills-standard tool (Codex, Copilot, Gemini, ...) reads the symlinks, so drift silently hides a skill from them while Claude still sees it
   - asset: Pinned dev/CI toolchain
     path: requirements-dev.txt
     type: config
@@ -453,6 +465,12 @@ sections:
     type: doc
   - asset: Planned-but-not-built components
     path: ROADMAP.md
+    type: doc
+  - asset: Current status (what works today, single snapshot)
+    path: docs/STATUS.md
+    type: doc
+  - asset: Known limitations (open gaps and caveats, single list)
+    path: docs/KNOWN_LIMITATIONS.md
     type: doc
   - asset: Release history
     path: CHANGELOG.md
