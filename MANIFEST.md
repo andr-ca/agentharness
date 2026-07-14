@@ -102,6 +102,11 @@ they drift (`check_manifest_md_sync()` in `tools/verify-content-quality.py`).
 | Requirements clarification | `.claude/skills/requirements-clarification/SKILL.md` | skill | Loads on demand before implementing ambiguous or underspecified features |
 | Code review | `.claude/skills/code-review/SKILL.md` | skill | Loads on demand when reviewing a diff or pull request |
 | API design | `.claude/skills/api-design/SKILL.md` | skill | Loads on demand when designing or reviewing REST or GraphQL APIs |
+| React best practices | `.claude/skills/react-best-practices/SKILL.md` | skill | Loads on demand when writing or reviewing React or Next.js code |
+| Database conventions | `.claude/skills/database-conventions/SKILL.md` | skill | Loads on demand when designing schemas, writing migrations, or reviewing SQL queries |
+| Docker conventions | `.claude/skills/docker-conventions/SKILL.md` | skill | Loads on demand when writing Dockerfiles or docker-compose files |
+| Dependency audit | `.claude/skills/dependency-audit/SKILL.md` | skill | Loads on demand when checking dependencies for vulnerabilities or updating packages |
+| Performance profiling | `.claude/skills/performance-profiling/SKILL.md` | skill | Loads on demand when diagnosing slow code, high memory, or CPU spikes |
 
 ## Custom Agents (task delegation to a separate agent instance — a different mechanism from skills, ported to Codex/OpenCode/Cursor/Kilo Code/Copilot/Gemini CLI)
 

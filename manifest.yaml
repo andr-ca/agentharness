@@ -283,6 +283,26 @@ sections:
     path: .claude/skills/api-design/SKILL.md
     type: skill
     when_to_use: Loads on demand when designing or reviewing REST or GraphQL APIs
+  - asset: React best practices
+    path: .claude/skills/react-best-practices/SKILL.md
+    type: skill
+    when_to_use: Loads on demand when writing or reviewing React or Next.js code
+  - asset: Database conventions
+    path: .claude/skills/database-conventions/SKILL.md
+    type: skill
+    when_to_use: Loads on demand when designing schemas, writing migrations, or reviewing SQL queries
+  - asset: Docker conventions
+    path: .claude/skills/docker-conventions/SKILL.md
+    type: skill
+    when_to_use: Loads on demand when writing Dockerfiles or docker-compose files
+  - asset: Dependency audit
+    path: .claude/skills/dependency-audit/SKILL.md
+    type: skill
+    when_to_use: Loads on demand when checking dependencies for vulnerabilities or updating packages
+  - asset: Performance profiling
+    path: .claude/skills/performance-profiling/SKILL.md
+    type: skill
+    when_to_use: Loads on demand when diagnosing slow code, high memory, or CPU spikes
 - name: Custom Agents (task delegation to a separate agent instance — a different mechanism from skills, ported to Codex/OpenCode/Cursor/Kilo Code/Copilot/Gemini CLI)
   columns:
   - Asset
