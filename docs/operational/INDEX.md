@@ -9,6 +9,7 @@ Currently being researched, developed, or planned:
 | Document | Status | Purpose | Location |
 |----------|--------|---------|----------|
 | Dogfooding plan | Not started | Executable plan + tracking template to get real-world evidence (P2-05/P2-02) | `planning/DOGFOODING.md` |
+| Skill recommendations | Analysis complete | Survey of up to 15 optional skills to add; analysis and prioritized recommendations only, no implementation yet | `skill-recommendations-2026-07-14.md` |
 
 ## 🔄 In-Progress Work
 
