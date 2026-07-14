@@ -85,7 +85,8 @@ This repo's own tooling is implemented, though: `tools/setup/harness-link.sh`
 
 ### Project bootstrap and deterministic policy engine
 
-**Designed and approved; implementation not started.** The permanent design
+**Designed, approved, and implementation-planned; implementation not started.**
+The permanent design
 specification is
 [`docs/superpowers/specs/2026-07-14-project-bootstrap-policy-design.md`](docs/superpowers/specs/2026-07-14-project-bootstrap-policy-design.md).
 It replaces ad-hoc expansion of `enforce-profile` with a planned Python core,
@@ -96,7 +97,10 @@ and changelog are first-class diff-aware capabilities in that design.
 
 The approved work is split into six delivery slices in the specification. None
 of those slices should be described as available until its own tests and
-dogfood acceptance criteria pass.
+dogfood acceptance criteria pass. The executable program starts at the
+[master implementation plan](docs/superpowers/plans/2026-07-14-project-bootstrap-policy-master-plan.md),
+and the [acceptance/evidence matrix](docs/superpowers/plans/2026-07-14-project-bootstrap-policy-acceptance-matrix.md)
+maps all 31 release criteria to planned code, tests, and durable proof.
 
 ### `.github/workflows/`
 Reusable CI workflows for consuming projects. Not started. This repo's own

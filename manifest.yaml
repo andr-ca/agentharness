@@ -457,6 +457,30 @@ sections:
   - asset: Project bootstrap and deterministic policy design (approved; not implemented)
     path: docs/superpowers/specs/2026-07-14-project-bootstrap-policy-design.md
     type: design specification
+  - asset: Project bootstrap implementation master plan (planned; not implemented)
+    path: docs/superpowers/plans/2026-07-14-project-bootstrap-policy-master-plan.md
+    type: implementation plan
+  - asset: Project bootstrap acceptance and evidence matrix
+    path: docs/superpowers/plans/2026-07-14-project-bootstrap-policy-acceptance-matrix.md
+    type: acceptance plan
+  - asset: Project bootstrap Slice 1 plan (core, schema, lifecycle, runtime)
+    path: docs/superpowers/plans/2026-07-14-project-bootstrap-policy-slice-1-core.md
+    type: implementation plan
+  - asset: Project bootstrap Slice 2 plan (plugin SDK and Python plugin)
+    path: docs/superpowers/plans/2026-07-14-project-bootstrap-policy-slice-2-plugins.md
+    type: implementation plan
+  - asset: Project bootstrap Slice 3 plan (policy compiler, gates, evidence)
+    path: docs/superpowers/plans/2026-07-14-project-bootstrap-policy-slice-3-policy.md
+    type: implementation plan
+  - asset: Project bootstrap Slice 4 plan (core quality modules and integrations)
+    path: docs/superpowers/plans/2026-07-14-project-bootstrap-policy-slice-4-quality.md
+    type: implementation plan
+  - asset: Project bootstrap Slice 5 plan (GitHub protection and completion)
+    path: docs/superpowers/plans/2026-07-14-project-bootstrap-policy-slice-5-github.md
+    type: implementation plan
+  - asset: Project bootstrap Slice 6 plan (dogfood and release proof)
+    path: docs/superpowers/plans/2026-07-14-project-bootstrap-policy-slice-6-dogfood.md
+    type: implementation plan
   - asset: Integration instructions
     path: docs/INTEGRATION.md
     type: doc
