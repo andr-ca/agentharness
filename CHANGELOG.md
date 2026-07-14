@@ -7,13 +7,46 @@ section into a tagged version.
 ## [Unreleased]
 
 ### Added
-- `harness-link.sh enforce-profile` now also gates JS/TS projects, not
-  just Python — narrowly scoped to projects whose `package.json`
-  `"test"` script already invokes Node's own built-in `node --test`
-  (the one JS/TS runner with a stable, dependency-free coverage output
-  this repo can parse). Jest/Vitest/Mocha/other runners get an honest
-  "isn't Node's built-in test runner" and exit 0, same "never falsely
-  block or pass" principle as the Python path.
+- `harness-link.sh enforce-profile` gates Python, Go, and JS/TS projects.
+  JS/TS covers Node's built-in `node --test` and Vitest
+  (`coverage-summary.json`); Go uses `go test -coverprofile` and
+  `go tool cover`. Jest/Mocha and unrecognized project types get an
+  honest "not implemented" and exit 0 — or fail under the new `--strict`
+  flag, so CI
+  can require full coverage of the projects it gates.
+- `harness-link.sh generate-clients <project> [--client …]` — runs the
+  client-adapter generators into a consumer project in one command
+  (AGENTS.md, GEMINI.md, Copilot, Cursor, Kilo) instead of the
+  per-generator manual steps (P1-01 first increment).
+- `tools/verify-skill-symlinks.sh` — verifies `.agents/skills/` stays 1:1
+  with `.claude/skills/`, so a missing/broken symlink can't silently hide
+  a skill from Agent-Skills-standard tools. Wired into `check.sh` + CI.
+- `languages/rust/CONVENTIONS.md` (Rust guide, plus generated
+  `rust.instructions.md`) and `patterns/accessibility/README.md` (a
+  WCAG 2.2 / ARIA baseline).
+- `docs/STATUS.md` and `docs/KNOWN_LIMITATIONS.md` — single current-state
+  and open-gaps entry points.
+- `tools/eval/.env.sample`, a documented instruction-quality (P2-03) eval
+  plan, and `docs/operational/planning/DOGFOODING.md` (dogfood plan +
+  tracking template).
+- `AGENTHARNESS_SUBMODULE_REMOTE` override and `tools/check.sh --offline`
+  for hermetic, network-free test runs (P1-05); lifecycle-transition
+  tests (P1-06).
+- Expanded worktree guidance (parallel-agent workflow, shared-hooks
+  caveat) in the `branching` skill + `BRANCHING_STRATEGY.md`.
+- Agent workflow: reviewers' comments must now be answered on the PR
+  thread with an assessment + action taken, not only in a commit message
+  or status file.
+
+### Changed
+- `enforce-profile` documentation corrected across `CODING_GUIDELINES.md`,
+  `patterns/profiles/README.md`, `STATUS.md`, and the compatibility
+  matrix to reflect the Go/Vitest/`--strict` reality.
+
+### Fixed
+- Four profile/workflow documentation contradictions (P1-03) and six
+  stale `docs/CLIENT_COMPATIBILITY.md` cells that marked built adapters
+  (Gemini/Copilot/Cursor/Kilo) as not existing yet.
 
 ## [0.2.0] - 2026-07-13
 
