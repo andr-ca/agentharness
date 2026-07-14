@@ -46,6 +46,10 @@ _CONTRACT_TIMEOUT_SECONDS = 30
 _MAX_CONTRACT_DEPTH = 8
 _MAX_CONTRACT_ITEMS = 64
 _MAX_CONTRACT_STRING_BYTES = 1024
+_DARWIN_EXECUTION_UNSUPPORTED = (
+    "Darwin candidate execution is unsupported without an enforceable "
+    "resource and process sandbox"
+)
 
 
 class UpgradePlanningError(RuntimeError):
@@ -440,25 +444,7 @@ def _sandbox_prefix(
         prefix.extend(("--bind", str(writable_dir), str(writable_dir), "--"))
         return tuple(prefix)
     if system == "Darwin":
-        sandbox_exec = _trusted_system_tool(Path("/usr/bin/sandbox-exec"))
-        readable_paths = (
-            *readonly_paths,
-            writable_dir,
-            Path("/usr"),
-            Path("/bin"),
-            Path("/System"),
-            Path("/Library"),
-        )
-        allowed_reads = " ".join(
-            f"(subpath {json.dumps(str(path))})" for path in readable_paths
-        )
-        profile_text = (
-            "(version 1)(deny default)(allow process*)"
-            f"(allow file-read* {allowed_reads})"
-            f"(allow file-write* (subpath {json.dumps(str(writable_dir))}))"
-            "(deny network*)"
-        )
-        return (str(sandbox_exec), "-p", profile_text)
+        raise CandidateContractError(_DARWIN_EXECUTION_UNSUPPORTED)
     raise CandidateContractError("required OS sandbox is unsupported")
 
 
@@ -655,6 +641,8 @@ def _run_verified_candidate(
     runtime: VerifiedArtifact,
     expected: RuntimeIdentity,
 ) -> tuple[str, ...]:
+    if platform.system() == "Darwin":
+        raise CandidateContractError(_DARWIN_EXECUTION_UNSUPPORTED)
     bootstrapper = _trusted_bootstrapper_path()
     if bootstrapper is None:
         raise CandidateContractError("trusted runtime bootstrapper is unavailable")

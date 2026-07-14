@@ -6,6 +6,7 @@ import hashlib
 import io
 import json
 import os
+import platform
 import shutil
 import socket
 import ssl
@@ -622,6 +623,40 @@ def test_candidate_resource_limit_discovery_fails_closed(
         runtime_upgrade._candidate_resource_limits(512)
 
 
+def test_darwin_candidate_execution_is_rejected_before_tool_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(runtime_upgrade.platform, "system", lambda: "Darwin")
+
+    def unexpected_tool_lookup(_path: Path) -> Path:
+        raise AssertionError("Darwin must reject before looking up sandbox-exec")
+
+    monkeypatch.setattr(runtime_upgrade, "_trusted_system_tool", unexpected_tool_lookup)
+
+    with pytest.raises(CandidateContractError, match="Darwin candidate execution"):
+        runtime_upgrade._sandbox_prefix(readonly_paths=(), writable_dir=Path("/tmp"))
+
+
+def test_darwin_plan_upgrade_never_launches_candidate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(runtime_upgrade.platform, "system", lambda: "Darwin")
+
+    def unexpected_discovery(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("Darwin must reject before tool discovery or launch")
+
+    for name in (
+        "_trusted_bootstrapper_path",
+        "_trusted_node",
+        "_trusted_system_tool",
+        "_run_bounded_process",
+    ):
+        monkeypatch.setattr(runtime_upgrade, name, unexpected_discovery)
+    with _fixture(tmp_path, monkeypatch, sandbox_stub=False) as fixture:
+        with pytest.raises(CandidateContractError, match="Darwin candidate execution"):
+            plan_upgrade(fixture.request)
+
+
 def test_rollback_restores_exact_base_lock(tmp_path: Path) -> None:
     active = tmp_path / "runtime.lock"
     base = tmp_path / "runtime.lock.base"
@@ -945,7 +980,7 @@ def test_atomic_rename_is_irreversible_after_consumer_observes_pair(
     } == observed
 
 
-def test_ci_requires_real_linux_and_macos_sandbox_contracts() -> None:
+def test_ci_requires_real_linux_sandbox_and_darwin_fail_closed_contracts() -> None:
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     sandbox_job = workflow.split("  runtime-upgrade-sandbox:", 1)[1].split(
         "\n  shellcheck:", 1
@@ -955,9 +990,12 @@ def test_ci_requires_real_linux_and_macos_sandbox_contracts() -> None:
     assert 'AGENTHARNESS_REQUIRE_SANDBOX_TEST: "1"' in sandbox_job
     assert "test_real_os_sandbox_blocks_host_writes_and_network" in sandbox_job
     assert (
-        "test_real_packed_base_runtime_plans_upgrade_without_source_checkout"
+        "test_real_packed_base_runtime_enforces_host_upgrade_policy_without_source_checkout"
         in sandbox_job
     )
+    assert "test_darwin_plan_upgrade_never_launches_candidate" in sandbox_job
+    assert "if: runner.os == 'Linux'" in sandbox_job
+    assert "if: runner.os == 'macOS'" in sandbox_job
 
 
 def test_linux_sandbox_ci_uses_narrow_bwrap_apparmor_profile() -> None:
@@ -1194,19 +1232,20 @@ def _seed_packaging_dependencies(snapshot: Path) -> None:
         shutil.copy2(source, cache / name)
 
 
-def test_real_packed_base_runtime_plans_upgrade_without_source_checkout(
+def test_real_packed_base_runtime_enforces_host_upgrade_policy_without_source_checkout(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    sandbox_probe = tmp_path / "sandbox-probe"
-    sandbox_probe.mkdir()
-    try:
-        runtime_upgrade._sandbox_prefix(
-            readonly_paths=(), writable_dir=sandbox_probe
-        )
-    except CandidateContractError as error:
-        if os.environ.get("AGENTHARNESS_REQUIRE_SANDBOX_TEST") == "1":
-            pytest.fail(str(error))
-        pytest.skip(str(error))
+    if platform.system() == "Linux":
+        sandbox_probe = tmp_path / "sandbox-probe"
+        sandbox_probe.mkdir()
+        try:
+            runtime_upgrade._sandbox_prefix(
+                readonly_paths=(), writable_dir=sandbox_probe
+            )
+        except CandidateContractError as error:
+            if os.environ.get("AGENTHARNESS_REQUIRE_SANDBOX_TEST") == "1":
+                pytest.fail(str(error))
+            pytest.skip(str(error))
     snapshot = _tracked_package_snapshot(tmp_path)
     _seed_packaging_dependencies(snapshot)
     packed_dir = tmp_path / "packed"
@@ -1297,5 +1336,10 @@ socket.getaddrinfo = _local_test_dns
             timeout=60,
         )
 
-    assert completed.returncode == 0, completed.stderr
-    assert json.loads(completed.stdout)["code"] == "runtime_upgrade_planned"
+    result = json.loads(completed.stdout)
+    if platform.system() == "Darwin":
+        assert completed.returncode == 1, completed.stderr
+        assert result["code"] == "runtime_upgrade_rejected"
+    else:
+        assert completed.returncode == 0, completed.stderr
+        assert result["code"] == "runtime_upgrade_planned"

@@ -60,13 +60,23 @@ jobs:
           python3 -m pip install --require-hashes --only-binary=:all: --no-deps -r requirements-ci-runtime.lock
           python3 -m pip install pytest==9.1.1
           bash tools/runtime/seed-runtime-artifacts.sh
-      - name: Prove candidate contracts cannot write to the host or use the network
+      - name: Prove Linux candidate isolation and packaged upgrade execution
+        if: runner.os == 'Linux'
         env:
           AGENTHARNESS_REQUIRE_SANDBOX_TEST: "1"
         run: |
           pytest \
             tests/integration/test_runtime_upgrade.py::test_real_os_sandbox_blocks_host_writes_and_network \
-            tests/integration/test_runtime_upgrade.py::test_real_packed_base_runtime_plans_upgrade_without_source_checkout \
+            tests/integration/test_runtime_upgrade.py::test_real_packed_base_runtime_enforces_host_upgrade_policy_without_source_checkout \
+            -v
+      - name: Prove Darwin candidate execution fails closed
+        if: runner.os == 'macOS'
+        env:
+          AGENTHARNESS_REQUIRE_SANDBOX_TEST: "1"
+        run: |
+          pytest \
+            tests/integration/test_runtime_upgrade.py::test_darwin_plan_upgrade_never_launches_candidate \
+            tests/integration/test_runtime_upgrade.py::test_real_packed_base_runtime_enforces_host_upgrade_policy_without_source_checkout \
             -v
 
   shellcheck:
