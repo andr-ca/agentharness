@@ -13,8 +13,9 @@ list):
 - **logging/** – Logging standards + example config + loader
 - **profiles/** – Rigor-tier profiles (prototype/internal/production)
 - **accessibility/** – Cross-framework WCAG 2.2 AA / ARIA baseline
+- **api-design/** – REST API conventions (resource naming, HTTP semantics, RFC 9457 errors, versioning, pagination, auth)
 
-Other pattern categories (API design, …) aren't built yet — see
+Other pattern categories remain unbuilt — see
 [ROADMAP.md](../ROADMAP.md) before assuming one exists.
 
 ## 📚 What a Pattern Directory Can Contain
