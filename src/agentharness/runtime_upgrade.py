@@ -512,16 +512,40 @@ def _current_user_task_count() -> int:
     return count
 
 
-def _apply_candidate_limits(process_limit: int) -> None:
-    resource.setrlimit(resource.RLIMIT_CPU, (10, 10))
-    file_size = 1024 * 1024 * 1024
-    resource.setrlimit(resource.RLIMIT_FSIZE, (file_size, file_size))
-    resource.setrlimit(resource.RLIMIT_NOFILE, (64, 64))
+def _candidate_resource_limits(
+    process_limit: int,
+) -> tuple[tuple[int, tuple[int, int]], ...]:
+    requested = [
+        (resource.RLIMIT_CPU, 10),
+        (resource.RLIMIT_FSIZE, 1024 * 1024 * 1024),
+        (resource.RLIMIT_NOFILE, 64),
+    ]
     if hasattr(resource, "RLIMIT_NPROC"):
-        resource.setrlimit(resource.RLIMIT_NPROC, (process_limit, process_limit))
-    address_space = 4 * 1024 * 1024 * 1024
+        requested.append((resource.RLIMIT_NPROC, process_limit))
     if hasattr(resource, "RLIMIT_AS"):
-        resource.setrlimit(resource.RLIMIT_AS, (address_space, address_space))
+        requested.append((resource.RLIMIT_AS, 4 * 1024 * 1024 * 1024))
+    planned: list[tuple[int, tuple[int, int]]] = []
+    try:
+        for resource_id, desired_soft in requested:
+            _current_soft, hard = resource.getrlimit(resource_id)
+            bounded_hard = (
+                desired_soft
+                if hard == resource.RLIM_INFINITY
+                else min(desired_soft, hard)
+            )
+            planned.append((resource_id, (bounded_hard, bounded_hard)))
+    except (OSError, ValueError) as error:
+        raise CandidateContractError(
+            "candidate resource limits are unavailable"
+        ) from error
+    return tuple(planned)
+
+
+def _apply_candidate_limits(
+    limits: tuple[tuple[int, tuple[int, int]], ...],
+) -> None:
+    for resource_id, limit in limits:
+        resource.setrlimit(resource_id, limit)
 
 
 def _kill_process_tree(process: subprocess.Popen[bytes]) -> None:
@@ -561,6 +585,7 @@ def _run_bounded_process(
     max_output_bytes: int,
 ) -> bytes:
     process_limit = _current_user_task_count() + 128
+    limits = _candidate_resource_limits(process_limit)
     try:
         process = subprocess.Popen(
             command,
@@ -570,7 +595,7 @@ def _run_bounded_process(
             stderr=subprocess.DEVNULL,
             bufsize=0,
             start_new_session=True,
-            preexec_fn=functools.partial(_apply_candidate_limits, process_limit),
+            preexec_fn=functools.partial(_apply_candidate_limits, limits),
         )
     except (OSError, subprocess.SubprocessError) as error:
         raise CandidateContractError(

@@ -178,6 +178,21 @@ def test_npm_pack_seeds_runtime_artifacts_before_prepack() -> None:
     assert setup_python[0] < seed_step
 
 
+def test_hook_tests_seed_runtime_artifacts_after_dependencies_before_bats() -> None:
+    workflow = _workflow()
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    hook_job = jobs["hook-tests"]
+    assert isinstance(hook_job, dict)
+    commands = _commands(hook_job)
+    dependency_setup = "python3 -m pip install -r requirements-dev.txt"
+    seed = "bash tools/runtime/seed-runtime-artifacts.sh"
+    hook_tests = "bats .github/hooks/tests/"
+    assert commands.count(seed) == 1
+    assert commands.index(dependency_setup) < commands.index(seed)
+    assert commands.index(seed) < commands.index(hook_tests)
+
+
 def test_release_pack_seeds_runtime_artifacts_before_prepack() -> None:
     release = yaml.safe_load(RELEASE_WORKFLOW.read_text(encoding="utf-8"))
     job = release["jobs"]["publish"]

@@ -1,0 +1,11 @@
+abi <abi/4.0>,
+
+include <tunables/global>
+
+# Ubuntu 24.04 mediates unprivileged user namespaces. This profile grants
+# only the trusted system bubblewrap launcher permission to construct the
+# namespace whose stricter filesystem and network policy is supplied by the
+# runtime-upgrade command line.
+profile agentharness-bwrap /usr/bin/bwrap flags=(unconfined) {
+  userns,
+}

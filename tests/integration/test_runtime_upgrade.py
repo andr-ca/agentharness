@@ -580,6 +580,48 @@ def test_sandbox_probe_timeout_is_a_stable_domain_error(
         )
 
 
+def test_candidate_resource_limits_lower_hard_caps_without_raising_host_caps(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    limits = {
+        runtime_upgrade.resource.RLIMIT_CPU: (100, 20),
+        runtime_upgrade.resource.RLIMIT_FSIZE: (2**40, 2**40),
+        runtime_upgrade.resource.RLIMIT_NOFILE: (256, 32),
+        runtime_upgrade.resource.RLIMIT_NPROC: (128, 256),
+        runtime_upgrade.resource.RLIMIT_AS: (
+            runtime_upgrade.resource.RLIM_INFINITY,
+            runtime_upgrade.resource.RLIM_INFINITY,
+        ),
+    }
+    monkeypatch.setattr(
+        runtime_upgrade.resource,
+        "getrlimit",
+        lambda resource_id: limits[resource_id],
+    )
+
+    planned = dict(runtime_upgrade._candidate_resource_limits(512))
+
+    assert planned == {
+        runtime_upgrade.resource.RLIMIT_CPU: (10, 10),
+        runtime_upgrade.resource.RLIMIT_FSIZE: (1024**3, 1024**3),
+        runtime_upgrade.resource.RLIMIT_NOFILE: (32, 32),
+        runtime_upgrade.resource.RLIMIT_NPROC: (256, 256),
+        runtime_upgrade.resource.RLIMIT_AS: (4 * 1024**3, 4 * 1024**3),
+    }
+
+
+def test_candidate_resource_limit_discovery_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unavailable(_resource_id: int) -> tuple[int, int]:
+        raise OSError("resource limits unavailable")
+
+    monkeypatch.setattr(runtime_upgrade.resource, "getrlimit", unavailable)
+
+    with pytest.raises(CandidateContractError, match="resource limits"):
+        runtime_upgrade._candidate_resource_limits(512)
+
+
 def test_rollback_restores_exact_base_lock(tmp_path: Path) -> None:
     active = tmp_path / "runtime.lock"
     base = tmp_path / "runtime.lock.base"
@@ -916,6 +958,27 @@ def test_ci_requires_real_linux_and_macos_sandbox_contracts() -> None:
         "test_real_packed_base_runtime_plans_upgrade_without_source_checkout"
         in sandbox_job
     )
+
+
+def test_linux_sandbox_ci_uses_narrow_bwrap_apparmor_profile() -> None:
+    workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    profile = (ROOT / ".github/apparmor/agentharness-bwrap").read_text(
+        encoding="utf-8"
+    )
+    sandbox_job = workflow.split("  runtime-upgrade-sandbox:", 1)[1].split(
+        "\n  shellcheck:", 1
+    )[0]
+
+    assert "profile agentharness-bwrap /usr/bin/bwrap flags=(unconfined)" in profile
+    assert "userns," in profile
+    assert (
+        "apparmor_parser --replace .github/apparmor/agentharness-bwrap"
+        in sandbox_job
+    )
+    assert "/usr/bin/bwrap --unshare-all" in sandbox_job
+    assert "/usr/bin/true" in sandbox_job
+    assert "apparmor_restrict_unprivileged_userns" not in sandbox_job
+    assert "chmod" not in sandbox_job
 
 
 def test_bounded_runner_kills_process_tree_on_output_flood(
