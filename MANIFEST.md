@@ -92,6 +92,11 @@ they drift (`check_manifest_md_sync()` in `tools/verify-content-quality.py`).
 | Agentic loops | `.claude/skills/agentic-loops/SKILL.md` | skill | Loads on demand for multi-turn agents, tool calling |
 | Audit review follow-up | `.claude/skills/audit-review-followup/SKILL.md` | skill | Verifying that review recommendations were actually implemented; re-scoring |
 | Port agent config | `.claude/skills/port-agent-config/SKILL.md` | skill | Porting/migrating agent instructions, skills, and custom subagents to a different coding tool — uses this repo's own generators when linked, hand-ports the same principles when not |
+| TypeScript conventions | `.claude/skills/typescript-conventions/SKILL.md` | skill | Loads on demand when writing or reviewing TypeScript/JavaScript |
+| Go conventions | `.claude/skills/go-conventions/SKILL.md` | skill | Loads on demand when writing or reviewing Go |
+| Testing | `.claude/skills/testing/SKILL.md` | skill | Loads on demand when writing tests, choosing coverage strategy, or applying TDD |
+| Logging | `.claude/skills/logging/SKILL.md` | skill | Loads on demand when adding or reviewing logging |
+| Accessibility | `.claude/skills/accessibility/SKILL.md` | skill | Loads on demand when building or reviewing web UIs for accessibility |
 
 ## Custom Agents (task delegation to a separate agent instance — a different mechanism from skills, ported to Codex/OpenCode/Cursor/Kilo Code/Copilot/Gemini CLI)
 
