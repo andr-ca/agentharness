@@ -1,0 +1,189 @@
+---
+name: react-best-practices
+description: Use when writing, reviewing, or optimizing React or Next.js code — component architecture, hooks rules, server vs. client components, data fetching patterns, bundle size, and accessibility in React.
+metadata:
+  type: skills
+  complexity: medium
+  languages: [typescript, javascript]
+  frameworks: [react, nextjs]
+---
+
+# React Best Practices
+
+This skill covers React/JSX-specific conventions. It layers on top of
+`typescript-conventions` — apply that skill first for naming, type safety,
+async/await, and module structure; this skill only covers what's
+different for components.
+
+Deeper reference: `frameworks/react/CONVENTIONS.md` (full harness
+conventions), `languages/typescript/CONVENTIONS.md`.
+
+---
+
+## Component naming and file structure
+
+- `PascalCase` for component names. File name matches the component name.
+- Use descriptive, specific names: `UserProfileCard`, not `Card`.
+- One component per file (unless the secondary component is tightly
+  scoped and unexported).
+
+```typescript
+// Good
+export function UserProfileCard({ user }: UserCardProps): JSX.Element {
+  return <div>{user.name}</div>;
+}
+// File: UserProfileCard.tsx
+
+// Bad — too generic, doesn't match file name
+export function Card({ user }: { user: User }): JSX.Element { }
+// File: card.tsx
+```
+
+---
+
+## Props typing
+
+Define prop types explicitly with an interface. Destructure in the
+signature. Return type annotation (`JSX.Element` or `React.ReactNode`)
+is recommended.
+
+```typescript
+interface UserCardProps {
+  user: User;
+  onSelect?: (user: User) => void;
+}
+
+export function UserCard({ user, onSelect }: UserCardProps): JSX.Element {
+  return (
+    <button type="button" onClick={() => onSelect?.(user)}>
+      {user.name}
+    </button>
+  );
+}
+```
+
+---
+
+## Hooks rules
+
+1. Only call hooks at the top level — never inside conditions, loops, or
+   nested functions.
+2. Only call hooks from React components or custom hooks.
+3. Prefix custom hooks with `use`: `useAuth`, `useDebounce`.
+
+```typescript
+// WRONG: conditional hook call
+function Component({ isLoggedIn }: Props) {
+  if (isLoggedIn) {
+    const user = useUser();  // breaks Rules of Hooks
+  }
+}
+
+// RIGHT: call unconditionally, use the result conditionally
+function Component({ isLoggedIn }: Props) {
+  const user = useUser();
+  if (!isLoggedIn) return null;
+  return <div>{user.name}</div>;
+}
+```
+
+---
+
+## Server vs. client components (Next.js App Router)
+
+By default, components in the App Router are **Server Components** —
+they run only on the server, can `await` data directly, and don't ship
+JS to the browser.
+
+Use `'use client'` only when you need:
+- Browser APIs (`window`, `document`, `localStorage`)
+- Event listeners / interactivity (`onClick`, `onChange`)
+- React state (`useState`) or effects (`useEffect`)
+- Client-only third-party libraries
+
+```typescript
+// Server Component — no 'use client' directive, data fetched server-side
+export default async function ProductPage({ params }: { params: { id: string } }) {
+  const product = await db.products.findById(params.id);
+  return <ProductDetails product={product} />;
+}
+
+// Client Component — needs interactivity
+'use client';
+export function AddToCartButton({ productId }: { productId: string }) {
+  const [added, setAdded] = useState(false);
+  return (
+    <button onClick={() => { addToCart(productId); setAdded(true); }}>
+      {added ? 'Added!' : 'Add to Cart'}
+    </button>
+  );
+}
+```
+
+Push `'use client'` as far down the tree as possible — keep the root and
+layout components as Server Components.
+
+---
+
+## Data fetching
+
+In Next.js App Router, fetch data in Server Components using `async/await`:
+
+```typescript
+// Good — Server Component fetches its own data
+export default async function UserProfile({ params }: Props) {
+  const user = await fetchUser(params.id);  // runs on server
+  return <Profile user={user} />;
+}
+```
+
+For client-side data: prefer a library (`SWR`, `React Query / TanStack
+Query`) over raw `useEffect` + `fetch` — they handle loading/error states,
+caching, and deduplication correctly.
+
+---
+
+## Performance
+
+- **Memoisation costs tokens too.** Don't wrap every component in
+  `React.memo` or every value in `useMemo` — profile first, then optimise.
+  `React.memo` is correct when a component re-renders with the same props
+  and re-rendering is measurably expensive.
+- **Key prop in lists.** Always provide a stable, unique `key` for list
+  items — never use array index unless the list is static and never
+  reordered.
+- **Lazy loading.** Use `React.lazy` + `Suspense` or Next.js
+  `dynamic(() => import(...))` for heavy components not needed on initial
+  render.
+
+```typescript
+// WRONG: index as key — breaks on reorder/add/remove
+items.map((item, i) => <Item key={i} {...item} />)
+
+// RIGHT: stable ID
+items.map((item) => <Item key={item.id} {...item} />)
+```
+
+---
+
+## Accessibility in React
+
+- Interactive elements are `<button>`, `<a href>`, `<input>` — not `<div>`
+  or `<span>` with `onClick`. (See the `accessibility` skill for the full
+  checklist.)
+- Every `<img>` needs an `alt` attribute.
+- Form inputs need associated `<label>` elements (via `htmlFor`).
+- Focus management: when a modal opens, move focus into it; when it
+  closes, return focus to the trigger.
+
+---
+
+## Review checklist
+
+- [ ] Component names are PascalCase and match the file name
+- [ ] Props typed with an explicit interface, destructured in signature
+- [ ] No conditional or looped hook calls
+- [ ] `'use client'` used only where browser APIs or interactivity are needed
+- [ ] List items have stable, non-index `key` props
+- [ ] No `React.memo` / `useMemo` without a measured perf reason
+- [ ] Images have `alt` attributes; inputs have labels

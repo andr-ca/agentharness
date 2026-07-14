@@ -1,0 +1,241 @@
+---
+name: performance-profiling
+description: "Use when diagnosing slow code, high memory usage, or CPU spikes — language-agnostic profiling workflow: form a hypothesis, identify the hot path, benchmark before and after, and interpret profiler output. Includes Python (cProfile, py-spy), Go (pprof), and Node.js (--inspect, clinic.js) tooling."
+metadata:
+  type: skills
+  complexity: medium
+  languages: [python, go, typescript, javascript]
+---
+
+# Performance Profiling
+
+A structured approach to diagnosing and fixing performance problems. The
+workflow is the same across languages; the tools differ.
+
+**Rule zero:** Profile before optimising. Optimising without data is guessing.
+Guessing wastes time and often makes things worse.
+
+---
+
+## Workflow
+
+### 1. Define the problem
+
+Write one sentence: *"The `GET /users` endpoint takes 4s at p95 under
+50 concurrent users; the target is < 500ms."*
+
+Without a measurable baseline and a concrete target, you won't know if
+your optimisation worked.
+
+### 2. Form a hypothesis
+
+Based on the symptoms, guess the likely cause:
+- Slow endpoint → database query (N+1, missing index, large result set)?
+- High CPU → tight loop, regex, serialisation?
+- High memory → unbounded cache, large object held in scope, leak?
+- Slow startup → heavy imports, unnecessary initialisation?
+
+### 3. Profile
+
+Pick the appropriate tool (see below) and run it against your hypothesis.
+Look at the top 5–10 most expensive functions/frames.
+
+### 4. Benchmark
+
+Measure before you change anything. Write a reproducible benchmark:
+
+```bash
+# HTTP endpoint (Apache Bench)
+ab -n 1000 -c 50 http://localhost:3000/users
+
+# Or hey (Go-based, better output)
+hey -n 1000 -c 50 http://localhost:3000/users
+```
+
+Record p50, p95, p99 and throughput. This is your baseline.
+
+### 5. Fix and re-benchmark
+
+Make one change at a time. Re-run the benchmark and compare to the
+baseline. Multiple simultaneous changes make it impossible to know which
+one helped.
+
+### 6. Verify under realistic load
+
+Profiling under idle or synthetic load can miss real bottlenecks.
+Use production-shaped data volumes and concurrency levels.
+
+---
+
+## Python
+
+### cProfile (deterministic, low overhead)
+
+```python
+import cProfile
+cProfile.run('my_function()', sort='cumulative')
+```
+
+Or on the command line:
+
+```bash
+python -m cProfile -s cumulative my_script.py | head -30
+```
+
+Key columns: `tottime` (time in this function only) and `cumtime`
+(including all called functions). Focus on functions with high `tottime`
+or unexpectedly high call counts.
+
+### py-spy (sampling, attach to live process)
+
+```bash
+pip install py-spy
+
+# Flame graph for a running process
+py-spy record -o profile.svg --pid <PID>
+
+# Live top view
+py-spy top --pid <PID>
+```
+
+Use `py-spy` when you can't modify the code or need to profile a
+production-equivalent workload without restarting.
+
+### Memory — tracemalloc
+
+```python
+import tracemalloc
+tracemalloc.start()
+
+# ... code to profile ...
+
+snapshot = tracemalloc.take_snapshot()
+top_stats = snapshot.statistics('lineno')
+for stat in top_stats[:10]:
+    print(stat)
+```
+
+---
+
+## Go
+
+### pprof (built-in)
+
+Add the pprof HTTP handler to your server:
+
+```go
+import _ "net/http/pprof"
+// (pprof registers its handlers on the default mux)
+go http.ListenAndServe("localhost:6060", nil)
+```
+
+Then collect and analyse:
+
+```bash
+# 30-second CPU profile
+go tool pprof http://localhost:6060/debug/pprof/profile?seconds=30
+
+# Heap allocation snapshot
+go tool pprof http://localhost:6060/debug/pprof/heap
+
+# Interactive web UI
+go tool pprof -http=:8080 cpu.prof
+```
+
+In the pprof UI, look at the flame graph. The widest frames are where
+the most time is spent.
+
+### Benchmarks (built-in)
+
+```go
+func BenchmarkFindUsers(b *testing.B) {
+    for i := 0; i < b.N; i++ {
+        FindUsers(ctx, filter)
+    }
+}
+```
+
+```bash
+go test -bench=BenchmarkFindUsers -benchmem -count=5 ./...
+```
+
+`-benchmem` shows allocations per operation; high alloc counts often
+point to unnecessary object creation in hot paths.
+
+---
+
+## Node.js / TypeScript
+
+### Built-in V8 profiler
+
+```bash
+node --prof app.js
+# Produces isolate-*.log
+
+# Process the log
+node --prof-process isolate-*.log > profile.txt
+```
+
+### clinic.js (higher-level, recommended)
+
+```bash
+npm install -g clinic
+
+# CPU flame graph
+clinic flame -- node app.js
+
+# Event loop and async I/O analysis
+clinic bubbleprof -- node app.js
+
+# Doctor (recommends which tool to use)
+clinic doctor -- node app.js
+```
+
+### Chrome DevTools
+
+Run with `--inspect` and open `chrome://inspect`:
+
+```bash
+node --inspect app.js
+```
+
+Use the Performance tab for flame charts; Memory tab for heap snapshots
+and allocation timelines.
+
+---
+
+## Reading a flame graph
+
+A flame graph shows call stacks. Width represents time (wider = more
+time spent).
+
+- **Look for wide frames** near the top — those are the hot functions.
+- **Wide frames near the bottom** are entry points (expected).
+- **Flat tops** (no children take significant time) mean the function
+  itself is the bottleneck, not something it calls.
+- **Unexpectedly wide frames** from serialisation libraries, ORMs, or
+  string processing are usually quick wins.
+
+---
+
+## Common findings and fixes
+
+| Finding | Likely cause | Fix |
+|---|---|---|
+| DB query in hot loop | N+1 | Eager load / batch query |
+| Large allocations | Unnecessary copies, missing reuse | Pool / buffer reuse |
+| Serialisation dominates | JSON.stringify / pickle in hot path | Cache, reduce frequency |
+| GC pressure (Go) | Many small allocations | Pre-allocate slices, sync.Pool |
+| Event loop blocking (Node) | Sync I/O or CPU in hot path | `setImmediate`, worker thread |
+| Import time (Python) | Heavy top-level imports | Lazy imports, startup profiling |
+
+---
+
+## Review checklist (for performance-sensitive PRs)
+
+- [ ] Baseline benchmark recorded before the change
+- [ ] Post-change benchmark shows measurable improvement
+- [ ] No N+1 queries introduced in data access layer
+- [ ] No synchronous I/O in Node.js request handlers
+- [ ] No unbounded caches (LRU or TTL-bounded)
+- [ ] Database indexes exist for all new query filters
