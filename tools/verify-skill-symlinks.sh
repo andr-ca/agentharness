@@ -44,8 +44,12 @@ note_fail() {
 }
 
 # Canonicalize a directory path (resolve symlinks) portably — macOS
-# readlink has no -f, so use a cd + pwd -P subshell instead.
-canonical_dir() { (cd "$1" 2>/dev/null && pwd -P); }
+# readlink has no -f, so use a cd + pwd -P subshell instead. `|| true`
+# guarantees it never returns non-zero (so it's safe under `set -e` in any
+# context, not just the string comparisons below): a target that isn't a
+# directory yields an empty string, which the callers already treat as a
+# mismatch/failure.
+canonical_dir() { (cd "$1" 2>/dev/null && pwd -P) || true; }
 
 if [ ! -d "$claude_skills" ]; then
     echo "ERROR: $claude_skills not found" >&2

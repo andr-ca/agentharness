@@ -67,9 +67,6 @@ noted — resolve any label against the review filename cited next to it in
 - **Managed state has no migration contract.** `.agentharness-state.json`
   declares `version: 1` with no forward-migration machinery or
   cross-version test matrix. → ROADMAP P1-09.
-- **Tests aren't fully hermetic.** Some lifecycle tests reach the network
-  (submodule clone of the configured `origin`, `npx` resolution, Go
-  cache). → ROADMAP P1-05 (3rd-pass).
 - **Package materialization is coupled to writable Git metadata.**
   `materialize-skill-symlinks.py restore` uses `git checkout`, so it
   fails in a restricted/non-Git source package. → ROADMAP P1-04.

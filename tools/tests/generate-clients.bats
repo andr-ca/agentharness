@@ -54,6 +54,12 @@ teardown() {
     [[ "$output" =~ "unknown client 'bogus'" ]]
 }
 
+@test "generate-clients: --client with no value is a clear error, not a silent no-op" {
+    run bash "$SCRIPT" generate-clients "$TARGET" --client
+    [ "$status" -ne 0 ]
+    [[ "$output" =~ "--client requires a value" ]]
+}
+
 @test "generate-clients: a non-directory target is a clear error" {
     run bash "$SCRIPT" generate-clients "$TARGET/does-not-exist"
     [ "$status" -ne 0 ]

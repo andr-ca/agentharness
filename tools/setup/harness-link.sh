@@ -1670,7 +1670,12 @@ cmd_generate_clients() {
     while [ $# -gt 0 ]; do
         case "$1" in
             -h|--help) usage; exit 0 ;;
-            --client|--clients) clients="${2:-}"; shift 2 ;;
+            --client|--clients)
+                if [ -z "${2:-}" ]; then
+                    echo "Error: --client requires a value (codex, gemini, copilot, cursor, kilo, or all)." >&2
+                    exit 1
+                fi
+                clients="$2"; shift 2 ;;
             *) if [ -z "$target" ]; then target="$1"; shift; else echo "Unexpected argument: $1" >&2; exit 1; fi ;;
         esac
     done
