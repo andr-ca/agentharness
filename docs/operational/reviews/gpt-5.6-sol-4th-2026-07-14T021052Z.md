@@ -56,7 +56,7 @@ as a current finding.
 
 I attempted to refresh the time-sensitive Codex claims against official OpenAI
 documentation, but the documentation endpoint was unavailable from this
-environment due DNS/network restrictions. Therefore, Codex-specific conclusions
+environment due to DNS/network restrictions. Therefore, Codex-specific conclusions
 below are based on the current repository, the capabilities visible in this
 Codex session, and bounded uncertainty. Exact config/path claims still require a
 real supported-version compatibility test.
