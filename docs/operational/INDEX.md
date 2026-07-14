@@ -72,6 +72,21 @@ Documents ready to be promoted to harness or archived:
   not implemented, in `ROADMAP.md`'s "Third-Pass Review Backlog" section
   (PR #23) — each still needs its own scoping decision before work
   starts.
+- `reviews/gpt-5.6-sol-4th-2026-07-14T021052Z.md` — fourth-pass
+  independent review at `4f3e94b` (same commit as the Fable review below).
+  Scores 7.4/10; finds the repo improved substantially but expanded
+  breadth faster than external evidence, with three confirmed destructive
+  installer boundaries, documentation drift from the 3rd pass, and red
+  self-verification gate. Recommends "proof and contraction, not more
+  platform breadth." **Disposition pending** — no `*-status.md` yet (to be
+  merged with Fable review's disposition).
+- `reviews/fable-review-2026-07-13.md` — full Fable repository review at
+  `4f3e94b` (same commit as GPT-5.6 fourth-pass). Scores 7.2/10;
+  independently confirms that review's four P0s and adds two findings it
+  missed: the `committing` skill's publish-authority contradiction
+  (safety-relevant, instructs consumers to take unauthorized actions),
+  and the review-loop accumulation problem itself (F-07). 13 itemized
+  actions (F-01–F-13); **disposition pending** — no `*-status.md` yet.
 
 ## 📚 Archives
 
