@@ -26,7 +26,7 @@ quality patterns, and task-management workflows.
 
 ## Research Sources
 
-1. **awesomeskill.ai** — The leading marketplace for open-source agent skills.
+1. **awesomeskill.ai** — A marketplace for open-source agent skills.
    Homepage content was fetched on 2026-07-14. The site is a JavaScript SPA;
    full catalogue browsing requires a live browser session. The subset visible
    in the initial HTML render is documented below.
@@ -57,9 +57,10 @@ quality patterns, and task-management workflows.
 | `semanticscholar-skill` | Search academic papers via Semantic Scholar API | (listed) |
 
 Note: The full catalogue contains many more skills; the above is the visible
-subset from the homepage render. `seo-review`'s 66K downloads makes it the
-most-downloaded skill on the platform — likely reflecting strong organic
-search traffic, not necessarily deep developer-audience demand.
+subset from the homepage render. Among this visible subset, `seo-review` shows
+the highest download count (66K) — likely reflecting organic search traffic
+rather than deep developer-audience demand. No platform-wide ranking can be
+inferred from homepage data alone.
 
 ---
 
@@ -68,8 +69,8 @@ search traffic, not necessarily deep developer-audience demand.
 ### Tier 1 — Fill harness content gaps (wrap existing material)
 
 These are the highest-priority additions because the harness already contains
-the substance; the only work is writing a `SKILL.md` wrapper and adding it to
-the registry.
+the substance; the only work is writing a `SKILL.md` wrapper and placing it in
+the `.claude/skills/<name>/` directory (skills are auto-discovered from there).
 
 ---
 
@@ -217,8 +218,8 @@ research project, or any task that requires more than 5 tool calls — creates
 and maintains `task_plan.md`, `findings.md`, and `progress.md` to preserve
 state across context resets.
 
-**Rationale:** This is the third-most-downloaded skill in the awesomeskill.ai
-visible set (8,675 downloads). The "planning-with-files" pattern (Manus-style:
+**Rationale:** This skill has 8,675 downloads in the awesomeskill.ai
+visible set. The "planning-with-files" pattern (Manus-style:
 write a plan file, write findings as you go, update progress) solves a real
 pain point: long-running agent tasks that lose context mid-way. The harness
 has `docs/operational/` as a working-docs convention but no skill-level
