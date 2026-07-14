@@ -56,3 +56,6 @@ htmlcov/
 # repo's own root normally, ignored for symmetry with the consumer-facing
 # .github/.gitignore.template entry and local test/debug runs.
 .agentharness-pkg/
+
+# Git worktrees for isolated development branches
+.worktrees/
