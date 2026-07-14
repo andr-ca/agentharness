@@ -5,7 +5,7 @@ reviewer: "Claude Fable 5"
 repository_commit: "4f3e94b"
 working_tree: "dirty — uncommitted CLAUDE.md table reformat + untracked docs/gpt-5.6-sol-4th-2026-07-14T021052Z.md"
 previous_fable_review: "docs/operational/reviews/fable-review.md (2026-07-11)"
-concurrent_review: "docs/gpt-5.6-sol-4th-2026-07-14T021052Z.md (same commit, independent)"
+concurrent_review: "docs/operational/reviews/gpt-5.6-sol-4th-2026-07-14T021052Z.md (same commit, independent)"
 ---
 
 ## Executive verdict
