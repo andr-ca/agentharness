@@ -367,6 +367,29 @@ def test_requirements_lock_rejects_duplicate_or_extra_entries(
         builder.load_requirements(lock)
 
 
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda source: source.replace(
+            "--no-binary PyYAML\n", "--no-binary PyYAML\n--no-binary PyYAML\n"
+        ),
+        lambda source: source.replace("PyYAML==6.0.3", "PyYAML==0.3"),
+        lambda source: source.replace("PyYAML==6.0.3 ", "PyYAML==6.0.3\\\n"),
+    ],
+)
+def test_requirements_lock_rejects_adversarial_grammar(
+    tmp_path: Path, mutation: object
+) -> None:
+    builder = _load_builder()
+    _, _, _, lock = _inputs(tmp_path)
+    mutate = mutation
+    assert callable(mutate)
+    lock.write_text(mutate(lock.read_text(encoding="utf-8")), encoding="utf-8")
+
+    with pytest.raises(builder.ZipappBuildError):
+        builder.load_requirements(lock)
+
+
 def test_builder_ignores_interpreter_cache_files(tmp_path: Path) -> None:
     builder = _load_builder()
     source, pyyaml, fastjsonschema, lock = _inputs(tmp_path)

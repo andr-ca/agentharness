@@ -29,6 +29,11 @@ jobs:
         with:
           node-version: "20"
           registry-url: "https://registry.npmjs.org"
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+      - name: Seed hash-verified runtime build artifacts
+        run: bash tools/runtime/seed-runtime-artifacts.sh
 
       - name: Verify tag matches package.json version
         run: |

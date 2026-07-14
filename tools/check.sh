@@ -12,7 +12,8 @@
 # same as the pre-push hook (which runs a subset of this — bats + pytest —
 # automatically).
 #
-# Requires: bats, python3, pip install -r requirements-dev.txt, npx (for
+# Requires: bats, Python dependencies installed with the two commands in
+# CONTRIBUTING.md (hash-locked runtime first, then dev tools), and npx (for
 # markdownlint-cli2 — downloaded on first use if not already cached).
 # Static analysis of shell scripts (via the shellcheck tool) is optional
 # locally — CI always runs it — but installing it locally catches issues
@@ -113,8 +114,17 @@ mypy --config-file=/dev/null \
 step "mypy: configured core surfaces"
 mypy --strict src tools/runtime tools/tests/helpers/make-runtime-fixtures.py
 
-step "pytest: runtime bootstrap lock contract"
-python3 -m pytest tests/unit/runtime/test_bootstrap_lock_contract.py -q
+step "pytest: runtime bootstrap and CI dependency contracts"
+python3 -m pytest \
+    tests/unit/runtime/test_bootstrap_lock_contract.py \
+    tests/unit/runtime/test_ci_dependency_contract.py \
+    -q
+
+step "pytest: authenticated artifact seed (>=80% coverage)"
+coverage run --branch \
+    --include='*/tools/runtime/seed-runtime-artifacts.py' \
+    -m pytest tests/unit/runtime/test_seed_runtime_artifacts.py -q
+coverage report --fail-under=80
 
 step "pytest: config_loader (>=80% coverage)"
 (cd patterns/logging && python3 -m pytest test_config_loader.py --cov=config_loader --cov-branch --cov-fail-under=80 -q)

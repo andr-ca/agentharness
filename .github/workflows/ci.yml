@@ -45,16 +45,9 @@ jobs:
           sudo apt-get install --yes bubblewrap
       - name: Install sandbox test dependencies
         run: |
-          pip install -r requirements-dev.txt
-          mkdir -p .tool-cache/runtime-artifacts
-          pip download --require-hashes --no-deps \
-            --requirement requirements-runtime.lock \
-            --dest .tool-cache/runtime-artifacts
-          pyyaml_sdist="$(find .tool-cache/runtime-artifacts -maxdepth 1 -type f -iname 'pyyaml-6.0.3.tar.gz' -print -quit)"
-          test -n "$pyyaml_sdist"
-          if [ "$pyyaml_sdist" != ".tool-cache/runtime-artifacts/pyyaml-6.0.3.tar.gz" ]; then
-            mv "$pyyaml_sdist" .tool-cache/runtime-artifacts/pyyaml-6.0.3.tar.gz
-          fi
+          python3 -m pip install --require-hashes --only-binary=:all: --no-deps -r requirements-ci-runtime.lock
+          python3 -m pip install pytest==9.1.1
+          bash tools/runtime/seed-runtime-artifacts.sh
       - name: Prove candidate contracts cannot write to the host or use the network
         env:
           AGENTHARNESS_REQUIRE_SANDBOX_TEST: "1"
@@ -116,7 +109,9 @@ jobs:
           ./install.sh "$RUNNER_TEMP/bats"
           echo "$RUNNER_TEMP/bats/bin" >> "$GITHUB_PATH"
       - name: Install pytest (pre-push.bats invokes the pre-push hook, which needs it)
-        run: pip install -r requirements-dev.txt
+        run: |
+          python3 -m pip install --require-hashes --only-binary=:all: --no-deps -r requirements-ci-runtime.lock
+          python3 -m pip install -r requirements-dev.txt
       - name: Run hook tests
         run: bats .github/hooks/tests/
       - name: Run harness-link tests
@@ -218,7 +213,9 @@ jobs:
         with:
           go-version: "1.21"
       - name: Install dependencies
-        run: pip install -r requirements-dev.txt
+        run: |
+          python3 -m pip install --require-hashes --only-binary=:all: --no-deps -r requirements-ci-runtime.lock
+          python3 -m pip install -r requirements-dev.txt
       # Preserve the pre-pyproject lint contract for legacy files while new
       # core/runtime code remains under the configured strict Ruff policy.
       - name: Ruff (legacy surfaces)
@@ -230,7 +227,17 @@ jobs:
       - name: mypy (configured core surfaces)
         run: mypy --strict src tools/runtime tools/tests/helpers/make-runtime-fixtures.py
       - name: Run runtime bootstrap lock contracts
-        run: pytest tests/unit/runtime/test_bootstrap_lock_contract.py -v
+        run: |
+          pytest \
+            tests/unit/runtime/test_bootstrap_lock_contract.py \
+            tests/unit/runtime/test_ci_dependency_contract.py \
+            -v
+      - name: Run authenticated artifact seed tests (>=80% coverage required)
+        run: |
+          coverage run --branch \
+            --include='*/tools/runtime/seed-runtime-artifacts.py' \
+            -m pytest tests/unit/runtime/test_seed_runtime_artifacts.py -v
+          coverage report --fail-under=80
       - name: Run config_loader tests (>=80% coverage required)
         run: |
           cd patterns/logging
@@ -289,7 +296,9 @@ jobs:
         with:
           python-version: "3.x"
       - name: Install dependencies
-        run: pip install -r requirements-dev.txt
+        run: >-
+          python3 -m pip install --require-hashes --only-binary=:all: --no-deps
+          -r requirements-ci-content.lock
       - name: YAML validity + skill frontmatter schema + tested-snippet syntax
         run: python3 tools/verify-content-quality.py
 
@@ -328,6 +337,11 @@ jobs:
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: "20"
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+      - name: Seed hash-verified runtime build artifacts
+        run: bash tools/runtime/seed-runtime-artifacts.sh
       - name: Pack, unpack, and drive the CLI shim from the unpacked tarball
         run: |
           set -euo pipefail

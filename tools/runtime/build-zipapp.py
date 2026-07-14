@@ -7,21 +7,26 @@ import hashlib
 import io
 import json
 import os
-import re
 import stat
 import sys
 import tarfile
 import tempfile
 import zipfile
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
-PY_YAML_VERSION = "6.0.3"
-FASTJSONSCHEMA_VERSION = "2.21.2"
+from agentharness.runtime_requirements import (  # noqa: E402
+    FASTJSONSCHEMA_VERSION,
+    PY_YAML_VERSION,
+    LockedRequirement,
+    RuntimeRequirements,
+    RuntimeRequirementsError,
+    load_runtime_requirements,
+)
+
 PY_YAML_FILES = (
     "__init__.py",
     "composer.py",
@@ -61,24 +66,10 @@ MAX_EXPANDED_BYTES = 1_073_741_824
 MAX_MEMBER_BYTES = 268_435_456
 MAX_MEMBERS = 100_000
 MAX_PATH_BYTES = 4_096
-MAX_REQUIREMENTS_BYTES = 1_048_576
 
 
 class ZipappBuildError(ValueError):
     """Raised when an input cannot produce the reviewed runtime payload."""
-
-
-@dataclass(frozen=True, slots=True)
-class LockedRequirement:
-    name: str
-    version: str
-    sha256: str
-
-
-@dataclass(frozen=True, slots=True)
-class RuntimeRequirements:
-    pyyaml: LockedRequirement
-    fastjsonschema: LockedRequirement
 
 
 def _sha256(path: Path) -> str:
@@ -99,54 +90,9 @@ def _sha512(path: Path) -> str:
 
 def load_requirements(path: Path) -> RuntimeRequirements:
     try:
-        with path.open("rb") as source:
-            payload = source.read(MAX_REQUIREMENTS_BYTES + 1)
-        if len(payload) > MAX_REQUIREMENTS_BYTES:
-            raise ZipappBuildError("runtime requirements exceed size limit")
-        content = payload.decode("utf-8").replace("\\\n", " ")
-    except (OSError, UnicodeError) as error:
-        raise ZipappBuildError(f"cannot read runtime requirements: {error}") from error
-    if "--no-binary PyYAML" not in content:
-        raise ZipappBuildError("runtime lock must require the PyYAML source artifact")
-    if "--only-binary fastjsonschema" not in content:
-        raise ZipappBuildError(
-            "runtime lock must require the fastjsonschema universal wheel"
-        )
-    pattern = re.compile(
-        r"^(PyYAML|fastjsonschema)==([^\s]+)\s+--hash=sha256:([0-9a-f]{64})$",
-        re.IGNORECASE,
-    )
-    declarations: list[LockedRequirement] = []
-    allowed_directives = {"--no-binary PyYAML", "--only-binary fastjsonschema"}
-    for raw_line in content.splitlines():
-        line = raw_line.strip()
-        if not line or line in allowed_directives:
-            continue
-        match = pattern.fullmatch(line)
-        if match is None:
-            raise ZipappBuildError("unexpected runtime requirement declaration")
-        declarations.append(LockedRequirement(*match.groups()))
-    if len(declarations) != 2:
-        raise ZipappBuildError("runtime lock must contain exactly two requirements")
-    found: dict[str, LockedRequirement] = {}
-    for declaration in declarations:
-        key = declaration.name.lower()
-        if key in found:
-            raise ZipappBuildError(f"duplicate runtime requirement: {declaration.name}")
-        found[key] = declaration
-    if set(found) != {"pyyaml", "fastjsonschema"}:
-        raise ZipappBuildError(
-            "runtime lock must contain exactly PyYAML and fastjsonschema"
-        )
-    pyyaml = found["pyyaml"]
-    fastjsonschema = found["fastjsonschema"]
-    if pyyaml.version != PY_YAML_VERSION:
-        raise ZipappBuildError(f"runtime lock must pin PyYAML=={PY_YAML_VERSION}")
-    if fastjsonschema.version != FASTJSONSCHEMA_VERSION:
-        raise ZipappBuildError(
-            f"runtime lock must pin fastjsonschema=={FASTJSONSCHEMA_VERSION}"
-        )
-    return RuntimeRequirements(pyyaml=pyyaml, fastjsonschema=fastjsonschema)
+        return load_runtime_requirements(path)
+    except RuntimeRequirementsError as error:
+        raise ZipappBuildError(str(error)) from error
 
 
 def _verify_artifact(path: Path, requirement: LockedRequirement) -> bytes:

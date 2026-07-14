@@ -356,7 +356,27 @@ sections:
   - asset: Pinned dev/CI toolchain
     path: requirements-dev.txt
     type: config
-    when_to_use: Exact pinned versions of pytest/ruff/mypy/etc. — `pip install -r requirements-dev.txt` (P1-06)
+    when_to_use: Exact pinned versions of pytest/ruff/mypy/etc. — install after the separate hash-locked runtime requirements (P1-06)
+  - asset: Wheel-only CI runtime lock
+    path: requirements-ci-runtime.lock
+    type: config
+    when_to_use: Hash-closed PyYAML and fastjsonschema wheel installation for Python 3.12/3.14 CI jobs; versions must match requirements-runtime.lock
+  - asset: Minimal content-quality runtime lock
+    path: requirements-ci-content.lock
+    type: config
+    when_to_use: Hash-closed PyYAML-only wheel installation for the content-quality CI job
+  - asset: Runtime artifact cache seeder
+    path: tools/runtime/seed-runtime-artifacts.sh
+    type: script
+    when_to_use: Portable shell entrypoint before building or packaging the Python runtime zipapp in a clean checkout
+  - asset: Authenticated runtime artifact acquisition
+    path: tools/runtime/seed-runtime-artifacts.py
+    type: script
+    when_to_use: Downloads fixed official artifacts as inert bytes, strictly parses requirements-runtime.lock, promotes each file atomically under a cache lock, and fails closed if a mixed generation remains
+  - asset: Canonical runtime requirements parser
+    path: src/agentharness/runtime_requirements.py
+    type: utility
+    when_to_use: Shared strict parser used by runtime zipapp building and authenticated artifact seeding; rejects duplicate, extra, malformed, or version-drifted lock declarations
   - asset: Sample project
     path: examples/sample-project/
     type: project

@@ -24,12 +24,15 @@ project — the process below is intentionally lightweight.
 2. New content gets a real usage example, not just a description.
    Skills need frontmatter — see any file in `.claude/skills/` for the
    shape.
-3. Run `bash tools/check.sh` before opening a PR. It runs everything CI
+3. Use Python 3.12 and run `bash tools/check.sh` before opening a PR. It runs everything CI
    runs: shellcheck (if installed locally), bats suites, ruff, mypy,
    pytest with coverage gates, `verify-manifest.sh`, markdownlint, and
-   `verify-content-quality.py`. Requires `python3`,
-   `pip install -r requirements-dev.txt`, and `npx` (markdownlint-cli2
-   downloads on first use).
+   `verify-content-quality.py`. Requires that Python 3.12 `python3`,
+   `python3 -m pip install --require-hashes --only-binary=:all: --no-deps -r requirements-ci-runtime.lock`,
+   then `python3 -m pip install -r requirements-dev.txt`, and `npx` (markdownlint-cli2
+   downloads on first use). The wheel locks cover Python 3.12 runtime jobs and
+   the Python 3.14 content-quality job; Python 3.13 is intentionally unsupported
+   because the project runtime itself requires Python `>=3.12,<3.13`.
 4. Add an entry to [MANIFEST.md](MANIFEST.md) for anything new.
 5. Open a PR against `main` — the template will prompt for a summary,
    motivation, and testing notes.
