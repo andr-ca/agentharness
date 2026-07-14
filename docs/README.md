@@ -15,6 +15,8 @@ Guides for understanding and using the agentharness repository.
 - **[INTEGRATION.md](./INTEGRATION.md)** – symlink/copy/submodule methods, per-component steps
 - **[ARCHITECTURE.md](./ARCHITECTURE.md)** – design philosophy and target-state layering
 - **[Project bootstrap policy design](./superpowers/specs/2026-07-14-project-bootstrap-policy-design.md)** – approved design for first-use capability discovery, modular profiles, plugins, and deterministic gates (not implemented yet)
+- **[Project bootstrap implementation plan](./superpowers/plans/2026-07-14-project-bootstrap-policy-master-plan.md)** – six-slice, test-first execution plan, including the locked runtime/distribution method
+- **[Project bootstrap acceptance matrix](./superpowers/plans/2026-07-14-project-bootstrap-policy-acceptance-matrix.md)** – maps all 31 release criteria to code, tests, and durable evidence
 
 ## Finding What You Need
 
@@ -60,7 +62,8 @@ Guides for understanding and using the agentharness repository.
 docs/
 ├── README.md                    # This file (navigation hub)
 ├── INTEGRATION.md               # How to use in projects
-└── ARCHITECTURE.md              # Design and philosophy
+├── ARCHITECTURE.md              # Design and philosophy
+└── superpowers/                 # Approved specifications and execution plans
 
 Plus in component directories:
   frameworks/README.md

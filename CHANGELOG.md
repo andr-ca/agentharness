@@ -7,6 +7,11 @@ section into a tagged version.
 ## [Unreleased]
 
 ### Added
+- Test-first implementation program for the approved project-bootstrap policy:
+  a master plan, six independently gated slice plans, a locked
+  `python-build-standalone`/zipapp distribution decision, and a 31-criterion
+  acceptance/evidence matrix. This is an implementation plan, not a claim that
+  the planned subsystem exists yet.
 - Approved design specification for the planned project-bootstrap and
   deterministic-policy subsystem: first-use discovery, a modular committed
   profile, a Python-first plugin contract, documentation/changelog requirements,

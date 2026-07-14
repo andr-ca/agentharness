@@ -163,6 +163,14 @@ they drift (`check_manifest_md_sync()` in `tools/verify-content-quality.py`).
 | Architecture / design philosophy | `docs/ARCHITECTURE.md` | doc |
 | Architecture decision log (compact, retroactive) | `docs/DECISIONS.md` | doc |
 | Project bootstrap and deterministic policy design (approved; not implemented) | `docs/superpowers/specs/2026-07-14-project-bootstrap-policy-design.md` | design specification |
+| Project bootstrap implementation master plan (planned; not implemented) | `docs/superpowers/plans/2026-07-14-project-bootstrap-policy-master-plan.md` | implementation plan |
+| Project bootstrap acceptance and evidence matrix | `docs/superpowers/plans/2026-07-14-project-bootstrap-policy-acceptance-matrix.md` | acceptance plan |
+| Project bootstrap Slice 1 plan (core, schema, lifecycle, runtime) | `docs/superpowers/plans/2026-07-14-project-bootstrap-policy-slice-1-core.md` | implementation plan |
+| Project bootstrap Slice 2 plan (plugin SDK and Python plugin) | `docs/superpowers/plans/2026-07-14-project-bootstrap-policy-slice-2-plugins.md` | implementation plan |
+| Project bootstrap Slice 3 plan (policy compiler, gates, evidence) | `docs/superpowers/plans/2026-07-14-project-bootstrap-policy-slice-3-policy.md` | implementation plan |
+| Project bootstrap Slice 4 plan (core quality modules and integrations) | `docs/superpowers/plans/2026-07-14-project-bootstrap-policy-slice-4-quality.md` | implementation plan |
+| Project bootstrap Slice 5 plan (GitHub protection and completion) | `docs/superpowers/plans/2026-07-14-project-bootstrap-policy-slice-5-github.md` | implementation plan |
+| Project bootstrap Slice 6 plan (dogfood and release proof) | `docs/superpowers/plans/2026-07-14-project-bootstrap-policy-slice-6-dogfood.md` | implementation plan |
 | Integration instructions | `docs/INTEGRATION.md` | doc |
 | Client compatibility matrix (always-on instructions + on-demand skills, per agentic tool) | `docs/CLIENT_COMPATIBILITY.md` | doc |
 | 5-minute scripted demo (real commands, real output) | `docs/DEMO.md` | doc |
