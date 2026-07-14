@@ -52,8 +52,8 @@ in the `postgres` package that provides one.
 ## Pitfalls to catch in review
 
 ```go
-// Goroutine leak — closing done unblocks the goroutine, but no
-// channel read means it could block on the send forever
+// Goroutine leak — if nothing reads from result, the goroutine
+// blocks forever on the send and is never garbage-collected
 go func() {
     result <- compute()  // will block if nobody reads result
 }()
@@ -67,8 +67,8 @@ for _, f := range files {
 // Write to a nil map panics at runtime
 var m map[string]int
 m["key"] = 1  // panic: assignment to entry in nil map
-// RIGHT: initialize first
-m := make(map[string]int)
+// RIGHT: initialize first (use = not :=, m is already declared)
+m = make(map[string]int)
 
 // Shadowing err in short variable declaration inside a block
 result, err := doSomething()

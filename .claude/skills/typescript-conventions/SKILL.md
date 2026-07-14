@@ -63,19 +63,24 @@ Pick based on what *absence means*, then apply it consistently:
 ## Pitfalls to catch in review
 
 ```typescript
-// async function catches error, logs it, then resolves — hides failure
+// WRONG: async function catches error, logs it, then resolves — hides failure
 async function save(data: Data): Promise<void> {
   try {
     await db.write(data);
   } catch (err) {
     logger.error('save failed', err);
-    // WRONG: caller sees a successful promise despite the failure
+    // caller sees a successful promise despite the failure
   }
 }
+
 // RIGHT: rethrow after logging so the caller can handle the failure
-catch (err) {
-  logger.error('save failed', err);
-  throw err;
+async function save(data: Data): Promise<void> {
+  try {
+    await db.write(data);
+  } catch (err) {
+    logger.error('save failed', err);
+    throw err;  // caller knows this failed
+  }
 }
 
 // Type-cast escape hatch silences the compiler, not the bug
