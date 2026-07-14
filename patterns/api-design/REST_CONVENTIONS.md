@@ -2,7 +2,8 @@
 name: rest-api-conventions
 description: Mandatory REST API design conventions for Production-tier HTTP services — resource naming, HTTP semantics, error response shapes, versioning, pagination, and authentication
 complexity: medium
-applies_to: all HTTP APIs at Production tier
+frameworks: all
+languages: all
 ---
 
 # REST API Conventions
@@ -79,8 +80,11 @@ POST   /payments/{id}/refund       → trigger a business process
 **Common mistakes:**
 - `200` with `{"success": false, "error": "..."}` in the body —
   use a `4xx` status code instead; the HTTP layer communicates the outcome
-- `404` for auth failures — use `401`/`403`; a `404` on a protected
-  resource can leak existence
+- `404` for auth failures when existence is not sensitive — use `401`/`403`
+  instead. A deliberate `404` is acceptable when you intentionally want
+  to hide whether a resource exists at all (e.g. hiding the existence of
+  private objects from unauthorised callers). In that case, use it
+  consistently and document the intent.
 - `500` for business logic failures — pick the appropriate `4xx`
 
 ---
@@ -184,9 +188,9 @@ GET /users?cursor=eyJpZCI6MTAwfQ&limit=20
 {
   "data": [...],
   "pagination": {
-    "next_cursor": "eyJpZCI6MTIwfQ",
-    "prev_cursor": "eyJpZCI6MTAxfQ",
-    "has_more": true,
+    "nextCursor": "eyJpZCI6MTIwfQ",
+    "prevCursor": "eyJpZCI6MTAxfQ",
+    "hasMore": true,
     "total": null
   }
 }
@@ -195,7 +199,7 @@ GET /users?cursor=eyJpZCI6MTAwfQ&limit=20
 **Rules:**
 - The cursor is opaque to the client — base64-encode the internal state;
   do not expose a parseable format.
-- `has_more: false` on the last page; omit `next_cursor` or set it `null`.
+- `hasMore: false` on the last page; omit `nextCursor` or set it `null`.
 - `total` is `null` unless you can compute it cheaply; don't run a
   `COUNT(*)` for every paginated request.
 - Server enforces a maximum `limit` (e.g. 100); clients may request fewer.
@@ -209,9 +213,9 @@ GET /users?page=3&per_page=20
   "data": [...],
   "pagination": {
     "page": 3,
-    "per_page": 20,
-    "total_pages": 15,
-    "total_items": 297
+    "perPage": 20,
+    "totalPages": 15,
+    "totalItems": 297
   }
 }
 ```
