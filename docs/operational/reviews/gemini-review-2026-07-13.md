@@ -4,10 +4,10 @@
 The concept of `agentharness` is brilliant and addresses a very real pain point: the drift of LLM coding conventions (like `CLAUDE.md`, testing standards, and git hooks) across multiple projects. By extracting these rules into a centralized, referenceable, and version-controlled repository, it establishes a single source of truth for coding agents. It shifts agent instructions from ad-hoc, project-local files to shared engineering policies.
 
 ## 2. Documentation
-The documentation is phenomenal. The separation of concerns between `MANIFEST.md` (what exists), `ROADMAP.md` (what is planned), `STATUS.md` (what works today), and `KNOWN_LIMITATIONS.md` (known gaps) is incredibly disciplined. 
+The documentation is phenomenal. The separation of concerns between `MANIFEST.md` (what exists), `ROADMAP.md` (what is planned), `STATUS.md` (what works today), and `KNOWN_LIMITATIONS.md` (known gaps) is incredibly disciplined.
 - The product contract is clearly stated.
 - `ARCHITECTURE.md` perfectly outlines the layered design.
-- The use of `CLIENT_COMPATIBILITY.md` brings transparency regarding what has been dogfooded versus what is just passively covered. 
+- The use of `CLIENT_COMPATIBILITY.md` brings transparency regarding what has been dogfooded versus what is just passively covered.
 There is very little ambiguity about the state of the repository.
 
 ## 3. Implementation
