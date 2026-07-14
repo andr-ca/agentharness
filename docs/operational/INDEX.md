@@ -72,6 +72,11 @@ Documents ready to be promoted to harness or archived:
   not implemented, in `ROADMAP.md`'s "Third-Pass Review Backlog" section
   (PR #23) — each still needs its own scoping decision before work
   starts.
+- `reviews/gpt-5.6-sol-4th-2026-07-14T021052Z.md` — fourth-pass
+  independent review at merged `main` commit `46b820d`, scoring the repo
+  7.6/10. Revalidates the third-pass P0 work, records three remaining
+  installer-safety blockers, and prioritizes live Claude/Codex evidence
+  over further unverified client breadth.
 
 ## 📚 Archives
 
