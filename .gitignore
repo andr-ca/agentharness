@@ -59,3 +59,6 @@ htmlcov/
 
 # Git worktrees for isolated development branches
 .worktrees/
+
+# Agent coordination lock files (operational state, not committed)
+.agentharness-locks/

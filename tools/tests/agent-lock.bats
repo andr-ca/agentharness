@@ -102,13 +102,13 @@ _release() {
 
 @test "suggest-branch: returns a branch name" {
     local result
-    result="$((cd "$TEST_ROOT" && bash "$LOCK_SCRIPT" suggest-branch "my-feature") 2>&1)"
+    result="$(cd "$TEST_ROOT" && bash "$LOCK_SCRIPT" suggest-branch "my-feature" 2>&1)"
     [[ "$result" == feat/* ]]
 }
 
 @test "list: shows no locks when none exist" {
     local result
-    result="$((cd "$TEST_ROOT" && bash "$LOCK_SCRIPT" list) 2>&1)"
+    result="$(cd "$TEST_ROOT" && bash "$LOCK_SCRIPT" list 2>&1)"
     [[ "$result" == *"No active locks"* ]]
 }
 

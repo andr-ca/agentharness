@@ -103,7 +103,8 @@ A lock is stale when its `pid` is no longer a running process.
 
 ---
 
-## Lock files are gitignored
+## Lock files should be gitignored
 
-`.agentharness-locks/` is in `.gitignore` — lock files are operational state,
-not committed history.
+`.agentharness-locks/` should be in `.gitignore` — lock files are
+operational state, not committed history. The harness adds this entry
+automatically when you run `agentharness init`.

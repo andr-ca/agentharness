@@ -74,6 +74,15 @@ cmd_acquire() {
     mkdir -p "$LOCKS_DIR"
     local path
     path="$(_lock_path "$feature")"
+    local mutex_dir="$LOCKS_DIR/.mutex-$(_slug "$feature")"
+
+    # Best-effort atomic acquire: mkdir is atomic on POSIX filesystems
+    if ! mkdir "$mutex_dir" 2>/dev/null; then
+        # Another process holds the mutex — wait briefly and retry once
+        sleep 0.1
+        mkdir "$mutex_dir" 2>/dev/null || { echo "RACE: could not acquire mutex — retry" >&2; return 1; }
+    fi
+    trap 'rmdir "$mutex_dir" 2>/dev/null' EXIT
 
     if [[ -f "$path" ]]; then
         local pid
@@ -113,20 +122,23 @@ print(f\"  2. Create your own branch: git worktree add -b feat/{d['branch']}-2 .
     fi
 
     local content
-    content="$(python3 -c "
-import json
+    content="$(python3 - <<HEREDOC
+import json, sys
 print(json.dumps({
-    'agent_id':   '$agent_id',
-    'feature':    '$feature',
-    'branch':     '$branch',
-    'worktree':   $worktree_val,
-    'started_at': '$started_at',
-    'pid':        $pid,
+    "agent_id":   "$agent_id",
+    "feature":    "$feature",
+    "branch":     "$branch",
+    "worktree":   $worktree_val,
+    "started_at": "$started_at",
+    "pid":        $pid,
 }, indent=2, sort_keys=True))
-")"
+HEREDOC
+)"
 
     _atomic_write "$path" "$content"
-    echo "ACQUIRED: locked '$feature' (agent_id=$agent_id)"
+    rmdir "$mutex_dir" 2>/dev/null
+    trap - EXIT
+    echo "ACQUIRED: locked '$feature' (agent_id=$agent_id)" >&2
     echo "$agent_id"
 }
 
@@ -212,7 +224,7 @@ cmd_clean() {
         [[ -f "$f" ]] || continue
         local pid
         pid="$(python3 -c "import json; d=json.load(open('$f')); print(d['pid'])" 2>/dev/null || echo "0")"
-        if _is_stale "$pid"; then
+        if [[ "$pid" -le 0 ]] || _is_stale "$pid"; then
             rm -f "$f"
             removed=$((removed + 1))
         fi
@@ -226,7 +238,9 @@ cmd_suggest_branch() {
     slug="$(_slug "$feature" | cut -c1-20)"
     local ts
     ts="$(date +%s)"
-    echo "feat/${slug}-agent-${ts}"
+    local rand
+    rand="$(head -c 4 /dev/urandom | xxd -p | head -c 6 2>/dev/null || echo "000000")"
+    echo "feat/${slug}-agent-${ts}-${rand}"
 }
 
 # ---------------------------------------------------------------------------
