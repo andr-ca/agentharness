@@ -83,8 +83,6 @@ All pattern categories beyond the original six have been added in 2026-07:
 The cross-framework accessibility pattern is also
 **built** (`patterns/accessibility/README.md`), written from WCAG 2.2
 / ARIA APG fundamentals.
-
-
 ### `tools/{lint,build,deploy}/`
 Standalone per-language lint/build/deploy utility scripts — not started.
 This repo's own tooling is implemented, though: `tools/setup/harness-link.sh`
