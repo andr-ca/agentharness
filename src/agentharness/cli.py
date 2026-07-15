@@ -115,8 +115,8 @@ def execute_status() -> CommandResult:
 
 
 def execute_github_protection_plan(repo: str, branch: str) -> CommandResult:
-    """Compute a protection plan for *repo*/*branch* (read-only, no API call)."""
-    from agentharness.remote.github.models import ProtectionPlan
+    """Read current branch protection and compare to desired plan (read-only)."""
+    from agentharness.remote.github.models import ProtectionPlan, ProtectionState
     from agentharness.remote.github.protection import plan_protection
 
     plan = ProtectionPlan(
@@ -127,13 +127,40 @@ def execute_github_protection_plan(repo: str, branch: str) -> CommandResult:
         require_code_owner_reviews=True,
         required_contexts=["CI"],
     )
-    result = plan_protection(plan, current=None)
+
+    # Try to read the current state without writing anything.
+    current: ProtectionState | None = None
+    try:
+        from agentharness.remote.github.api import GitHubClient
+        from agentharness.remote.github.auth import get_token
+        token = get_token("GITHUB_TOKEN")
+        owner, name = (repo.split("/", 1) if "/" in repo else (repo, repo))
+        client = GitHubClient(token=token)
+        path = f"/repos/{owner}/{name}/branches/{branch}/protection"
+        raw = client.get(path)
+        reviews = raw.get("required_pull_request_reviews") or {}
+        checks = raw.get("required_status_checks") or {}
+        current = ProtectionState(
+            branch=branch,
+            is_protected=True,
+            required_approvals=reviews.get("required_approving_review_count", 0),
+            dismiss_stale_reviews=reviews.get("dismiss_stale_reviews", False),
+            require_code_owner_reviews=reviews.get("require_code_owner_reviews", False),
+            required_contexts=checks.get("contexts", []),
+        )
+    except Exception:  # noqa: BLE001
+        pass  # token unavailable or not yet protected — treat as unprotected
+
+    result = plan_protection(plan, current=current)
+    status = "applied" if result.matches_plan else "not yet applied"
     return CommandResult(
         code=ResultCode.STATUS_AVAILABLE,
         outcome=Outcome.SUCCESS,
-        summary=f"Protection plan for {repo}/{branch}: not yet applied.",
+        summary=f"Protection plan for {repo}/{branch}: {status}.",
         remediation=(
-            f"Run 'agentharness github protection apply --repo {repo}' to apply."
+            ""
+            if result.matches_plan
+            else f"Run 'agentharness github protection apply --repo {repo}' to apply."
         ),
         details={
             "repo": repo,
