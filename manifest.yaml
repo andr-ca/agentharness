@@ -132,6 +132,14 @@ sections:
     path: patterns/mutation-testing/MUTATION_TESTING.md
     type: guide
     when_to_use: Mutation operators, mutation score thresholds, mutmut/Stryker/gremlins tooling, surviving mutant triage
+  - asset: File placement policy overview
+    path: patterns/file-placement-policy/README.md
+    type: guide
+    when_to_use: Entry point for the file placement protocol
+  - asset: File placement policy
+    path: patterns/file-placement-policy/POLICY.md
+    type: guide
+    when_to_use: Guarded paths, allowed-additions escape hatch, init-time analysis, pre-commit enforcement
   - asset: Multi-agent coordination overview
     path: patterns/multi-agent-coordination/README.md
     type: guide
@@ -335,6 +343,10 @@ sections:
     path: .claude/skills/multi-agent-coordination/SKILL.md
     type: skill
     when_to_use: Loads on demand when two or more agents may work on the same repository concurrently
+  - asset: File placement policy
+    path: .claude/skills/file-placement-policy/SKILL.md
+    type: skill
+    when_to_use: Loads at session start in projects with .agentharness-guarded-paths.json; checks before any new file creation
 - name: Custom Agents (task delegation to a separate agent instance — a different mechanism from skills, ported to Codex/OpenCode/Cursor/Kilo Code/Copilot/Gemini CLI)
   columns:
   - Asset
@@ -365,6 +377,14 @@ sections:
     path: tools/agent-lock.sh
     type: script
     when_to_use: Per-feature lock files for concurrent agent sessions — acquire/release/check/list/clean/suggest-branch
+  - asset: Structure analyzer
+    path: tools/analyze_structure.py
+    type: script
+    when_to_use: Analyze project structure and generate .agentharness-guarded-paths.json; also --recommend for early-stage projects
+  - asset: File placement check
+    path: tools/check-file-placement.sh
+    type: script
+    when_to_use: Pre-commit hook check — blocks staged files in guarded paths; called from .github/hooks/pre-commit
   - asset: Skill-symlink verifier
     path: tools/verify-skill-symlinks.sh
     type: script
