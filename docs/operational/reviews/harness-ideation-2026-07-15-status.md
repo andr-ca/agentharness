@@ -12,7 +12,7 @@ format, please filter out and add what makes sense."
 **Outcome:** six filtered items added to `ROADMAP.md` as the
 **Ideation Backlog (I-01…I-06)**, documentation-only (no implementation
 authorized). Everything else rejected, deferred, or blocked below.
-**PR:** _added in this PR — see the PR that introduced this file._
+**PR:** [#51](https://github.com/andr-ca/agentharness/pull/51)
 
 ## Assessment method
 
