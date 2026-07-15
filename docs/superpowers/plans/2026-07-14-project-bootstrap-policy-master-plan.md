@@ -289,19 +289,19 @@ Record results in `docs/operational/reviews/project-bootstrap-release-evaluation
 
 ## Execution sequence
 
-- [ ] **Step 1: Execute Slice 1**
+- [x] **Step 1: Execute Slice 1**
 
 Follow `docs/superpowers/plans/2026-07-14-project-bootstrap-policy-slice-1-core.md` through its exit gate.
 
-- [ ] **Step 2: Execute Slice 2**
+- [x] **Step 2: Execute Slice 2**
 
 Follow `docs/superpowers/plans/2026-07-14-project-bootstrap-policy-slice-2-plugins.md` through its exit gate.
 
-- [ ] **Step 3: Execute Slice 3**
+- [x] **Step 3: Execute Slice 3**
 
 Follow `docs/superpowers/plans/2026-07-14-project-bootstrap-policy-slice-3-policy.md` through its exit gate.
 
-- [ ] **Step 4: Execute Slice 4**
+- [x] **Step 4: Execute Slice 4**
 
 Follow `docs/superpowers/plans/2026-07-14-project-bootstrap-policy-slice-4-quality.md` through its exit gate.
 
