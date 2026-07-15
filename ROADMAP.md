@@ -378,7 +378,7 @@ label by the review filename cited next to it, never by number alone.
   organization template — including the smallest migration from one
   existing project and its ongoing maintenance cost.
 
-## Ideation Backlog (I-XX, 2026-07-15)
+## Ideation Backlog (I-01…I-06, 2026-07-15)
 
 Distilled from an external ideation note on intent-first harness design
 (full disposition, including everything that was rejected and why:

@@ -40,7 +40,7 @@ demonstrated need).
 |------|-----------|
 | Two-level classification router, routing-envelope schemas, workflow registry | Machinery disproportionate to this repo's audience; skill trigger descriptions already route on-demand content, and rigor tiers already encode risk adaptivity. I-02/I-04 capture the residual value at doc cost |
 | Persona-agent fleet (Intent Analyst, Context Scout, Solution Planner, Plan Validator, independent validators) | Duplicates existing brainstorming/planning/review skills and subagents; adds orchestration surface with no demonstrated need — the exact ratchet the PR #47 over-engineering assessment warned about |
-| Full per-work-type workflow catalogue (defect/feature/prototype/ modernization as separate subsystems) | Debugging, planning, and prototype-vs-production rigor are already covered by existing skills and rigor tiers; only refactoring lacked a home (I-05) |
+| Full per-work-type workflow catalogue (defect/feature/prototype/modernization as separate subsystems) | Debugging, planning, and prototype-vs-production rigor are already covered by existing skills and rigor tiers; only refactoring lacked a home (I-05) |
 | Legacy modernization workflow | Enterprise-specific; no audience among this repo's consumers |
 | Employer-internal content (systems, colleagues, meeting references) | Must not be committed to this repo in any form; excluded from all artifacts including this one |
 
