@@ -90,22 +90,20 @@ This repo's own tooling is implemented, though: `tools/setup/harness-link.sh`
 
 ### Project bootstrap and deterministic policy engine
 
-**Designed, approved, and implementation-planned; implementation not started.**
-The permanent design
-specification is
-[`docs/superpowers/specs/2026-07-14-project-bootstrap-policy-design.md`](docs/superpowers/specs/2026-07-14-project-bootstrap-policy-design.md).
-It replaces ad-hoc expansion of `enforce-profile` with a planned Python core,
-one committed modular project profile, a plugin contract proven first with
-Python, first-use capability discovery, and the same requirements compiled into
-commit, push, CI, protected-merge, and agent-completion gates. Documentation
-and changelog are first-class diff-aware capabilities in that design.
+**Slices 1–6 in progress on PR #47 (`feature/project-bootstrap-policy`).**
+Slices 1–5 are complete (695 passing tests, CI green); Slice 6 Task 1
+(machine-verifiable acceptance ledger) is done; Tasks 3–10 of Slice 6
+require npm publish authority and a live GitHub sandbox (externally
+blocked until those are configured).
 
-The approved work is split into six delivery slices in the specification. None
-of those slices should be described as available until its own tests and
-dogfood acceptance criteria pass. The executable program starts at the
-[master implementation plan](docs/superpowers/plans/2026-07-14-project-bootstrap-policy-master-plan.md),
-and the [acceptance/evidence matrix](docs/superpowers/plans/2026-07-14-project-bootstrap-policy-acceptance-matrix.md)
-maps all 31 release criteria to planned code, tests, and durable proof.
+20 of 31 acceptance criteria are marked `implemented` in the matrix;
+AC-22 and AC-26 are `partial` (code correct, sandbox proof pending).
+The remaining 9 are `planned` awaiting Slice 6 sandbox execution.
+
+The permanent design specification is
+[`docs/superpowers/specs/2026-07-14-project-bootstrap-policy-design.md`](docs/superpowers/specs/2026-07-14-project-bootstrap-policy-design.md).
+The [acceptance/evidence matrix](docs/superpowers/plans/2026-07-14-project-bootstrap-policy-acceptance-matrix.md)
+maps all 31 release criteria to code, tests, and durable proof.
 
 ### `.github/workflows/`
 Reusable CI workflows for consuming projects. Not started. This repo's own
@@ -116,10 +114,23 @@ Implemented: `.github/dependabot.yml` (Go modules + GitHub Actions updates)
 and `.github/CODEOWNERS` (review routing for framework/GitHub config areas).
 
 ### Claude Code Skills (`.claude/skills/`)
-Implemented: `committing`, `branching`, `python-conventions`,
-`error-handling`, `agentic-loops`, `audit-review-followup`, each with
-full frontmatter, loading on demand. More language/pattern skills can
-follow the same template.
+Implemented: 24 skills total — 7 original skills (`committing`, `branching`,
+`python-conventions`, `error-handling`, `agentic-loops`, `audit-review-followup`,
+`port-agent-config`) plus 17 new skills added in 2026-07:
+
+**Tier 1 (wraps existing harness content):** `accessibility`, `go-conventions`,
+`logging`, `testing`, `typescript-conventions`
+
+**Tier 2 (new content):** `security-review`, `planning-with-files`,
+`requirements-clarification`, `code-review`, `api-design`
+
+**Tier 3 (ecosystem-specific):** `react-best-practices`, `database-conventions`,
+`docker-conventions`, `dependency-audit`, `performance-profiling`
+
+**Additional:** `mutation-testing`, `multi-agent-coordination`
+
+Each skill is on-demand discoverable by Claude Code, Codex, Cursor, Kilo Code,
+GitHub Copilot, and Gemini CLI via the Agent Skills open standard.
 
 ## Explicitly Deferred / Needs a Decision
 
