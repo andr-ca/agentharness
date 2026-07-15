@@ -5,14 +5,10 @@ Detects configured test frameworks from project files.
 
 from __future__ import annotations
 
+import tomllib
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-
-try:
-    import tomllib
-except ImportError:  # type: ignore[import-not-found]
-    import tomli as tomllib  # type: ignore[no-redef]
 
 
 class FrameworkKind(StrEnum):

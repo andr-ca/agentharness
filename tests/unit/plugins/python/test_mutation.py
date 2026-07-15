@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from agentharness.plugins.python.mutation import MutationKind, detect_mutation
-from agentharness.plugins.python.documentation import DocumentationKind, detect_documentation
 from agentharness.plugins.python.changelog import ChangelogKind, detect_changelog
+from agentharness.plugins.python.documentation import (
+    DocumentationKind,
+    detect_documentation,
+)
+from agentharness.plugins.python.mutation import MutationKind, detect_mutation
 
 _HERE = Path(__file__).parent.parent.parent.parent
 PROJ = _HERE / "fixtures" / "python" / "project-quality"

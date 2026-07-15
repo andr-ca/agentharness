@@ -7,6 +7,26 @@ section into a tagged version.
 ## [Unreleased]
 
 ### Added
+- Slice 2 Tasks 1–7 of the project bootstrap policy program implemented and
+  verified locally (526 tests passing, ruff clean, mypy clean):
+  - Task 1 (`Define versioned bootstrap plugin contract`): plugin api.py,
+    registry.py, runner.py, trust.py — 21 unit tests.
+  - Task 2 (`Test bootstrap plugins against shared contract`): compliance
+    suite with 6 broken-fixture categories; sample-quality plugin; 13 tests.
+  - Task 3 (`Discover Python environments and material tasks`): environment.py
+    (pyproject/setup.py/requirements/uv/poetry/pipenv/unknown), tasks.py
+    (tox/nox/make/hatch/invoke), material_inputs.py — 18 tests.
+  - Task 4 (`Profile Python quality and unit test tooling`): linting.py
+    (ruff/black/flake8/pylint/isort), typing.py (mypy/pyright),
+    testing.py (pytest/unittest) — 16 tests.
+  - Task 5 (`Profile Python runtime quality`): logging.py, observability.py,
+    configuration.py — 8 tests.
+  - Task 6 (`Profile Python mutation and project documentation`): mutation.py,
+    documentation.py, changelog.py — 8 tests.
+  - Task 7 (`Compose Python bootstrap recommendations`): recommend.py
+    (deterministic, sorted composition), plan.py (ChangePlan/PlannedChange),
+    verify.py — 10 tests.
+  - Acceptance matrix: AC-04, AC-05, AC-06 updated to implemented.
 - Slice 1 Tasks 5–9 of the project bootstrap policy program implemented and
   verified locally (86% branch coverage, all Bats tests green):
   - Task 5 (`Validate committed bootstrap policy profiles`): versioned profile

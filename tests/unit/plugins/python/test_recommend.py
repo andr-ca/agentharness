@@ -3,9 +3,6 @@
 from __future__ import annotations
 
 from agentharness.plugins.python.recommend import (
-    Cost,
-    Impact,
-    Recommendation,
     compose_recommendations,
 )
 
@@ -17,8 +14,10 @@ class TestComposeRecommendations:
     def test_sorted_by_impact_then_cost_then_id(self) -> None:
         findings = [
             {"id": "b.low", "summary": "Low B", "impact": "low", "cost": "low"},
-            {"id": "a.high", "summary": "High A", "impact": "high", "cost": "low"},
-            {"id": "c.medium", "summary": "Med C", "impact": "medium", "cost": "medium"},
+            {"id": "a.high", "summary": "High A", "impact": "high",
+             "cost": "low"},
+            {"id": "c.medium", "summary": "Med C", "impact": "medium",
+             "cost": "medium"},
         ]
         recs = compose_recommendations(findings)
         assert [r.id for r in recs] == ["a.high", "c.medium", "b.low"]
@@ -30,7 +29,8 @@ class TestComposeRecommendations:
 
     def test_mandatory_recommendation(self) -> None:
         findings = [
-            {"id": "y", "summary": "Y", "impact": "high", "cost": "low", "optional": "false"}
+            {"id": "y", "summary": "Y", "impact": "high",
+             "cost": "low", "optional": "false"}
         ]
         rec = compose_recommendations(findings)[0]
         assert rec.optional is False

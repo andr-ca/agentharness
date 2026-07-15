@@ -4,8 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from agentharness.plugins.python.observability import ObservabilityKind, detect_observability
 from agentharness.plugins.python.configuration import ConfigKind, detect_configuration
+from agentharness.plugins.python.observability import (
+    ObservabilityKind,
+    detect_observability,
+)
 
 _HERE = Path(__file__).parent.parent.parent.parent
 FIXTURES = _HERE / "fixtures" / "python" / "runtime-quality"
