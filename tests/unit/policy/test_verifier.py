@@ -2,14 +2,10 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from unittest.mock import MagicMock
-
-import pytest
 
 from agentharness.policy.verifier import (
     CheckOutcome,
-    VerificationError,
     VerificationResult,
     verify_requirement,
 )

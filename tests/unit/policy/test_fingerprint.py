@@ -6,8 +6,6 @@ while irrelevant mutations (untracked files, cache dirs) do not.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from agentharness.policy.fingerprint import (
     FingerprintInputs,
     compute_fingerprint,

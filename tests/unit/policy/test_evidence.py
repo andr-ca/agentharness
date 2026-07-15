@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from agentharness.policy.evidence import EvidenceStore, EvidenceRecord
+from agentharness.policy.evidence import EvidenceRecord, EvidenceStore
 
 
 class TestEvidenceStore:

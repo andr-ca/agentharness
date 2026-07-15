@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from agentharness.policy.verifier import CheckOutcome, VerificationResult, verify_requirement
+from agentharness.policy.verifier import (
+    CheckOutcome,
+    verify_requirement,
+)
 
 
 class TestFailClosed:

@@ -7,9 +7,9 @@ caught and converted to typed ERROR outcomes.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any, Callable
 
 _MAX_OUTPUT_BYTES = 8192
 

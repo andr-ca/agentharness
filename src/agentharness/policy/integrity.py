@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
-from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -35,7 +34,9 @@ def verify_policy_integrity(
             is_intact=False,
             base_sha=None,
             policy_hash=None,
-            reason="no expected hash — cannot verify integrity without a base reference",
+            reason=(
+                "no expected hash — cannot verify integrity without a base reference"
+            ),
         )
 
     actual = hashlib.sha256(policy_content.encode()).hexdigest()
@@ -44,7 +45,10 @@ def verify_policy_integrity(
             is_intact=False,
             base_sha=None,
             policy_hash=actual,
-            reason=f"policy hash mismatch: got {actual!r}, expected {expected_hash!r}",
+            reason=(
+            f"policy hash mismatch: got {actual!r}, "
+            f"expected {expected_hash!r}"
+        ),
         )
 
     return IntegrityResult(

@@ -6,8 +6,27 @@ section into a tagged version.
 
 ## [Unreleased]
 
-### Added
-- Slice 2 Tasks 1–7 of the project bootstrap policy program implemented and
+### Added- Slice 3 Tasks 1–8 of the project bootstrap policy program implemented and
+  verified locally (608 tests passing, ruff clean, mypy clean):
+  - Task 1 (`Compile one profile into deterministic gate plans`): policy/scope.py
+    (PathExpression, ChangeClass, ScopeExpression), policy/compiler.py (pure
+    PolicyRequirement→EffectivePolicy+GatePlan compiler with SHA-256 hash),
+    policy/results.py (GateKind, GatePlan, EffectivePolicy) — 17 tests.
+  - Task 2 (`Bind policy evidence to material inputs`): policy/fingerprint.py
+    (FingerprintInputs, compute_fingerprint), policy/git_tree.py (hash_git_index
+    via git ls-files --stage) — 12 tests.
+  - Task 3 (`Emit fresh redacted policy evidence`): policy/verifier.py
+    (VerificationResult, CheckOutcome, is_blocking per mode), policy/evidence.py
+    (atomic EvidenceStore), policy/redaction.py (token/password/key patterns) —
+    23 tests.
+  - Task 4 (`Enforce deterministic policy modes and waivers`): policy/modes.py
+    (ModeAggregator — strict blocks, warn/grace don't), profile/waivers.py
+    (Waiver with required reason+owner, no wildcards) — 13 tests.
+  - Tasks 5-7 (`gate contexts + CI integrity + dispatchers`): gates/commit.py,
+    gates/push.py, gates/ci.py (context readers), gates/context.py, policy/
+    integrity.py (hash-based tamper detection), integrations/hashes.py — 17 tests.
+  - Task 8: ruff clean, mypy clean (18 source files); acceptance matrix updated:
+    AC-08, AC-11, AC-12, AC-21 → implemented.- Slice 2 Tasks 1–7 of the project bootstrap policy program implemented and
   verified locally (526 tests passing, ruff clean, mypy clean):
   - Task 1 (`Define versioned bootstrap plugin contract`): plugin api.py,
     registry.py, runner.py, trust.py — 21 unit tests.

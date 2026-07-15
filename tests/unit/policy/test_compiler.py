@@ -13,8 +13,8 @@ from agentharness.policy.compiler import (
     PolicyRequirement,
     compile_policy,
 )
-from agentharness.policy.results import GateKind, EffectivePolicy
-from agentharness.policy.scope import ChangeClass, PathExpression, ScopeExpression
+from agentharness.policy.results import GateKind
+from agentharness.policy.scope import PathExpression, ScopeExpression
 
 
 def _make_req(
@@ -44,7 +44,8 @@ class TestCompilePolicy:
             compile_policy([_make_req("dup.id"), _make_req("dup.id")])
 
     def test_all_four_gates(self) -> None:
-        reqs = [_make_req(f"req.{g}", g, f"cap.{g}") for g in ("commit", "push", "ci", "completion")]
+        gates = ("commit", "push", "ci", "completion")
+        reqs = [_make_req(f"req.{g}", g, f"cap.{g}") for g in gates]
         policy = compile_policy(reqs)
         gates = {p.gate for p in policy.gate_plans}
         assert GateKind.COMMIT in gates
