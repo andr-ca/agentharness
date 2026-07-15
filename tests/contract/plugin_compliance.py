@@ -16,7 +16,10 @@ class ComplianceError(AssertionError):
     """Raised when a plugin fails a contract assertion."""
 
 
-def assert_plugin_compliant(plugin: Any, context: dict[str, Any] | None = None) -> CheckResult:
+def assert_plugin_compliant(
+    plugin: Any,
+    context: dict[str, Any] | None = None,
+) -> CheckResult:
     """Assert *plugin* meets the full plugin contract.
 
     Raises ComplianceError with a descriptive message on any violation.

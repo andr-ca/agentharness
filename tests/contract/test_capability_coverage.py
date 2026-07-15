@@ -9,7 +9,6 @@ from __future__ import annotations
 from agentharness.plugins.api import PluginMetadata
 from agentharness.plugins.registry import PluginRegistry
 
-
 EXPECTED_BUNDLED_CAPABILITIES: set[str] = set()
 # NOTE: Populated as plugins are added in later tasks.  This set serves as
 # the capability census; if a task adds capabilities, add them here too.

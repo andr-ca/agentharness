@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from agentharness.plugins.core.changelog import ChangelogStrategy, detect_changelog_policy
+from agentharness.plugins.core.changelog import (
+    ChangelogStrategy,
+    detect_changelog_policy,
+)
 
 
 class TestChangelogPolicyIntegration:

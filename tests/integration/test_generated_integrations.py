@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from agentharness.integrations.agents import find_canonical_source, list_generated_clients
+from agentharness.integrations.agents import (
+    find_canonical_source,
+)
 from agentharness.integrations.managed_block import apply_managed_block
 
 
