@@ -5,12 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from agentharness.plugins.python.typing import (
-    TypingTool,
     TypingToolKind,
     detect_typing_tools,
 )
 
-FIXTURES = Path(__file__).parent.parent.parent.parent / "fixtures" / "python" / "quality"
+_HERE = Path(__file__).parent.parent.parent.parent
+FIXTURES = _HERE / "fixtures" / "python" / "quality"
 
 
 class TestDetectTypingTools:

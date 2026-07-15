@@ -8,12 +8,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from agentharness.plugins.python.tasks import (
-    TaskRunner,
     TaskRunnerKind,
     detect_task_runners,
 )
 
-FIXTURES = Path(__file__).parent.parent.parent.parent / "fixtures" / "python" / "tasks"
+_HERE = Path(__file__).parent.parent.parent.parent
+FIXTURES = _HERE / "fixtures" / "python" / "tasks"
 
 
 class TestDetectTaskRunners:

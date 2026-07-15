@@ -12,11 +12,11 @@ import pytest
 
 from agentharness.plugins.python.environment import (
     EnvironmentKind,
-    PythonEnvironment,
     detect_environment,
 )
 
-FIXTURES = Path(__file__).parent.parent.parent.parent / "fixtures" / "python" / "environment"
+_HERE = Path(__file__).parent.parent.parent.parent
+FIXTURES = _HERE / "fixtures" / "python" / "environment"
 
 
 class TestDetectEnvironment:

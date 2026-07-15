@@ -10,8 +10,8 @@ from __future__ import annotations
 import pytest
 
 from agentharness.plugins.trust import (
-    TrustError,
     TrustEntry,
+    TrustError,
     TrustRegistry,
 )
 

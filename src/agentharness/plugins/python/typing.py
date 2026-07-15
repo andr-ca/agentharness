@@ -38,15 +38,18 @@ def detect_typing_tools(root: Path) -> list[TypingTool]:
             data = {}
         tool_section = data.get("tool", {})
         if "mypy" in tool_section:
-            tools.append(TypingTool(kind=TypingToolKind.MYPY, config_source="pyproject.toml"))
+            tools.append(TypingTool(TypingToolKind.MYPY, "pyproject.toml"))
         if "pyright" in tool_section:
-            tools.append(TypingTool(kind=TypingToolKind.PYRIGHT, config_source="pyproject.toml"))
+            tools.append(TypingTool(TypingToolKind.PYRIGHT, "pyproject.toml"))
 
     for cfg_name in (".mypy.ini", "mypy.ini"):
-        if (root / cfg_name).exists() and not any(t.kind == TypingToolKind.MYPY for t in tools):
-            tools.append(TypingTool(kind=TypingToolKind.MYPY, config_source=cfg_name))
+        has_mypy = any(t.kind == TypingToolKind.MYPY for t in tools)
+        if (root / cfg_name).exists() and not has_mypy:
+            tools.append(TypingTool(TypingToolKind.MYPY, cfg_name))
 
-    if (root / "pyrightconfig.json").exists() and not any(t.kind == TypingToolKind.PYRIGHT for t in tools):
-        tools.append(TypingTool(kind=TypingToolKind.PYRIGHT, config_source="pyrightconfig.json"))
+    has_pyright_cfg = (root / "pyrightconfig.json").exists()
+    has_pyright = any(t.kind == TypingToolKind.PYRIGHT for t in tools)
+    if has_pyright_cfg and not has_pyright:
+        tools.append(TypingTool(TypingToolKind.PYRIGHT, "pyrightconfig.json"))
 
     return sorted(tools, key=lambda t: t.kind)

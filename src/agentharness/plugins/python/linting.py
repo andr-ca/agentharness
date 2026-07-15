@@ -7,7 +7,6 @@ installed packages.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -51,13 +50,13 @@ def detect_lint_tools(root: Path) -> list[LintTool]:
             data = {}
         tool_section = data.get("tool", {})
         if "ruff" in tool_section:
-            tools.append(LintTool(kind=LintToolKind.RUFF, config_source="pyproject.toml"))
+            tools.append(LintTool(LintToolKind.RUFF, "pyproject.toml"))
         if "black" in tool_section:
-            tools.append(LintTool(kind=LintToolKind.BLACK, config_source="pyproject.toml"))
+            tools.append(LintTool(LintToolKind.BLACK, "pyproject.toml"))
         if "pylint" in tool_section:
-            tools.append(LintTool(kind=LintToolKind.PYLINT, config_source="pyproject.toml"))
+            tools.append(LintTool(LintToolKind.PYLINT, "pyproject.toml"))
         if "isort" in tool_section:
-            tools.append(LintTool(kind=LintToolKind.ISORT, config_source="pyproject.toml"))
+            tools.append(LintTool(LintToolKind.ISORT, "pyproject.toml"))
 
     # Stand-alone config files
     for filename, kind in (
@@ -65,12 +64,15 @@ def detect_lint_tools(root: Path) -> list[LintTool]:
         ("setup.cfg", LintToolKind.FLAKE8),
     ):
         candidate = root / filename
-        if candidate.exists() and "[flake8]" in candidate.read_text(encoding="utf-8", errors="replace"):
+        if not candidate.exists():
+            continue
+        cfg_text = candidate.read_text(encoding="utf-8", errors="replace")
+        if "[flake8]" in cfg_text:
             if not any(t.kind == LintToolKind.FLAKE8 for t in tools):
-                tools.append(LintTool(kind=LintToolKind.FLAKE8, config_source=filename))
+                tools.append(LintTool(LintToolKind.FLAKE8, filename))
 
     if (root / ".isort.cfg").exists():
         if not any(t.kind == LintToolKind.ISORT for t in tools):
-            tools.append(LintTool(kind=LintToolKind.ISORT, config_source=".isort.cfg"))
+            tools.append(LintTool(LintToolKind.ISORT, ".isort.cfg"))
 
     return sorted(tools, key=lambda t: t.kind)

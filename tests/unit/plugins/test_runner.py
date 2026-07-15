@@ -14,7 +14,6 @@ from agentharness.plugins.api import (
     CheckResult,
     Finding,
     FindingCode,
-    PluginError,
     PluginMetadata,
 )
 from agentharness.plugins.runner import PluginRunner, RunnerError

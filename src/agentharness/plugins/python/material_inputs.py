@@ -6,7 +6,7 @@ enabling the bootstrap system to detect when evidence has become stale.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 

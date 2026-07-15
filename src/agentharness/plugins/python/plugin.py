@@ -32,7 +32,10 @@ class PythonPlugin:
     )
 
     def check(self, context: Any) -> CheckResult:
-        root = Path(context.get("project_root", ".")) if isinstance(context, dict) else Path(".")
+        if isinstance(context, dict):
+            root = Path(context.get("project_root", "."))
+        else:
+            root = Path(".")
 
         findings: list[Finding] = []
 
