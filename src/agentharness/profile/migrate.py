@@ -31,7 +31,7 @@ class LegacyProfile:
     raw_selector: str
 
     @classmethod
-    def parse(cls, selector: str) -> "LegacyProfile":
+    def parse(cls, selector: str) -> LegacyProfile:
         """Parse a raw selector string from a legacy profile file.
 
         Raises MigrationConflictError for empty or whitespace-only selectors.

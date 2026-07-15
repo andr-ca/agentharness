@@ -17,7 +17,7 @@ class ProjectContext:
     root: Path
 
     @classmethod
-    def from_cwd(cls) -> "ProjectContext":
+    def from_cwd(cls) -> ProjectContext:
         """Locate the project root by searching upward from cwd."""
         candidate = Path.cwd().resolve()
         while candidate != candidate.parent:

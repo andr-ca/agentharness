@@ -63,7 +63,7 @@ class QuestionSet:
                 )
             seen.add(q.id)
 
-    def answer(self, question: Question, value: str | None) -> "QuestionSet":
+    def answer(self, question: Question, value: str | None) -> QuestionSet:
         """Return a new QuestionSet with the given question answered."""
         if question.id not in {q.id for q in self.questions}:
             raise KeyError(question.id)

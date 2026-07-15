@@ -13,8 +13,6 @@ State is a pure function of:
 
 from __future__ import annotations
 
-import pytest
-
 from agentharness.bootstrap.state import (
     BootstrapState,
     LocalTransaction,

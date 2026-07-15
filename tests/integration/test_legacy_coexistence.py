@@ -10,7 +10,6 @@ from __future__ import annotations
 import pytest
 
 from agentharness.profile.migrate import (
-    LegacyProfile,
     MigrationConflictError,
     import_legacy_profile,
 )

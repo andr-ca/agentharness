@@ -71,7 +71,6 @@ class TestLocalRecovery:
         self, tmp_path: Path
     ) -> None:
         """After a failed apply, the record is not marked applied."""
-        import hashlib
 
         target = tmp_path / "file.txt"
         txn = Transaction.create(root=tmp_path, plan_hash="h3")

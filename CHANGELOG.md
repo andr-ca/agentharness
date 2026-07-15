@@ -7,6 +7,23 @@ section into a tagged version.
 ## [Unreleased]
 
 ### Added
+- Slice 1 Tasks 5–9 of the project bootstrap policy program implemented and
+  verified locally (86% branch coverage, all Bats tests green):
+  - Task 5 (`Validate committed bootstrap policy profiles`): versioned profile
+    schemas (`profile-v1.json`, `local-override-v1.json`), `profile/schema.py`,
+    `profile/loader.py`, `profile/reduction.py` with 105 passing unit tests.
+  - Task 6 (`Model deterministic bootstrap activation`): `bootstrap/state.py`
+    pure state machine with 9 states, `project.py` context locator, 29 tests
+    covering every state transition including drift and repair paths.
+  - Task 7 (`Apply bootstrap plans as resumable transactions`): `bootstrap/questions.py`
+    (immutable QuestionSet), `bootstrap/transaction.py` (atomic write + fsync +
+    rollback), `profile/history.py` (append-only history log), 33 tests covering
+    TOCTOU detection, rollback, resume, and confirmation flow.
+  - Task 8 (`Bridge legacy lifecycle into bootstrap core`): `profile/migrate.py`
+    (legacy .agentharness-profile import with provenance), `plugins/compatibility.py`
+    (locked Bash delegate), 25 tests; existing Bats lifecycle tests remain green.
+  - Task 9: ruff auto-fix, mypy clean, acceptance matrix updated (AC-01, AC-02,
+    AC-06, AC-07, AC-09, AC-16, AC-23 marked `implemented`).
 - Test-first implementation program for the approved project-bootstrap policy:
   a master plan, six independently gated slice plans, a locked
   `python-build-standalone`/zipapp distribution decision, and a 31-criterion

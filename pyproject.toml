@@ -15,6 +15,9 @@ dependencies = [
 [project.scripts]
 agentharness = "agentharness.cli:main"
 
+[tool.setuptools.package-data]
+agentharness = ["schemas/*.json"]
+
 [tool.pytest.ini_options]
 addopts = "--strict-config --strict-markers"
 pythonpath = ["src"]

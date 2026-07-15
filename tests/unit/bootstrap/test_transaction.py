@@ -7,16 +7,12 @@ between plan creation and apply are detected.
 
 from __future__ import annotations
 
-import json
-import os
-import stat
 from pathlib import Path
 
 import pytest
 
 from agentharness.bootstrap.transaction import (
     ApplyError,
-    LocalTransactionRecord,
     PlanConflictError,
     TOCTOUError,
     Transaction,

@@ -11,12 +11,10 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import stat
 import tempfile
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import IO
 
 
 class ApplyError(RuntimeError):
@@ -108,7 +106,7 @@ class Transaction:
         return self._txn_dir / "rollback"
 
     @classmethod
-    def create(cls, root: Path, plan_hash: str) -> "Transaction":
+    def create(cls, root: Path, plan_hash: str) -> Transaction:
         """Create a new transaction for the given plan hash."""
         txn_id = str(uuid.uuid4())
         txn = cls(root=root, id=txn_id)
@@ -119,7 +117,7 @@ class Transaction:
         return txn
 
     @classmethod
-    def load(cls, root: Path, transaction_id: str) -> "Transaction":
+    def load(cls, root: Path, transaction_id: str) -> Transaction:
         """Load an existing transaction from disk (for resume)."""
         txn = cls(root=root, id=transaction_id)
         if not txn._record_path.exists():
