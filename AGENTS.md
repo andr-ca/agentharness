@@ -112,6 +112,34 @@ it's a per-operator/per-machine authorization, not a repo-wide policy —
 see `docs/DECISIONS.md` for why this replaced the old always-on default,
 and `docs/INTEGRATION.md` for how to create/remove it.
 
+### 📁 File Placement
+
+**In any project with `.agentharness-guarded-paths.json`, you must not
+create new files or directories in guarded paths without explicit user
+permission.**
+
+Before creating any file:
+1. Check `.agentharness-guarded-paths.json` for guarded paths.
+2. If the target location is guarded: **stop and ask the user first.**
+3. After receiving explicit permission: record the approved path in
+   `.agentharness-allowed-additions.txt`, then create the file.
+
+If the project has no guarded-paths config but has an established
+structure (src/, docs/, tests/, etc.), treat those directories as
+guarded by default and ask before adding to them.
+
+If the project appears new (empty or minimal), run
+`python3 tools/analyze_structure.py . --recommend` to get structure
+recommendations, then present them to the user before creating anything.
+
+The pre-commit hook (`tools/check-file-placement.sh`) enforces this
+deterministically — commits adding files to guarded paths without an
+entry in `.agentharness-allowed-additions.txt` are blocked.
+
+See `patterns/file-placement-policy/POLICY.md` for the full protocol
+and `.claude/skills/file-placement-policy/SKILL.md` for the condensed
+on-demand reference.
+
 ### 🔍 Agent Recommendation Assessment
 
 **When an agent is asked to address/review/look into recommendations:**
@@ -214,6 +242,7 @@ Temporary/working docs (research notes, agent logs, planning) go in
 - `.agents/skills/dependency-audit/SKILL.md` — Use when adding dependencies, reviewing a project's dependency tree, or checking for known vulnerabilities — covers pip-audit, npm audit, govulncheck, lock file hygiene, and update policy.
 - `.agents/skills/docker-conventions/SKILL.md` — Use when writing a Dockerfile, docker-compose file, or CI containerization config — multi-stage builds, layer caching, security (non-root user, minimal base images, no secrets in layers), and health checks.
 - `.agents/skills/error-handling/SKILL.md` — Use when building error recovery, handling exceptions, designing error flows, or implementing logging for errors — covers retry, circuit-breaker, error wrapping, structured logging.
+- `.agents/skills/file-placement-policy/SKILL.md` — Use before creating any new file or directory in an established project — covers guarded root paths, docs/, src/, conf/, the allowed-additions escape hatch, and how to ask for permission. Load this skill at the start of every session in a project that has .agentharness-guarded-paths.json.
 - `.agents/skills/go-conventions/SKILL.md` — Use when writing, reviewing, or refactoring Go code — naming conventions, receiver naming, error wrapping, interface design, goroutine safety, and common pitfalls (goroutine leaks, defer-in-loop, nil map writes).
 - `.agents/skills/logging/SKILL.md` — Use when adding logging to an application, reviewing log output, choosing log levels, structuring logs for observability, or configuring logging backends — covers structured logging, YAML config patterns, what NOT to log, and local vs. production output.
 - `.agents/skills/multi-agent-coordination/SKILL.md` — Use when two or more agent sessions may work on the same repository concurrently — covers the per-feature lock-file protocol, stale-lock detection, worktree isolation rules, and what to do when a feature is already locked.
