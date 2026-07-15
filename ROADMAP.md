@@ -63,23 +63,26 @@ Additional language convention guides, following the shape of the
 existing `languages/{python,typescript,go,rust}/`. Python, TypeScript,
 Go, and Rust are implemented; Java and others are not started.
 
-### `patterns/{api-design}/`
-Additional pattern categories, following the shape of the existing
-`patterns/{testing,logging,agentic-loops,error-handling,profiles,accessibility}/`.
-Those six exist today; API design is **now built** —
-`patterns/api-design/README.md` (index) and
-`patterns/api-design/REST_CONVENTIONS.md` (full REST conventions: resource
-naming, HTTP semantics, RFC 9457 errors, versioning, pagination, auth).
-The on-demand skill at `.claude/skills/api-design/SKILL.md` is a condensed
-day-to-day reference that summarises REST_CONVENTIONS.md.
+### `patterns/` — additional categories (all now built)
 
-The cross-framework accessibility pattern that used to be a gap here is
-now **built** (`patterns/accessibility/README.md`), written from WCAG 2.2
-/ ARIA APG fundamentals rather than the VS-Code-source-internal draft
-(`AccessibleContentProvider`, `CONTEXT_ACCESSIBILITY_MODE_ENABLED`,
-references to specific VS Code PRs) that was removed for claiming general
-applicability it didn't have.
+All pattern categories beyond the original six have been added in 2026-07:
 
+- **`patterns/api-design/`** — REST API conventions (resource naming, HTTP
+  semantics, RFC 9457 errors, versioning, pagination, auth). Skill:
+  `.claude/skills/api-design/SKILL.md`.
+
+- **`patterns/mutation-testing/`** — mutation operators, score thresholds,
+  mutmut/Stryker/gremlins tooling, surviving mutant triage. Skill:
+  `.claude/skills/mutation-testing/SKILL.md`.
+
+- **`patterns/multi-agent-coordination/`** — per-feature lock-file protocol,
+  stale detection, worktree isolation, conflict resolution for concurrent
+  agents. Implementation: `tools/agent-lock.sh`. Skill:
+  `.claude/skills/multi-agent-coordination/SKILL.md`.
+
+The cross-framework accessibility pattern is also
+**built** (`patterns/accessibility/README.md`), written from WCAG 2.2
+/ ARIA APG fundamentals.
 ### `tools/{lint,build,deploy}/`
 Standalone per-language lint/build/deploy utility scripts — not started.
 This repo's own tooling is implemented, though: `tools/setup/harness-link.sh`
@@ -90,22 +93,17 @@ This repo's own tooling is implemented, though: `tools/setup/harness-link.sh`
 
 ### Project bootstrap and deterministic policy engine
 
-**Designed, approved, and implementation-planned; implementation not started.**
-The permanent design
-specification is
-[`docs/superpowers/specs/2026-07-14-project-bootstrap-policy-design.md`](docs/superpowers/specs/2026-07-14-project-bootstrap-policy-design.md).
-It replaces ad-hoc expansion of `enforce-profile` with a planned Python core,
-one committed modular project profile, a plugin contract proven first with
-Python, first-use capability discovery, and the same requirements compiled into
-commit, push, CI, protected-merge, and agent-completion gates. Documentation
-and changelog are first-class diff-aware capabilities in that design.
+**Implementation in progress on PR #47 (`feature/project-bootstrap-policy`).**
+Slices 1–5 are complete with tests passing; Slice 6 Task 1
+(machine-verifiable acceptance ledger) is done; Slice 6 Tasks 3–10
+require npm publish authority and a live GitHub sandbox (externally
+blocked until those are configured). See PR #47 for current status and
+the acceptance/evidence matrix for per-criterion tracking.
 
-The approved work is split into six delivery slices in the specification. None
-of those slices should be described as available until its own tests and
-dogfood acceptance criteria pass. The executable program starts at the
-[master implementation plan](docs/superpowers/plans/2026-07-14-project-bootstrap-policy-master-plan.md),
-and the [acceptance/evidence matrix](docs/superpowers/plans/2026-07-14-project-bootstrap-policy-acceptance-matrix.md)
-maps all 31 release criteria to planned code, tests, and durable proof.
+The permanent design specification is
+[`docs/superpowers/specs/2026-07-14-project-bootstrap-policy-design.md`](docs/superpowers/specs/2026-07-14-project-bootstrap-policy-design.md).
+The [acceptance/evidence matrix](docs/superpowers/plans/2026-07-14-project-bootstrap-policy-acceptance-matrix.md)
+tracks all 31 release criteria against code, tests, and durable proof.
 
 ### `.github/workflows/`
 Reusable CI workflows for consuming projects. Not started. This repo's own
@@ -116,10 +114,23 @@ Implemented: `.github/dependabot.yml` (Go modules + GitHub Actions updates)
 and `.github/CODEOWNERS` (review routing for framework/GitHub config areas).
 
 ### Claude Code Skills (`.claude/skills/`)
-Implemented: `committing`, `branching`, `python-conventions`,
-`error-handling`, `agentic-loops`, `audit-review-followup`, each with
-full frontmatter, loading on demand. More language/pattern skills can
-follow the same template.
+Implemented: 24 skills total — 7 original skills (`committing`, `branching`,
+`python-conventions`, `error-handling`, `agentic-loops`, `audit-review-followup`,
+`port-agent-config`) plus 17 new skills added in 2026-07:
+
+**Tier 1 (wraps existing harness content):** `accessibility`, `go-conventions`,
+`logging`, `testing`, `typescript-conventions`
+
+**Tier 2 (new content):** `security-review`, `planning-with-files`,
+`requirements-clarification`, `code-review`, `api-design`
+
+**Tier 3 (ecosystem-specific):** `react-best-practices`, `database-conventions`,
+`docker-conventions`, `dependency-audit`, `performance-profiling`
+
+**Additional:** `mutation-testing`, `multi-agent-coordination`
+
+Each skill is on-demand discoverable by Claude Code, Codex, Cursor, Kilo Code,
+GitHub Copilot, and Gemini CLI via the Agent Skills open standard.
 
 ## Explicitly Deferred / Needs a Decision
 
