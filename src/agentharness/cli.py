@@ -30,6 +30,7 @@ def create_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     status_parser = subparsers.add_parser("status", add_help=False)
     status_parser.add_argument("--json", action="store_true", dest="as_json")
+
     runtime_parser = subparsers.add_parser("runtime", add_help=False)
     runtime_subparsers = runtime_parser.add_subparsers(
         dest="runtime_command", required=True
@@ -40,6 +41,38 @@ def create_parser() -> argparse.ArgumentParser:
     plan_upgrade_parser.add_argument("--base-lock", type=Path, required=True)
     plan_upgrade_parser.add_argument("--request", type=Path, required=True)
     plan_upgrade_parser.add_argument("--json", action="store_true", dest="as_json")
+
+    # GitHub sub-commands
+    github_parser = subparsers.add_parser("github", add_help=False)
+    github_sub = github_parser.add_subparsers(dest="github_command", required=True)
+
+    # github protection plan
+    gh_prot = github_sub.add_parser("protection", add_help=False)
+    gh_prot_sub = gh_prot.add_subparsers(dest="prot_command", required=True)
+    gh_plan = gh_prot_sub.add_parser("plan", add_help=False)
+    gh_plan.add_argument("--repo", required=True, help="owner/repo")
+    gh_plan.add_argument("--branch", default="main")
+    gh_plan.add_argument("--json", action="store_true", dest="as_json")
+    gh_apply = gh_prot_sub.add_parser("apply", add_help=False)
+    gh_apply.add_argument("--repo", required=True, help="owner/repo")
+    gh_apply.add_argument("--branch", default="main")
+    gh_apply.add_argument(
+        "--token-env", default="GITHUB_TOKEN", dest="token_env"
+    )
+    gh_apply.add_argument("--json", action="store_true", dest="as_json")
+
+    # github completion check
+    gh_comp = github_sub.add_parser("completion", add_help=False)
+    gh_comp_sub = gh_comp.add_subparsers(dest="comp_command", required=True)
+    gh_check = gh_comp_sub.add_parser("check", add_help=False)
+    gh_check.add_argument("--repo", required=True)
+    gh_check.add_argument("--pr", type=int, required=True)
+    gh_check.add_argument("--expected-head", required=True)
+    gh_check.add_argument(
+        "--token-env", default="GITHUB_TOKEN", dest="token_env"
+    )
+    gh_check.add_argument("--json", action="store_true", dest="as_json")
+
     return parser
 
 
@@ -50,6 +83,177 @@ def execute_status() -> CommandResult:
         summary="Project is not configured.",
         remediation="Run 'agentharness bootstrap' to configure this project.",
         details={"state": "not_configured"},
+    )
+
+
+def execute_github_protection_plan(repo: str, branch: str) -> CommandResult:
+    """Compute a protection plan for *repo*/*branch* (read-only, no API call)."""
+    from agentharness.remote.github.models import ProtectionPlan
+    from agentharness.remote.github.protection import plan_protection
+
+    plan = ProtectionPlan(
+        branch=branch,
+        require_reviews=True,
+        required_approvals=1,
+        dismiss_stale_reviews=True,
+        require_code_owner_reviews=True,
+        required_contexts=["CI"],
+    )
+    result = plan_protection(plan, current=None)
+    return CommandResult(
+        code=ResultCode.STATUS_AVAILABLE,
+        outcome=Outcome.SUCCESS,
+        summary=f"Protection plan for {repo}/{branch}: not yet applied.",
+        remediation=(
+            f"Run 'agentharness github protection apply --repo {repo}' to apply."
+        ),
+        details={
+            "repo": repo,
+            "branch": branch,
+            "matches_plan": result.matches_plan,
+            "required_approvals": plan.required_approvals,
+        },
+    )
+
+
+def execute_github_protection_apply(
+    repo: str,
+    branch: str,
+    token_env: str,
+) -> CommandResult:
+    """Apply and read back branch protection for *repo*/*branch*."""
+    from agentharness.remote.github.api import APIError, GitHubClient
+    from agentharness.remote.github.auth import AuthError, get_token
+    from agentharness.remote.github.models import ProtectionPlan
+    from agentharness.remote.github.protection import apply_protection
+
+    try:
+        token = get_token(token_env)
+    except AuthError as e:
+        return CommandResult(
+            code=ResultCode.INVALID_COMMAND,
+            outcome=Outcome.ERROR,
+            summary=str(e),
+            remediation=f"Set ${token_env} to a GitHub token with repo scope.",
+            details={},
+        )
+
+    owner, name = (repo.split("/", 1) if "/" in repo else (repo, repo))
+    plan = ProtectionPlan(
+        branch=branch,
+        require_reviews=True,
+        required_approvals=1,
+        dismiss_stale_reviews=True,
+        require_code_owner_reviews=True,
+        required_contexts=["CI"],
+    )
+    client = GitHubClient(token=token)
+    try:
+        reconcile = apply_protection(client, owner, name, plan)
+    except APIError as e:
+        return CommandResult(
+            code=ResultCode.INVALID_COMMAND,
+            outcome=Outcome.ERROR,
+            summary=f"GitHub API error while applying protection: {e}",
+            remediation="Check that the token has repo admin permissions.",
+            details={},
+        )
+
+    return CommandResult(
+        code=ResultCode.STATUS_AVAILABLE,
+        outcome=Outcome.SUCCESS if reconcile.matches_plan else Outcome.ERROR,
+        summary=(
+            "Branch protection applied and verified."
+            if reconcile.matches_plan
+            else "Branch protection applied but read-back did not match plan."
+        ),
+        remediation=(
+            "Protection is active."
+            if reconcile.matches_plan
+            else "Re-run with --json to inspect the discrepancy."
+        ),
+        details={
+            "repo": repo,
+            "branch": branch,
+            "matches_plan": reconcile.matches_plan,
+        },
+    )
+
+
+def execute_github_completion_check(
+    repo: str,
+    pr_number: int,
+    expected_head: str,
+    token_env: str,
+) -> CommandResult:
+    """Check the completion gate for a pull request."""
+    from agentharness.remote.github.api import APIError, GitHubClient
+    from agentharness.remote.github.auth import AuthError, get_token
+    from agentharness.remote.github.completion import evaluate_completion
+    from agentharness.remote.github.models import PRState
+    from agentharness.remote.github.reviews import extract_signals
+
+    try:
+        token = get_token(token_env)
+    except AuthError as e:
+        return CommandResult(
+            code=ResultCode.INVALID_COMMAND,
+            outcome=Outcome.ERROR,
+            summary=str(e),
+            remediation=f"Set ${token_env} to a GitHub token.",
+            details={},
+        )
+
+    owner, name = (repo.split("/", 1) if "/" in repo else (repo, repo))
+    client = GitHubClient(token=token)
+    try:
+        pr_data = client.get(f"/repos/{owner}/{name}/pulls/{pr_number}")
+        checks_data = client.get(
+            f"/repos/{owner}/{name}/commits/{pr_data['head']['sha']}/check-runs"
+        )
+    except APIError as e:
+        return CommandResult(
+            code=ResultCode.INVALID_COMMAND,
+            outcome=Outcome.ERROR,
+            summary=f"GitHub API error: {e}",
+            remediation="Check that the token has repo read permissions.",
+            details={},
+        )
+
+    runs = checks_data.get("check_runs", [])
+    passing = [r["name"] for r in runs if r["conclusion"] == "success"]
+    failing = [r["name"] for r in runs if r["conclusion"] not in ("success", None)]
+    pr = PRState(
+        number=pr_number,
+        head_sha=pr_data["head"]["sha"],
+        is_draft=pr_data.get("draft", False),
+        review_decision=pr_data.get("review_decision"),
+        unresolved_threads=0,  # would require graphql query
+        passing_checks=passing,
+        failing_checks=failing,
+    )
+    signals = extract_signals(pr)
+    decision = evaluate_completion(signals, expected_head)
+
+    return CommandResult(
+        code=ResultCode.STATUS_AVAILABLE,
+        outcome=Outcome.SUCCESS if decision.is_complete else Outcome.ERROR,
+        summary=(
+            "PR is ready to complete."
+            if decision.is_complete
+            else f"PR is blocked: {'; '.join(decision.blocking_reasons)}"
+        ),
+        remediation=(
+            "Merge when ready."
+            if decision.is_complete
+            else "Address the blocking reasons before merging."
+        ),
+        details={
+            "pr": pr_number,
+            "head_sha": pr.head_sha,
+            "is_complete": decision.is_complete,
+            "blocking_reasons": list(decision.blocking_reasons),
+        },
     )
 
 
@@ -123,6 +327,8 @@ def main(argv: Sequence[str] | None = None, output: TextIO | None = None) -> int
         arguments = create_parser().parse_args(argv)
         if arguments.command == "status":
             result = execute_status()
+        elif arguments.command == "github":
+            result = _dispatch_github(arguments)
         else:
             result = execute_runtime_plan_upgrade(
                 arguments.request,
@@ -138,6 +344,29 @@ def main(argv: Sequence[str] | None = None, output: TextIO | None = None) -> int
         print(render_human(result), file=destination)
         return 2
 
-    rendered = render_json(result) if arguments.as_json else render_human(result)
+    as_json = getattr(arguments, "as_json", False)
+    rendered = render_json(result) if as_json else render_human(result)
     print(rendered, file=destination)
     return 0 if result.outcome is Outcome.SUCCESS else 1
+
+
+def _dispatch_github(arguments: argparse.Namespace) -> CommandResult:
+    """Route github sub-commands."""
+    if arguments.github_command == "protection":
+        if arguments.prot_command == "plan":
+            return execute_github_protection_plan(arguments.repo, arguments.branch)
+        if arguments.prot_command == "apply":
+            return execute_github_protection_apply(
+                arguments.repo,
+                arguments.branch,
+                arguments.token_env,
+            )
+    if arguments.github_command == "completion":
+        if arguments.comp_command == "check":
+            return execute_github_completion_check(
+                arguments.repo,
+                arguments.pr,
+                arguments.expected_head,
+                arguments.token_env,
+            )
+    raise CommandUsageError
