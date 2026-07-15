@@ -74,7 +74,8 @@ cmd_acquire() {
     mkdir -p "$LOCKS_DIR"
     local path
     path="$(_lock_path "$feature")"
-    local mutex_dir="$LOCKS_DIR/.mutex-$(_slug "$feature")"
+    local mutex_dir
+    mutex_dir="$LOCKS_DIR/.mutex-$(_slug "$feature")"
 
     # Best-effort atomic acquire: mkdir is atomic on POSIX filesystems
     if ! mkdir "$mutex_dir" 2>/dev/null; then
@@ -113,7 +114,6 @@ print(f\"  2. Create your own branch: git worktree add -b feat/{d['branch']}-2 .
     started_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
     local pid="${AGENT_LOCK_PID:-$PPID}"
 
-    local worktree_json
     local worktree_val
     if [[ "$worktree" == "null" ]]; then
         worktree_val="None"
