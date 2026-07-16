@@ -1,0 +1,5 @@
+# Approved new-file additions in guarded paths (see CLAUDE.md "File Placement").
+# One path per line. Approved by: user, in-session, 2026-07-16.
+.agentharness-allowed-additions.txt
+docs/operational/planning/public-launch-readiness-2026-07-16.md
+media/
