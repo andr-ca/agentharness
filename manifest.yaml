@@ -315,6 +315,18 @@ sections:
     path: .claude/skills/code-review/SKILL.md
     type: skill
     when_to_use: Loads on demand when reviewing a diff or pull request
+  - asset: Code review — DB/persistence
+    path: .claude/skills/code-review-db/SKILL.md
+    type: skill
+    when_to_use: Load for DB/persistence layer reviews — indexes, N+1, migrations, transactions; replaces general code-review for DB-focused PRs
+  - asset: Code review — REST/API
+    path: .claude/skills/code-review-api/SKILL.md
+    type: skill
+    when_to_use: Load for REST API reviews — HTTP codes, auth, pagination, idempotency, error shapes; replaces general code-review for API-focused PRs
+  - asset: Code review — UI/frontend
+    path: .claude/skills/code-review-ui/SKILL.md
+    type: skill
+    when_to_use: Load for UI/frontend reviews — accessibility, state management, bundle size, hydration; replaces general code-review for UI PRs
   - asset: API design
     path: .claude/skills/api-design/SKILL.md
     type: skill
@@ -351,6 +363,22 @@ sections:
     path: .claude/skills/file-placement-policy/SKILL.md
     type: skill
     when_to_use: Loads at session start in projects with .agentharness-guarded-paths.json; checks before any new file creation
+  - asset: Dependency injection
+    path: .claude/skills/dependency-injection/SKILL.md
+    type: skill
+    when_to_use: Constructor injection, DI containers, testability; load when reviewing tightly-coupled code or designing services
+  - asset: SOLID principles
+    path: .claude/skills/solid-principles/SKILL.md
+    type: skill
+    when_to_use: SRP, OCP, LSP, ISP, DIP; load during design review or when a class feels too large
+  - asset: Design patterns
+    path: .claude/skills/design-patterns/SKILL.md
+    type: skill
+    when_to_use: Factory, Strategy, Observer, Repository, Decorator, Command, Builder; load when recognizing a recurring design problem
+  - asset: Clean architecture
+    path: .claude/skills/clean-architecture/SKILL.md
+    type: skill
+    when_to_use: Hexagonal/ports-and-adapters, domain isolation; load when business logic is tangled with infrastructure
 - name: Custom Agents (task delegation to a separate agent instance — a different mechanism from skills, ported to Codex/OpenCode/Cursor/Kilo Code/Copilot/Gemini CLI)
   columns:
   - Asset

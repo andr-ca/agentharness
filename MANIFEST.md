@@ -110,6 +110,9 @@ they drift (`check_manifest_md_sync()` in `tools/verify-content-quality.py`).
 | Planning with files | `.claude/skills/planning-with-files/SKILL.md` | skill | Loads on demand when starting complex multi-step tasks requiring persistent state across context resets |
 | Requirements clarification | `.claude/skills/requirements-clarification/SKILL.md` | skill | Loads on demand before implementing ambiguous or underspecified features |
 | Code review | `.claude/skills/code-review/SKILL.md` | skill | Loads on demand when reviewing a diff or pull request |
+| Code review — DB/persistence | `.claude/skills/code-review-db/SKILL.md` | skill | Load for DB/persistence layer reviews — indexes, N+1, migrations, transactions; replaces general code-review for DB-focused PRs |
+| Code review — REST/API | `.claude/skills/code-review-api/SKILL.md` | skill | Load for REST API reviews — HTTP codes, auth, pagination, idempotency, error shapes; replaces general code-review for API-focused PRs |
+| Code review — UI/frontend | `.claude/skills/code-review-ui/SKILL.md` | skill | Load for UI/frontend reviews — accessibility, state management, bundle size, hydration; replaces general code-review for UI PRs |
 | API design | `.claude/skills/api-design/SKILL.md` | skill | Loads on demand when designing or reviewing REST or GraphQL APIs |
 | React best practices | `.claude/skills/react-best-practices/SKILL.md` | skill | Loads on demand when writing or reviewing React or Next.js code |
 | Database conventions | `.claude/skills/database-conventions/SKILL.md` | skill | Loads on demand when designing schemas, writing migrations, or reviewing SQL queries |
@@ -119,6 +122,10 @@ they drift (`check_manifest_md_sync()` in `tools/verify-content-quality.py`).
 | Mutation testing | `.claude/skills/mutation-testing/SKILL.md` | skill | Loads on demand when auditing test suite quality beyond line coverage or interpreting surviving mutants |
 | Multi-agent coordination | `.claude/skills/multi-agent-coordination/SKILL.md` | skill | Loads on demand when two or more agents may work on the same repository concurrently |
 | File placement policy | `.claude/skills/file-placement-policy/SKILL.md` | skill | Loads at session start in projects with .agentharness-guarded-paths.json; checks before any new file creation |
+| Dependency injection | `.claude/skills/dependency-injection/SKILL.md` | skill | Constructor injection, DI containers, testability; load when reviewing tightly-coupled code or designing services |
+| SOLID principles | `.claude/skills/solid-principles/SKILL.md` | skill | SRP, OCP, LSP, ISP, DIP; load during design review or when a class feels too large |
+| Design patterns | `.claude/skills/design-patterns/SKILL.md` | skill | Factory, Strategy, Observer, Repository, Decorator, Command, Builder; load when recognizing a recurring design problem |
+| Clean architecture | `.claude/skills/clean-architecture/SKILL.md` | skill | Hexagonal/ports-and-adapters, domain isolation; load when business logic is tangled with infrastructure |
 
 ## Custom Agents (task delegation to a separate agent instance — a different mechanism from skills, ported to Codex/OpenCode/Cursor/Kilo Code/Copilot/Gemini CLI)
 

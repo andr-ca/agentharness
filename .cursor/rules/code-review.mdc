@@ -27,7 +27,9 @@ The most important category. Ask: *"Can this code produce wrong results?"*
 - Are all inputs validated before use?
 - Are edge cases handled: empty collections, zero, null/None/undefined,
   negative numbers, max values, concurrent access?
-- Does error handling actually handle the error, or does it swallow it?
+- Does error handling actually handle the error, or does it swallow it silently?
+- Are exceptions caught at the right level (not too broad, not too narrow)?
+- Are resources (files, connections, locks) released even on exception?
 
 ```python
 # Swallowed error — caller sees success, wrong data silently used
@@ -133,6 +135,49 @@ if the caller passes user-controlled input. Use a parameterised query:
     cursor.execute("SELECT ... WHERE email = %s", (email,))
 ```
 
+### 7. Smells, Inefficiencies & Pattern Misuse
+
+Check for these cross-cutting problems regardless of layer:
+
+#### Exception handling
+- **Bare/empty catch** — `except: pass` (Python), `catch (e) {}` (JS/TS), `catch (Exception ignored) {}` (Java) — silently swallows errors; bugs become invisible. Always log or re-throw.
+- **Catching too broadly** — bare `except:` (Python) or `catch (Throwable t)` (Java) catches truly everything including keyboard interrupt and VM errors that cannot be recovered from. Even `except Exception` or `catch (Exception e)` is too broad when the try block is long: narrow the scope instead. Catch only the specific exception types you know how to handle.
+- **Swallowing and continuing** — catching an error, logging it, then continuing as if nothing happened. If recovery is possible, do it explicitly; otherwise re-throw.
+- **Exception used for control flow** — throwing to signal a normal condition ("not found" as a raised exception instead of an Optional). Exceptions are for unexpected failures, not expected branches.
+- **Missing cleanup on error** — a resource (file, DB connection, lock) opened in a try block but not released on exception; needs `finally`/`with`/`using`/`defer`.
+- **Re-raising loses original cause** — `raise NewException(...)` without `from e` (Python) / missing cause arg (Java: `new MyException(msg, cause)`) / missing `innerException` (C#) — loses the original stack trace. Chain exceptions.
+- **Error message contains secrets** — exception message or log line includes passwords, tokens, or PII. Sanitize before logging.
+
+#### Logging
+- **Log level too high for routine events** — `ERROR` or `WARN` for expected, recoverable conditions inflates alert noise. Use `DEBUG`/`INFO` for normal flow, `WARN` for degraded-but-continuing, `ERROR` for failures that need attention, `FATAL`/`CRITICAL` only for unrecoverable states.
+- **Log level too low for real failures** — a caught exception that reaches the caller, or a security event, logged at `DEBUG` is invisible in production. Failures surfaced to the caller should be `ERROR` or above.
+- **Unstructured log messages** — `logger.info(f"User {user.id} logged in at {ts}")` is hard to query and alert on. Prefer structured key=value or JSON fields: `logger.info("user.login", user_id=user.id, ts=ts)`.
+- **Logging PII or secrets** — passwords, tokens, full credit card numbers, SSNs, or health data in log lines. Mask, hash, or omit sensitive fields before logging.
+- **Logging request/response bodies unconditionally** — request bodies can contain credentials or PII. Only log in debug mode and with explicit field allowlists.
+- **Duplicate log lines** — the same event logged at multiple call depths (e.g., both in a service and its caller). Log once at the right layer.
+- **Missing correlation ID** — requests/jobs that span multiple services or async steps with no trace/request ID. Impossible to reconstruct a timeline from logs without one.
+- **Print instead of logger** — `print(...)` (Python), `console.log(...)` (JS/TS), `fmt.Println(...)` (Go) in production code. These bypass log level control, sampling, and structured output.
+- **Overly verbose hot path** — `DEBUG`-level logging inside a tight loop or a high-frequency function. Even `if logger.isDebugEnabled()` guards have overhead at scale; log outside the loop or sample.
+
+#### Database / persistence
+- **N+1 queries** — loading a list then fetching related records per item in a loop. Look for `for item in items: item.load_relation()`.
+- **Loading all records** — `SELECT *` with no limit/pagination; `repo.find_all()` with no bound.
+- **Missing index** — a `WHERE`, `ORDER BY`, or `JOIN` clause on a column not in the index list.
+- **Missing transaction** — two or more writes that must succeed or fail together, without a transaction boundary.
+- **Reading stale data** — reading inside a write path without locking or version checks.
+
+#### Repeated/inefficient calls
+- **Repeated API calls to the same resource** — same request made multiple times in a loop or in both a condition and a body; should be cached in a local variable.
+- **Chatty pattern** — 10 individual property reads where one bulk load would do.
+- **Bypassed cache** — a cache exists but the code path goes around it.
+
+#### Dependency injection & patterns
+- **Missing DI** — `new Service()` inside a class constructor or method body; makes the class hard to test and tightly coupled. Should be injected.
+- **Service locator** — calling `container.get(...)` or `locator.resolve(...)` inside business logic. Prefer constructor injection.
+- **Pattern where none is needed** — a Factory to construct a plain value object; a Strategy for a fixed enum; a Repository wrapping a single in-memory list. Premature abstraction is a bug.
+- **Missing pattern for real duplication** — copy-paste of the same algorithm in 3 places that could be a Strategy; repeated decoration logic that could be a Decorator; 5-clause `if type == X` that could be a Factory.
+- **Inheritance for code reuse** — a subclass that only exists to share code (not to express a true is-a relationship). Use composition (Strategy, Decorator, delegation) instead.
+
 ### Approve vs. request changes
 
 **Approve** when:
@@ -148,3 +193,11 @@ if the caller passes user-controlled input. Use a parameterised query:
 **Don't block on style preferences** that aren't in the project's
 enforced conventions. Suggest them as `[nit]` and approve if everything
 else is clean.
+
+### See Also — Domain-Specific Review Skills
+
+Load these instead of (or alongside) this skill when reviewing a specific layer to avoid polluting context with irrelevant instructions:
+
+- `.claude/skills/code-review-db/SKILL.md` — database/persistence layer: indexes, N+1, migrations, transactions
+- `.claude/skills/code-review-api/SKILL.md` — REST/HTTP API layer: status codes, idempotency, versioning, auth, pagination
+- `.claude/skills/code-review-ui/SKILL.md` — UI/frontend layer: accessibility, state management, bundle size, keyboard navigation
