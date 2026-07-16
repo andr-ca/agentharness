@@ -138,10 +138,14 @@ const d = require('./package.json');
 const s = (d.scripts || {});
 process.exit(('lint' in s || 'typecheck' in s || 'type-check' in s) ? 0 : 1)
 " 2>/dev/null; then
-        lint_script="lint"
-        node -e "const d=require('./package.json'); process.exit(('lint' in (d.scripts||{})) ? 0 : 1)" 2>/dev/null \
-            || lint_script="typecheck"
-        run_gate "npm-lint" npm run "$lint_script" --if-present
+        # Determine the lint script name — prefer 'lint', then 'typecheck', then 'type-check'
+        if node -e "const d=require('./package.json'); process.exit(('lint' in (d.scripts||{})) ? 0 : 1)" 2>/dev/null; then
+            run_gate "npm-lint" npm run lint
+        elif node -e "const d=require('./package.json'); process.exit(('typecheck' in (d.scripts||{})) ? 0 : 1)" 2>/dev/null; then
+            run_gate "npm-typecheck" npm run typecheck
+        elif node -e "const d=require('./package.json'); process.exit(('type-check' in (d.scripts||{})) ? 0 : 1)" 2>/dev/null; then
+            run_gate "npm-type-check" npm run type-check
+        fi
     fi
 fi
 

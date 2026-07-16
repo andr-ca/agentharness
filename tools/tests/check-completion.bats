@@ -117,6 +117,8 @@ PYEOF
 # ---------------------------------------------------------------------------
 
 @test "check-completion: JS project with passing lint script passes" {
+    command -v node >/dev/null 2>&1 || skip "node not installed"
+    command -v npm  >/dev/null 2>&1 || skip "npm not installed"
     proj="$(_make_minimal_project)"
     # Add a package.json with a lint script that exits 0
     cat > "$proj/package.json" << 'EOF'
@@ -133,6 +135,8 @@ EOF
 }
 
 @test "check-completion: JS project with failing lint script fails the gate" {
+    command -v node >/dev/null 2>&1 || skip "node not installed"
+    command -v npm  >/dev/null 2>&1 || skip "npm not installed"
     proj="$(_make_minimal_project)"
     cat > "$proj/package.json" << 'EOF'
 {
@@ -148,6 +152,7 @@ EOF
 }
 
 @test "check-completion: project without package.json skips JS gate" {
+    command -v node >/dev/null 2>&1 || skip "node not installed; test not applicable"
     # Verify that the JS gate doesn't run in a Python-only project
     proj="$(_make_minimal_project)"
     output=$(cd "$proj" && bash tools/check-completion.sh 2>/dev/null || true)
