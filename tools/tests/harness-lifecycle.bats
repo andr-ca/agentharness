@@ -669,12 +669,12 @@ print(d['source']['revision'])
     #
     # Requires the runtime artifact cache to be seeded (.tool-cache/runtime-artifacts/).
     # In CI, the runtime-bootstrap-exact-four job seeds this; locally, run
-    # `tools/build/seed-runtime-artifacts.sh` first, or skip with
+    # `tools/runtime/seed-runtime-artifacts.sh` first, or skip with
     # CHECK_OFFLINE=1.
     local harness_root="$BATS_TEST_DIRNAME/../.."
     local tool_cache="$harness_root/.tool-cache/runtime-artifacts"
     if [ -z "$(ls "$tool_cache" 2>/dev/null)" ]; then
-        skip "runtime artifact cache not seeded (.tool-cache/runtime-artifacts/ is empty); run tools/build/seed-runtime-artifacts.sh first"
+        skip "runtime artifact cache not seeded (.tool-cache/runtime-artifacts/ is empty); run tools/runtime/seed-runtime-artifacts.sh first"
     fi
     local cache pkg_tgz
     cache=$(mktemp -d)

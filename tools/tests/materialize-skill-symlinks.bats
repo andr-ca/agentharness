@@ -22,9 +22,9 @@ _is_work_tree() {
 }
 
 @test "materialize-skill-symlinks: agentic-loops bundled symlinks exist before the test" {
-    # In a bare repo the files are real files rather than symlinks (git never
-    # stores them as symlinks in a bare checkout). Skip the symlink pre-condition
-    # check there to avoid a false failure — the materialize/restore cycle is
+    # In a bare repo there is no working tree, so symlinks in the object
+    # database cannot be checked out as filesystem symlinks. Skip the symlink
+    # pre-condition check there — the materialize/restore cycle is still
     # exercised by test 2 regardless.
     if ! _is_work_tree; then
         skip "bare repo: symlinks are stored as real files — skipping symlink pre-condition"

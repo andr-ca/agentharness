@@ -11,16 +11,11 @@ setup() {
 }
 
 @test "publish-authority: .agentharness-publish-mode is ignored by this repo's own .gitignore" {
-    # Use grep to check .gitignore directly — git check-ignore fails in bare repos.
-    # The file may live in .gitignore or .github/.gitignore or similar; check all.
-    local found=0
-    for f in "$HARNESS_ROOT/.gitignore" "$HARNESS_ROOT/.github/.gitignore" "$HARNESS_ROOT/.github/.gitignore.template"; do
-        if [ -f "$f" ] && grep -qF ".agentharness-publish-mode" "$f"; then
-            found=1
-            break
-        fi
-    done
-    [ "$found" -eq 1 ]
+    # Check the root .gitignore directly — git check-ignore fails in bare repos.
+    # The entry may live in .gitignore at the repo root (the canonical location
+    # for repo-owned ignores) or in .github/.gitignore.template (consumer-facing).
+    local gitignore="$HARNESS_ROOT/.gitignore"
+    [ -f "$gitignore" ] && grep -qF ".agentharness-publish-mode" "$gitignore"
 }
 
 @test "publish-authority: .agentharness-publish-mode is ignored by the consumer .gitignore.template" {
