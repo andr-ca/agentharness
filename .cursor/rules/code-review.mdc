@@ -133,6 +133,29 @@ if the caller passes user-controlled input. Use a parameterised query:
     cursor.execute("SELECT ... WHERE email = %s", (email,))
 ```
 
+### 7. Smells, Inefficiencies & Pattern Misuse
+
+Check for these cross-cutting problems regardless of layer:
+
+#### Database / persistence
+- **N+1 queries** — loading a list then fetching related records per item in a loop. Look for `for item in items: item.load_relation()`.
+- **Loading all records** — `SELECT *` with no limit/pagination; `repo.find_all()` with no bound.
+- **Missing index** — a `WHERE`, `ORDER BY`, or `JOIN` clause on a column not in the index list.
+- **Missing transaction** — two or more writes that must succeed or fail together, without a transaction boundary.
+- **Reading stale data** — reading inside a write path without locking or version checks.
+
+#### Repeated/inefficient calls
+- **Repeated API calls to the same resource** — same request made multiple times in a loop or in both a condition and a body; should be cached in a local variable.
+- **Chatty pattern** — 10 individual property reads where one bulk load would do.
+- **Bypassed cache** — a cache exists but the code path goes around it.
+
+#### Dependency injection & patterns
+- **Missing DI** — `new Service()` inside a class constructor or method body; makes the class hard to test and tightly coupled. Should be injected.
+- **Service locator** — calling `container.get(...)` or `locator.resolve(...)` inside business logic. Prefer constructor injection.
+- **Pattern where none is needed** — a Factory to construct a plain value object; a Strategy for a fixed enum; a Repository wrapping a single in-memory list. Premature abstraction is a bug.
+- **Missing pattern for real duplication** — copy-paste of the same algorithm in 3 places that could be a Strategy; repeated decoration logic that could be a Decorator; 5-clause `if type == X` that could be a Factory.
+- **Inheritance for code reuse** — a subclass that only exists to share code (not to express a true is-a relationship). Use composition (Strategy, Decorator, delegation) instead.
+
 ### Approve vs. request changes
 
 **Approve** when:
@@ -148,3 +171,11 @@ if the caller passes user-controlled input. Use a parameterised query:
 **Don't block on style preferences** that aren't in the project's
 enforced conventions. Suggest them as `[nit]` and approve if everything
 else is clean.
+
+### See Also — Domain-Specific Review Skills
+
+Load these instead of (or alongside) this skill when reviewing a specific layer to avoid polluting context with irrelevant instructions:
+
+- `.claude/skills/code-review-db/SKILL.md` — database/persistence layer: indexes, N+1, migrations, transactions
+- `.claude/skills/code-review-api/SKILL.md` — REST/HTTP API layer: status codes, idempotency, versioning, auth, pagination
+- `.claude/skills/code-review-ui/SKILL.md` — UI/frontend layer: accessibility, state management, bundle size, keyboard navigation

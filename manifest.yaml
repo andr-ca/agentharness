@@ -315,6 +315,18 @@ sections:
     path: .claude/skills/code-review/SKILL.md
     type: skill
     when_to_use: Loads on demand when reviewing a diff or pull request
+  - asset: Code review — DB/persistence
+    path: .claude/skills/code-review-db/SKILL.md
+    type: skill
+    when_to_use: Load for DB/persistence layer reviews — indexes, N+1, migrations, transactions; replaces general code-review for DB-focused PRs
+  - asset: Code review — REST/API
+    path: .claude/skills/code-review-api/SKILL.md
+    type: skill
+    when_to_use: Load for REST API reviews — HTTP codes, auth, pagination, idempotency, error shapes; replaces general code-review for API-focused PRs
+  - asset: Code review — UI/frontend
+    path: .claude/skills/code-review-ui/SKILL.md
+    type: skill
+    when_to_use: Load for UI/frontend reviews — accessibility, state management, bundle size, hydration; replaces general code-review for UI PRs
   - asset: API design
     path: .claude/skills/api-design/SKILL.md
     type: skill
