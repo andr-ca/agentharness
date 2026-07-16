@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "guard_root_level_new_items": true,
+  "guarded_dirs": [
+    "bin/",
+    "dist/",
+    "docs/",
+    "examples/",
+    "src/",
+    "tests/",
+    "tools/"
+  ],
+  "guarded_root_files": [
+    ".gitignore",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "LICENSE",
+    "README.md",
+    "package.json",
+    "pyproject.toml"
+  ],
+  "message": "New files in guarded paths require explicit user permission. Add the path to .agentharness-allowed-additions.txt or ask the user before creating files in these locations.",
+  "generated_from": "/home/andrey/projects/awesome-harness/.worktrees/multi-agent-coord"
+}
