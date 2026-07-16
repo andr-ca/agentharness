@@ -185,7 +185,7 @@ def generate_guarded_paths(report: dict) -> dict:
             if guard_root_level
             else "Project structure not yet established — fewer restrictions apply."
         ),
-        "generated_from": report["project_root"],
+        "generated_from": ".",  # relative: the project root this was run in
     }
 
 
