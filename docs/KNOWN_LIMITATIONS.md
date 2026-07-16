@@ -34,6 +34,16 @@ noted — resolve any label against the review filename cited next to it in
   under `--strict`). It is also **not wired into the pre-push hook** — it
   ships as an explicitly-invoked subcommand. → ROADMAP P1-02.
 
+## Runtime upgrades
+
+- **Verified candidate execution is Linux-only.** Runtime artifacts are built
+  and authenticated for both Linux and Darwin, but `runtime plan-upgrade`
+  rejects candidate execution on Darwin before launching candidate code.
+  macOS `sandbox-exec` can deny network and host writes, but the available
+  process resource limits do not provide the enforceable address-space bound
+  required by this trust boundary; `RLIMIT_DATA` is not a substitute because
+  memory mappings bypass it. Use a Linux host for verified upgrade planning.
+
 ## Client integration
 
 - **Client-adapter generation isn't wired into `init`/`update` yet.**

@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentharness.dev/schemas/profile-v1.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "runtime", "project", "bootstrap", "plugins", "requirements", "workflow", "protection"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "runtime": {
+      "type": "object", "additionalProperties": false, "required": ["lock"],
+      "properties": {"lock": {"type": "string", "minLength": 1, "maxLength": 4096}}
+    },
+    "project": {
+      "type": "object", "additionalProperties": false, "required": ["name", "rigor"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1, "maxLength": 128},
+        "rigor": {"enum": ["production", "internal", "prototype"]}
+      }
+    },
+    "bootstrap": {
+      "type": "object", "additionalProperties": false,
+      "required": ["mode", "confirmed_at", "existing_checks_are_required"],
+      "properties": {
+        "mode": {"enum": ["strict", "grace", "warn"]},
+        "confirmed_at": {"type": "string", "minLength": 1, "maxLength": 64},
+        "existing_checks_are_required": {"type": "boolean"}
+      }
+    },
+    "plugins": {
+      "type": "object", "minProperties": 1, "maxProperties": 128,
+      "propertyNames": {"pattern": "^[a-z][a-z0-9_]{0,63}$"},
+      "additionalProperties": {"$ref": "#/$defs/plugin"}
+    },
+    "requirements": {
+      "type": "object", "minProperties": 1, "maxProperties": 512,
+      "propertyNames": {"pattern": "^[a-z][a-z0-9_]{0,63}$"},
+      "additionalProperties": {"$ref": "#/$defs/requirement"}
+    },
+    "workflow": {"$ref": "#/$defs/workflow"},
+    "protection": {"$ref": "#/$defs/protection"}
+  },
+  "$defs": {
+    "gate": {"enum": ["commit", "push", "ci", "completion"]},
+    "stringList": {"type": "array", "maxItems": 128, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 256}},
+    "plugin": {
+      "type": "object", "additionalProperties": false, "required": ["enabled", "version", "config"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"},
+        "config": {"type": "object", "maxProperties": 128}
+      }
+    },
+    "scope": {
+      "type": "object", "additionalProperties": false, "required": ["include", "exclude"],
+      "properties": {"include": {"$ref": "#/$defs/stringList"}, "exclude": {"$ref": "#/$defs/stringList"}}
+    },
+    "requirement": {
+      "type": "object", "additionalProperties": false, "required": ["provider", "enabled", "gates"],
+      "properties": {
+        "provider": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$"},
+        "enabled": {"type": "boolean"},
+        "tool": {"type": "string", "minLength": 1, "maxLength": 128},
+        "command": {"type": "array", "minItems": 1, "maxItems": 128, "items": {"type": "string", "minLength": 1, "maxLength": 4096}},
+        "standard": {"type": "string", "minLength": 1, "maxLength": 128},
+        "checks": {"$ref": "#/$defs/stringList"},
+        "minimum_coverage": {"type": "integer", "minimum": 0, "maximum": 100},
+        "minimum_score": {"type": "integer", "minimum": 0, "maximum": 100},
+        "required_for": {"$ref": "#/$defs/stringList"},
+        "scope": {"$ref": "#/$defs/scope"},
+        "gates": {"type": "array", "minItems": 1, "maxItems": 4, "uniqueItems": true, "items": {"$ref": "#/$defs/gate"}}
+      }
+    },
+    "signal": {
+      "type": "object", "additionalProperties": false, "required": ["type", "name", "allowed_conclusions"],
+      "properties": {
+        "type": {"enum": ["check", "review"]},
+        "name": {"type": "string", "minLength": 1, "maxLength": 256},
+        "allowed_conclusions": {"$ref": "#/$defs/stringList"}
+      }
+    },
+    "workflow": {
+      "type": "object", "additionalProperties": false, "required": ["reviews", "completion"],
+      "properties": {
+        "reviews": {
+          "type": "object", "additionalProperties": false,
+          "required": ["expected_signals", "timeout_seconds", "stabilization_seconds"],
+          "properties": {
+            "expected_signals": {"type": "array", "maxItems": 64, "items": {"$ref": "#/$defs/signal"}},
+            "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 86400},
+            "stabilization_seconds": {"type": "integer", "minimum": 0, "maximum": 3600}
+          }
+        },
+        "completion": {
+          "type": "object", "additionalProperties": false,
+          "required": ["require_clean_tree", "require_committed_changes", "publication", "require_current_ci", "require_resolved_reviews"],
+          "properties": {
+            "require_clean_tree": {"type": "boolean"},
+            "require_committed_changes": {"type": "boolean"},
+            "publication": {"enum": ["follow_publish_authority", "local_only", "required"]},
+            "require_current_ci": {"type": "boolean"},
+            "require_resolved_reviews": {"type": "boolean"}
+          }
+        }
+      }
+    },
+    "protection": {
+      "type": "object", "additionalProperties": false, "required": ["provider", "default_branch", "requirement_reductions", "waivers"],
+      "properties": {
+        "provider": {"type": "string", "minLength": 1, "maxLength": 64},
+        "default_branch": {"type": "string", "minLength": 1, "maxLength": 256},
+        "requirement_reductions": {
+          "type": "object", "additionalProperties": false, "required": ["codeowners", "require_codeowner_approval", "minimum_total_approvals"],
+          "properties": {
+            "codeowners": {"type": "array", "maxItems": 128, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 256}},
+            "require_codeowner_approval": {"type": "boolean"},
+            "minimum_total_approvals": {"type": "integer", "minimum": 0, "maximum": 100}
+          }
+        },
+        "waivers": {
+          "type": "object", "additionalProperties": false, "required": ["require_expiry", "require_reason"],
+          "properties": {"require_expiry": {"type": "boolean"}, "require_reason": {"type": "boolean"}}
+        }
+      }
+    }
+  }
+}

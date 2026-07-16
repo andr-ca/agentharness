@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentharness.dev/schemas/local-override-v1.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "presentation": {
+      "type": "object", "additionalProperties": false, "minProperties": 1,
+      "properties": {
+        "output_format": {"enum": ["human", "json"]},
+        "color": {"enum": ["auto", "always", "never"]}
+      }
+    },
+    "performance": {
+      "type": "object", "additionalProperties": false, "minProperties": 1,
+      "properties": {
+        "concurrency": {"type": "integer", "minimum": 1, "maximum": 64},
+        "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 86400}
+      }
+    }
+  },
+  "anyOf": [{"required": ["presentation"]}, {"required": ["performance"]}]
+}

@@ -23,6 +23,62 @@ jobs:
         with:
           fail_level: error
 
+  runtime-upgrade-sandbox:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "20"
+      - name: Install the required Linux sandbox
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes apparmor bubblewrap
+          sudo apparmor_parser --replace .github/apparmor/agentharness-bwrap
+          # Keep this smoke test visible: a present bwrap binary is not enough
+          # when the host denies one of its required namespace operations.
+          /usr/bin/bwrap --unshare-all --die-with-parent \
+            --ro-bind /usr /usr \
+            --ro-bind /bin /bin \
+            --ro-bind /lib /lib \
+            --ro-bind /lib64 /lib64 \
+            --proc /proc \
+            --dev /dev \
+            /usr/bin/true
+      - name: Install sandbox test dependencies
+        run: |
+          python3 -m pip install --require-hashes --only-binary=:all: --no-deps -r requirements-ci-runtime.lock
+          python3 -m pip install pytest==9.1.1
+          bash tools/runtime/seed-runtime-artifacts.sh
+      - name: Prove Linux candidate isolation and packaged upgrade execution
+        if: runner.os == 'Linux'
+        env:
+          AGENTHARNESS_REQUIRE_SANDBOX_TEST: "1"
+        run: |
+          pytest \
+            tests/integration/test_runtime_upgrade.py::test_real_os_sandbox_blocks_host_writes_and_network \
+            tests/integration/test_runtime_upgrade.py::test_real_packed_base_runtime_enforces_host_upgrade_policy_without_source_checkout \
+            -v
+      - name: Prove Darwin candidate execution fails closed
+        if: runner.os == 'macOS'
+        env:
+          AGENTHARNESS_REQUIRE_SANDBOX_TEST: "1"
+        run: |
+          pytest \
+            tests/integration/test_runtime_upgrade.py::test_darwin_plan_upgrade_never_launches_candidate \
+            tests/integration/test_runtime_upgrade.py::test_real_packed_base_runtime_enforces_host_upgrade_policy_without_source_checkout \
+            -v
+
   shellcheck:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -53,7 +109,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
-          python-version: "3.x"
+          python-version: "3.12"
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: "20"
@@ -75,7 +131,11 @@ jobs:
           ./install.sh "$RUNNER_TEMP/bats"
           echo "$RUNNER_TEMP/bats/bin" >> "$GITHUB_PATH"
       - name: Install pytest (pre-push.bats invokes the pre-push hook, which needs it)
-        run: pip install -r requirements-dev.txt
+        run: |
+          python3 -m pip install --require-hashes --only-binary=:all: --no-deps -r requirements-ci-runtime.lock
+          python3 -m pip install -r requirements-dev.txt
+      - name: Seed hash-verified runtime build artifacts
+        run: bash tools/runtime/seed-runtime-artifacts.sh
       - name: Run hook tests
         run: bats .github/hooks/tests/
       - name: Run harness-link tests
@@ -98,6 +158,72 @@ jobs:
         run: bats tools/tests/enforce-profile.bats
       - name: Run generate-clients tests
         run: bats tools/tests/generate-clients.bats
+      - name: Generate deterministic runtime bootstrap fixtures
+        run: python3 tools/tests/helpers/make-runtime-fixtures.py
+      - name: Check secure runtime bootstrap syntax
+        run: node --check templates/bootstrap/verify-runtime.mjs
+      - name: Run secure runtime bootstrap tests
+        run: bats tools/tests/runtime-bootstrap.bats
+
+  runtime-bootstrap-exact-four:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            url: https://github.com/astral-sh/python-build-standalone/releases/download/20260510/cpython-3.12.13%2B20260510-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz
+            sha256: d480f5d5878910ecbae212bf23bd7c25d7b209eb8cf5e98823c977384d272e88
+            sha512: 470070d982d31b448830258a2f4ebddf9c9fad6443ed48b3f1cd0d597eed8892b566e389cd5acfffce7491fc44aea2886ab6d7a32d272299de57ec573bc3ad4e
+          - target: aarch64-unknown-linux-gnu
+            url: https://github.com/astral-sh/python-build-standalone/releases/download/20260510/cpython-3.12.13%2B20260510-aarch64-unknown-linux-gnu-install_only_stripped.tar.gz
+            sha256: 8e2907baca8b08ae43f366e65f09fda6337d3543f322c399d8800cf689c79973
+            sha512: e925d9280a5579f628222d30381f1ea65856697dff9b783abbecfc46202bde59fcbbdde8fd4a9ec7003c8cf391f6c4dff357f9dd51d4b4d582a5ed897c63dc5f
+          - target: x86_64-apple-darwin
+            url: https://github.com/astral-sh/python-build-standalone/releases/download/20260510/cpython-3.12.13%2B20260510-x86_64-apple-darwin-install_only_stripped.tar.gz
+            sha256: 6bab7fa97d4f2ddba86da0e05acff66c53b5edaca1df8edcf00ddca785a9c59b
+            sha512: 7b3bf26337e5fb3ec177d0f279154bd544841aedfaabbb17bfbc60417cfef443c6e66d12c36dad8097f528e49e9a76f1abe6adde1f5de91bb98fa0c8a282fd2a
+          - target: aarch64-apple-darwin
+            url: https://github.com/astral-sh/python-build-standalone/releases/download/20260510/cpython-3.12.13%2B20260510-aarch64-apple-darwin-install_only_stripped.tar.gz
+            sha256: 55bc1a5edbc8ac4da0081f4f5731ed2d1ed10c57cb37a820b2a0dbc7cad742e9
+            sha512: 41a301919d248ad7d4cdcae4c26129d5754f4f2eb947b5b1c2d5831597bd5cf060b67c15dd95bb9212f602a37d19554fc09aa32d62945d989cce73252e3cae09
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "20"
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+      - name: Download and authenticate exact runtime archive
+        env:
+          RUNTIME_URL: ${{ matrix.url }}
+          RUNTIME_SHA256: ${{ matrix.sha256 }}
+          RUNTIME_SHA512: ${{ matrix.sha512 }}
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/runtime.tar.gz"
+          curl --proto '=https' --proto-redir '=https' --tlsv1.2 \
+            --location --fail --show-error --silent \
+            --output "$archive.part" "$RUNTIME_URL"
+          test "$(sha256sum "$archive.part" | cut -d ' ' -f 1)" = "$RUNTIME_SHA256"
+          test "$(sha512sum "$archive.part" | cut -d ' ' -f 1)" = "$RUNTIME_SHA512"
+          mv "$archive.part" "$archive"
+      - name: Run parser, materializer, and verify-only contract
+        env:
+          AGENTHARNESS_BOOTSTRAP_TEST_MODE: "1"
+        run: |
+          set -euo pipefail
+          contract="$RUNNER_TEMP/contract"
+          python3 tools/tests/helpers/make-runtime-fixtures.py --online-contract \
+            "$RUNNER_TEMP/runtime.tar.gz" "${{ matrix.target }}" "$contract"
+          node templates/bootstrap/verify-runtime.mjs \
+            --lock "$contract/runtime.lock.json" \
+            --cache "$RUNNER_TEMP/bootstrap-cache/${{ matrix.target }}" \
+            --npm-archive "$contract/npm.tgz" \
+            --runtime-archive "$RUNNER_TEMP/runtime.tar.gz" \
+            --verify-only
 
   python-tests:
     runs-on: ubuntu-latest
@@ -106,16 +232,36 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
-          python-version: "3.x"
+          python-version: "3.12"
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: "1.21"
       - name: Install dependencies
-        run: pip install -r requirements-dev.txt
-      - name: Ruff (lint)
-        run: ruff check patterns/logging/config_loader.py patterns/logging/test_config_loader.py patterns/agentic-loops/agent_loop.py patterns/agentic-loops/test_agent_loop.py tools/eval/score.py tools/eval/run.py tools/verify-content-quality.py tools/tests/test_verify_content_quality.py tools/generate-manifest.py tools/release/materialize-skill-symlinks.py
-      - name: mypy (type check the non-test modules)
-        run: mypy patterns/logging/config_loader.py patterns/agentic-loops/agent_loop.py tools/eval/score.py tools/eval/run.py tools/verify-content-quality.py tools/generate-manifest.py tools/release/materialize-skill-symlinks.py
+        run: |
+          python3 -m pip install --require-hashes --only-binary=:all: --no-deps -r requirements-ci-runtime.lock
+          python3 -m pip install -r requirements-dev.txt
+      # Preserve the pre-pyproject lint contract for legacy files while new
+      # core/runtime code remains under the configured strict Ruff policy.
+      - name: Ruff (legacy surfaces)
+        run: ruff check --isolated patterns/logging/config_loader.py patterns/logging/test_config_loader.py patterns/agentic-loops/agent_loop.py patterns/agentic-loops/test_agent_loop.py tools/eval/score.py tools/eval/run.py tools/verify-content-quality.py tools/tests/test_verify_content_quality.py tools/generate-manifest.py tools/release/materialize-skill-symlinks.py
+      - name: Ruff (configured core surfaces)
+        run: ruff check src tools/runtime tests/unit tools/tests/helpers/make-runtime-fixtures.py
+      - name: mypy (legacy surfaces)
+        run: mypy --config-file=/dev/null patterns/logging/config_loader.py patterns/agentic-loops/agent_loop.py tools/eval/score.py tools/eval/run.py tools/verify-content-quality.py tools/generate-manifest.py tools/release/materialize-skill-symlinks.py
+      - name: mypy (configured core surfaces)
+        run: mypy --strict src tools/runtime tools/tests/helpers/make-runtime-fixtures.py
+      - name: Run runtime bootstrap lock contracts
+        run: |
+          pytest \
+            tests/unit/runtime/test_bootstrap_lock_contract.py \
+            tests/unit/runtime/test_ci_dependency_contract.py \
+            -v
+      - name: Run authenticated artifact seed tests (>=80% coverage required)
+        run: |
+          coverage run --branch \
+            --include='*/tools/runtime/seed-runtime-artifacts.py' \
+            -m pytest tests/unit/runtime/test_seed_runtime_artifacts.py -v
+          coverage report --fail-under=80
       - name: Run config_loader tests (>=80% coverage required)
         run: |
           cd patterns/logging
@@ -174,7 +320,9 @@ jobs:
         with:
           python-version: "3.x"
       - name: Install dependencies
-        run: pip install -r requirements-dev.txt
+        run: >-
+          python3 -m pip install --require-hashes --only-binary=:all: --no-deps
+          -r requirements-ci-content.lock
       - name: YAML validity + skill frontmatter schema + tested-snippet syntax
         run: python3 tools/verify-content-quality.py
 
@@ -213,6 +361,11 @@ jobs:
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: "20"
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+      - name: Seed hash-verified runtime build artifacts
+        run: bash tools/runtime/seed-runtime-artifacts.sh
       - name: Pack, unpack, and drive the CLI shim from the unpacked tarball
         run: |
           set -euo pipefail

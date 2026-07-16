@@ -20,6 +20,7 @@ they drift (`check_manifest_md_sync()` in `tools/verify-content-quality.py`).
 | prevent-trunk-commit hook | `.github/hooks/prevent-trunk-commit` | git hook | The enforcement logic. Installed via `git config core.hooksPath .github/hooks` (done in this repo) |
 | pre-commit dispatcher | `.github/hooks/pre-commit` | git hook | Required alongside the hook above — `core.hooksPath` only invokes a file literally named `pre-commit`; this execs `prevent-trunk-commit` |
 | pre-push test/coverage hook | `.github/hooks/pre-push` | git hook | Runs bats + pytest suites and blocks the push if anything fails or Python coverage drops below 80%. Installed the same way as the hooks above (git only needs a file literally named `pre-push`) |
+| Bubblewrap AppArmor profile | `.github/apparmor/agentharness-bwrap` | CI sandbox policy | Allows only the trusted system bubblewrap launcher to create the user namespace used by mandatory Ubuntu runtime-upgrade isolation tests |
 
 ## Language Conventions
 
@@ -135,7 +136,12 @@ they drift (`check_manifest_md_sync()` in `tools/verify-content-quality.py`).
 | Structure analyzer | `tools/analyze_structure.py` | script | Analyze project structure and generate .agentharness-guarded-paths.json; also --recommend for early-stage projects |
 | File placement check | `tools/check-file-placement.sh` | script | Pre-commit hook check — blocks staged files in guarded paths; wired into .github/hooks/pre-commit alongside trunk protection |
 | Skill-symlink verifier | `tools/verify-skill-symlinks.sh` | script | Verifies `.agents/skills/` stays 1:1 with `.claude/skills/` — every Agent-Skills-standard tool (Codex, Copilot, Gemini, ...) reads the symlinks, so drift silently hides a skill from them while Claude still sees it |
-| Pinned dev/CI toolchain | `requirements-dev.txt` | config | Exact pinned versions of pytest/ruff/mypy/etc. — `pip install -r requirements-dev.txt` (P1-06) |
+| Pinned dev/CI toolchain | `requirements-dev.txt` | config | Exact pinned versions of pytest/ruff/mypy/etc. — install after the separate hash-locked runtime requirements (P1-06) |
+| Wheel-only CI runtime lock | `requirements-ci-runtime.lock` | config | Hash-closed PyYAML and fastjsonschema wheel installation for Python 3.12/3.14 CI jobs; versions must match requirements-runtime.lock |
+| Minimal content-quality runtime lock | `requirements-ci-content.lock` | config | Hash-closed PyYAML-only wheel installation for the content-quality CI job |
+| Runtime artifact cache seeder | `tools/runtime/seed-runtime-artifacts.sh` | script | Portable shell entrypoint before building or packaging the Python runtime zipapp in a clean checkout |
+| Authenticated runtime artifact acquisition | `tools/runtime/seed-runtime-artifacts.py` | script | Downloads fixed official artifacts as inert bytes, strictly parses requirements-runtime.lock, promotes each file atomically under a cache lock, and fails closed if a mixed generation remains |
+| Canonical runtime requirements parser | `src/agentharness/runtime_requirements.py` | utility | Shared strict parser used by runtime zipapp building and authenticated artifact seeding; rejects duplicate, extra, malformed, or version-drifted lock declarations |
 | Sample project | `examples/sample-project/` | project | Blank/generic fixture; demonstrates harness integration, validates INTEGRATION.md commands work |
 | Integration verification | `examples/sample-project/verify.sh` | script | Checks that skills, hooks, and guidelines are properly integrated |
 | Python fixture | `examples/python-project/` | project | Realistic Python consumer (pre-existing `.gitignore`); CI-verified across all install modes |

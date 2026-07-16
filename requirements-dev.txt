@@ -1,10 +1,11 @@
-# Pinned dev/CI toolchain (P1-06: reproducible builds — a fresh `pip install
-# -r requirements-dev.txt` gets the exact versions this repo is tested
-# against, not "whatever's latest today"). Bump deliberately, verify locally
-# (pytest suites + ruff + mypy all still pass) before raising these.
+# Pinned development/CI tools only. Install the hash-locked runtime packages
+# first, as documented in CONTRIBUTING.md; keeping the resolver invocations
+# separate prevents pip's global require-hashes mode from rejecting these
+# pinned development tools. Bump deliberately and verify the full suite.
 pytest==9.1.1
 pytest-cov==7.1.0
-pyyaml==6.0.3
+hypothesis==6.156.6
+setuptools==80.9.0
 jsonschema==4.26.0
 ruff==0.15.8
 mypy==1.19.1

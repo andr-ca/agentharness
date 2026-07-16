@@ -12,7 +12,8 @@
 # same as the pre-push hook (which runs a subset of this — bats + pytest —
 # automatically).
 #
-# Requires: bats, python3, pip install -r requirements-dev.txt, npx (for
+# Requires: bats, Python dependencies installed with the two commands in
+# CONTRIBUTING.md (hash-locked runtime first, then dev tools), and npx (for
 # markdownlint-cli2 — downloaded on first use if not already cached).
 # Static analysis of shell scripts (via the shellcheck tool) is optional
 # locally — CI always runs it — but installing it locally catches issues
@@ -80,18 +81,50 @@ bats tools/tests/enforce-profile.bats
 step "bats: tools/tests/generate-clients.bats"
 bats tools/tests/generate-clients.bats
 
-step "ruff"
-ruff check patterns/logging/config_loader.py patterns/logging/test_config_loader.py \
+step "runtime bootstrap fixtures"
+python3 tools/tests/helpers/make-runtime-fixtures.py
+
+step "node: secure runtime bootstrap syntax"
+node --check templates/bootstrap/verify-runtime.mjs
+
+step "bats: tools/tests/runtime-bootstrap.bats"
+bats tools/tests/runtime-bootstrap.bats
+
+step "ruff: legacy surfaces"
+# These files predate pyproject.toml's strict repo-wide Ruff policy; preserve
+# their existing lint contract while all new core code uses configured Ruff.
+ruff check --isolated \
+    patterns/logging/config_loader.py patterns/logging/test_config_loader.py \
     patterns/agentic-loops/agent_loop.py patterns/agentic-loops/test_agent_loop.py \
     tools/eval/score.py tools/eval/run.py \
     tools/verify-content-quality.py tools/tests/test_verify_content_quality.py \
     tools/generate-manifest.py tools/release/materialize-skill-symlinks.py
 
-step "mypy"
-mypy patterns/logging/config_loader.py patterns/agentic-loops/agent_loop.py \
+step "ruff: configured core surfaces"
+ruff check src tools/runtime tests/unit \
+    tools/tests/helpers/make-runtime-fixtures.py
+
+step "mypy: legacy surfaces"
+mypy --config-file=/dev/null \
+    patterns/logging/config_loader.py patterns/agentic-loops/agent_loop.py \
     tools/eval/score.py tools/eval/run.py tools/verify-content-quality.py \
     tools/release/materialize-skill-symlinks.py \
     tools/generate-manifest.py
+
+step "mypy: configured core surfaces"
+mypy --strict src tools/runtime tools/tests/helpers/make-runtime-fixtures.py
+
+step "pytest: runtime bootstrap and CI dependency contracts"
+python3 -m pytest \
+    tests/unit/runtime/test_bootstrap_lock_contract.py \
+    tests/unit/runtime/test_ci_dependency_contract.py \
+    -q
+
+step "pytest: authenticated artifact seed (>=80% coverage)"
+coverage run --branch \
+    --include='*/tools/runtime/seed-runtime-artifacts.py' \
+    -m pytest tests/unit/runtime/test_seed_runtime_artifacts.py -q
+coverage report --fail-under=80
 
 step "pytest: config_loader (>=80% coverage)"
 (cd patterns/logging && python3 -m pytest test_config_loader.py --cov=config_loader --cov-branch --cov-fail-under=80 -q)

@@ -1,0 +1,7 @@
+=== AC-22 sandbox read-back ===
+
+Command: agentharness github protection plan --repo malandr/agentharness-sandbox --branch main
+{"code": "status_available", "details": {"branch": "main", "matches_plan": true, "repo": "malandr/agentharness-sandbox", "required_approvals": 1}, "outcome": "success", "remediation": "", "schema_version": 1, "summary": "Protection plan for malandr/agentharness-sandbox/main: applied."}
+
+Command: agentharness github protection apply --repo malandr/agentharness-sandbox --branch main
+{"code": "status_available", "details": {"branch": "main", "matches_plan": true, "repo": "malandr/agentharness-sandbox"}, "outcome": "success", "remediation": "Protection is active.", "schema_version": 1, "summary": "Branch protection applied and verified."}
