@@ -164,7 +164,7 @@ Check for these cross-cutting problems regardless of layer:
 
 ### Exception handling
 - **Bare/empty catch** — `except: pass`, `catch (e) {}`, `catch (_) {}` — silently swallows errors; bugs become invisible. Always log or re-throw.
-- **Catching too broadly** — `except Exception` or `catch (Exception e)` catching everything including OOM, keyboard interrupt, or system errors. Catch the narrowest type that makes sense.
+- **Catching too broadly** — bare `except:` (Python) or `catch (Throwable t)` (Java) catches truly everything including keyboard interrupt and VM errors that cannot be recovered from. Even `except Exception` or `catch (Exception e)` is too broad when the try block is long: narrow the scope instead. Catch only the specific exception types you know how to handle.
 - **Swallowing and continuing** — catching an error, logging it, then continuing as if nothing happened. If recovery is possible, do it explicitly; otherwise re-throw.
 - **Exception used for control flow** — throwing to signal a normal condition ("not found" as a raised exception instead of an Optional). Exceptions are for unexpected failures, not expected branches.
 - **Missing cleanup on error** — a resource (file, DB connection, lock) opened in a try block but not released on exception; needs `finally`/`with`/`using`/`defer`.
