@@ -1,0 +1,73 @@
+---
+name: code-review-api
+description: Use when reviewing REST or HTTP API endpoints, controllers, or route handlers. Covers HTTP status codes, idempotency, versioning, auth, pagination, error shapes, and rate limiting. Load instead of the general code-review skill for API-focused reviews.
+metadata:
+  type: skills
+  scope: ["Python", "TypeScript", "JavaScript", "Go", "Java"]
+  when: "Reviewing FastAPI/Express/Django/Rails/Go HTTP handlers, REST controllers, API clients, or OpenAPI specs"
+---
+
+# Code Review — REST / HTTP API Layer
+
+Focus on correctness, consistency, and safety at the HTTP boundary.
+
+---
+
+## HTTP Semantics
+
+- [ ] **Correct status codes** — `201 Created` for POST that creates; `200 OK` for updates; `204 No Content` for DELETE; `400 Bad Request` for invalid input; `404 Not Found` for missing resources; `409 Conflict` for duplicate creation; `422 Unprocessable Entity` for validation failures; `500 Internal Server Error` for unhandled exceptions.
+- [ ] **Non-idempotent PUT** — PUT must be idempotent (same request = same result). If the operation has side effects that shouldn't repeat, it should be a POST.
+- [ ] **DELETE returns a body** — RFC 7231 allows it, but clients often discard it. Prefer `204 No Content` unless returning the deleted resource is explicitly needed.
+- [ ] **Wrong method for the operation** — using GET for state-changing operations (no caching, logging of query params); using POST when PUT/PATCH is more appropriate.
+
+---
+
+## Input Validation & Error Shapes
+
+- [ ] **Missing input validation** — user-supplied fields used directly without type/range/pattern validation. Every boundary input must be validated before use.
+- [ ] **Inconsistent error shape** — some errors return `{"error": "..."}`, others `{"message": "..."}`. The API should follow one schema (RFC 9457 Problem Details recommended).
+- [ ] **Stack trace in production response** — never send exception stack traces to clients. Log server-side; return a stable error code.
+- [ ] **Leaking internal IDs** — returning auto-increment integer IDs exposes row count; prefer UUIDs or opaque tokens.
+
+---
+
+## Authentication & Authorization
+
+- [ ] **Auth happens after the operation** — authorization must be checked *before* the DB query, not after loading the resource.
+- [ ] **Missing ownership check** — user can access `/orders/123` even if order 123 belongs to another user. Every resource access needs an ownership/permission check.
+- [ ] **Token in URL** — never put auth tokens in query strings (they appear in logs, referrer headers, browser history). Use `Authorization` header.
+- [ ] **Missing rate limiting** — unauthenticated endpoints or auth endpoints (login, signup) with no rate limit are trivially brute-forced or scraped.
+
+---
+
+## Versioning & Contracts
+
+- [ ] **Breaking change without version bump** — renaming a field, removing a field, or changing a type in an existing API version is a breaking change. Add a new version or deprecate with a migration period.
+- [ ] **Missing `Content-Type` validation** — accepting `application/json` but not returning `415 Unsupported Media Type` when the client sends the wrong type.
+- [ ] **Undocumented enum values** — if a field is an enum, all valid values must be documented and stable. Adding undocumented values can break clients.
+
+---
+
+## Pagination & Performance
+
+- [ ] **Unbounded list endpoints** — `/items` with no pagination returns the entire table. Always require `limit`/`offset` or cursor-based pagination.
+- [ ] **Overfetching** — returning 50 fields when the caller only needs 3. Consider sparse fieldsets or a dedicated summary endpoint.
+- [ ] **Synchronous long operation** — a POST that triggers 30s of computation should return `202 Accepted` + a polling or webhook URL, not block.
+- [ ] **Missing caching headers** — GET responses for stable resources should set `Cache-Control`, `ETag`, or `Last-Modified` to enable client and CDN caching.
+
+---
+
+## Repeated / Inefficient Calls
+
+- [ ] **N+1 in endpoint** — the handler fetches a list, then makes one DB call per item to load related data. Batch the related query.
+- [ ] **Multiple calls to the same downstream service** — the same external API called twice with the same arguments within a single request. Cache in a local variable or deduplicate at the client layer.
+- [ ] **Re-fetching after mutation** — fetching the updated resource after writing it when the write result already contains the new state.
+
+---
+
+## See Also
+
+- `.claude/skills/code-review/SKILL.md` — general review checklist for all layers
+- `.claude/skills/code-review-db/SKILL.md` — database layer review (often called from API handlers)
+- `.claude/skills/api-design/SKILL.md` — API design conventions (naming, versioning, error shapes)
+- `.claude/skills/security-review/SKILL.md` — deeper security checks for injection, auth bypass, secrets
