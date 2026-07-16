@@ -171,6 +171,17 @@ Check for these cross-cutting problems regardless of layer:
 - **Re-raising loses original cause** — `raise NewException(...)` without `from e` (Python) / missing `innerException` (C#/Java) — loses the original stack trace. Chain exceptions.
 - **Error message contains secrets** — exception message or log line includes passwords, tokens, or PII. Sanitize before logging.
 
+### Logging
+- **Log level too high for routine events** — `ERROR` or `WARN` for expected, recoverable conditions inflates alert noise. Use `DEBUG`/`INFO` for normal flow, `WARN` for degraded-but-continuing, `ERROR` for failures that need attention, `FATAL`/`CRITICAL` only for unrecoverable states.
+- **Log level too low for real failures** — an unhandled exception or a security event logged at `DEBUG` is invisible in production. Errors that reach the caller should be `ERROR` or above.
+- **Unstructured log messages** — `logger.info(f"User {user.id} logged in at {ts}")` is hard to query and alert on. Prefer structured key=value or JSON fields: `logger.info("user.login", user_id=user.id, ts=ts)`.
+- **Logging PII or secrets** — passwords, tokens, full credit card numbers, SSNs, or health data in log lines. Mask, hash, or omit sensitive fields before logging.
+- **Logging request/response bodies unconditionally** — request bodies can contain credentials or PII. Only log in debug mode and with explicit field allowlists.
+- **Duplicate log lines** — the same event logged at multiple call depths (e.g., both in a service and its caller). Log once at the right layer.
+- **Missing correlation ID** — requests/jobs that span multiple services or async steps with no trace/request ID. Impossible to reconstruct a timeline from logs without one.
+- **Print instead of logger** — `print(...)` (Python), `console.log(...)` (JS/TS), `fmt.Println(...)` (Go) in production code. These bypass log level control, sampling, and structured output.
+- **Overly verbose hot path** — `DEBUG`-level logging inside a tight loop or a high-frequency function. Even `if logger.isDebugEnabled()` guards have overhead at scale; log outside the loop or sample.
+
 ### Database / persistence
 - **N+1 queries** — loading a list then fetching related records per item in a loop. Look for `for item in items: item.load_relation()`.
 - **Loading all records** — `SELECT *` with no limit/pagination; `repo.find_all()` with no bound.
