@@ -260,7 +260,6 @@ Check for these cross-cutting problems regardless of layer:
 - **Default config values that are unsafe for production** — `DEBUG=true`, `ALLOW_ANY_ORIGIN=true`, or `DB_MAX_CONNECTIONS=unlimited` as defaults. Production-safe defaults should be the out-of-the-box behaviour; opt-in to relaxed settings in dev.
 - **No config drift detection** — configuration values that can change at runtime without any validation or audit trail. If a secret is rotated or a flag is toggled in prod, there should be a record of who changed it and when.
 
-
 ---
 
 ## Approve vs. request changes
