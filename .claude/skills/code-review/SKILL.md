@@ -194,6 +194,33 @@ Check for these cross-cutting problems regardless of layer:
 - **Chatty pattern** — 10 individual property reads where one bulk load would do.
 - **Bypassed cache** — a cache exists but the code path goes around it.
 
+### Concurrency & shared state
+- **Race condition on shared mutable state** — two goroutines/threads reading and writing the same variable without synchronization (mutex, channel, atomic, `synchronized`). Look for global/static state mutated from multiple threads without a lock.
+- **Locking at the wrong granularity** — a lock that covers an entire function when only one field needs protection (over-locking causes contention); or a field read/written outside a lock that should be inside it (under-locking causes races).
+- **Lock held across I/O or long computation** — acquiring a lock, then making a network call or doing a heavy computation while holding it. Other threads are blocked for the duration; release the lock before I/O or move to lock-free alternatives.
+- **Double-checked locking without volatile/atomic** — `if (!initialized) { synchronized { if (!initialized) { ... } } }` is broken without a memory barrier on the check field (Java: `volatile`; C++: `std::atomic`).
+- **`Thread.sleep` / `time.sleep` in production path** — used to "wait for something to be ready" instead of a proper condition variable, semaphore, or event notification. Brittle and slow.
+- **Goroutine/thread leak** — a goroutine or thread started but never joined, cancelled, or bounded. Accumulates over time until the process runs out of resources.
+- **Deadlock risk** — two lock acquisitions where another code path acquires the same locks in the opposite order. Establish a consistent lock ordering convention.
+- **Async fire-and-forget without error handling** — `asyncio.create_task(...)`, `Promise` or `setTimeout` without `.catch()` / error propagation. Exceptions are silently swallowed.
+
+### Memory & resource management
+- **Memory leak via unclosed listener/subscription** — event listener, observer, or pub/sub subscription registered but never removed when the owning object is destroyed. Common in frontend components and long-lived services.
+- **Growing unbounded collection** — a `dict`, `list`, or `map` that accumulates entries forever (e.g., a cache with no eviction policy, a queue with no consumer). Will exhaust memory eventually.
+- **Large object allocated in a hot loop** — a buffer, regex pattern, or complex object created fresh on every iteration when it could be allocated once outside the loop.
+- **Closure retaining large scope** — a closure or lambda that captures a large object/array unnecessarily (e.g., capturing the entire request context when only one field is needed). Prevents GC.
+- **Resource not released in error path** — file, network connection, or DB cursor opened in a try block but only closed in the happy path; needs `finally`/`with`/`using`/`defer`.
+- **Returning a reference to a mutable internal field** — a getter that exposes the internal `list`/`array`/`map` directly; callers can modify it without the owning object knowing. Return a defensive copy or an immutable view.
+
+### Input validation
+- **Missing boundary validation** — numeric input used as an index, allocation size, or loop bound without checking it's in a safe range. Leads to out-of-bounds, OOM, or infinite loops.
+- **Trusting user-controlled format strings** — `printf(user_input)` (C), `String.format(userInput, ...)` (Java), `%s % user_input` (Python) — if `user_input` contains format specifiers, it can read arbitrary memory or crash.
+- **Path traversal** — file path built from user input without sanitizing `../` sequences. Use `os.path.realpath` / `Path.resolve()` and verify the result is within the allowed prefix.
+- **Regex catastrophic backtracking** — a regex with nested quantifiers on overlapping character classes (e.g., `(a+)+`) applied to user input. Exponential time; exploitable as ReDoS. Validate regex complexity or use a linear-time engine.
+- **Trusting `Content-Type` for deserialization** — deserializing a body (JSON, XML, YAML) without validating the content matches the declared type. YAML and XML parsers can execute code or make network calls by default.
+- **Missing max-length enforcement** — accepting arbitrarily long strings, files, or payloads without a size limit. Leads to OOM, DoS, or storage exhaustion.
+- **Integer overflow in user-supplied arithmetic** — multiplying or adding user inputs before checking for overflow, then using the result as an allocation size or loop count.
+
 ### Dependency injection & patterns
 - **Missing DI** — `new Service()` inside a class constructor or method body; makes the class hard to test and tightly coupled. Should be injected.
 - **Service locator** — calling `container.get(...)` or `locator.resolve(...)` inside business logic. Prefer constructor injection.
