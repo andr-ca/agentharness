@@ -63,23 +63,26 @@ Additional language convention guides, following the shape of the
 existing `languages/{python,typescript,go,rust}/`. Python, TypeScript,
 Go, and Rust are implemented; Java and others are not started.
 
-### `patterns/{api-design}/`
-Additional pattern categories, following the shape of the existing
-`patterns/{testing,logging,agentic-loops,error-handling,profiles,accessibility}/`.
-Those six exist today; API design is **now built** —
-`patterns/api-design/README.md` (index) and
-`patterns/api-design/REST_CONVENTIONS.md` (full REST conventions: resource
-naming, HTTP semantics, RFC 9457 errors, versioning, pagination, auth).
-The on-demand skill at `.claude/skills/api-design/SKILL.md` is a condensed
-day-to-day reference that summarises REST_CONVENTIONS.md.
+### `patterns/` — additional categories (all now built)
 
-The cross-framework accessibility pattern that used to be a gap here is
-now **built** (`patterns/accessibility/README.md`), written from WCAG 2.2
-/ ARIA APG fundamentals rather than the VS-Code-source-internal draft
-(`AccessibleContentProvider`, `CONTEXT_ACCESSIBILITY_MODE_ENABLED`,
-references to specific VS Code PRs) that was removed for claiming general
-applicability it didn't have.
+All pattern categories beyond the original six have been added in 2026-07:
 
+- **`patterns/api-design/`** — REST API conventions (resource naming, HTTP
+  semantics, RFC 9457 errors, versioning, pagination, auth). Skill:
+  `.claude/skills/api-design/SKILL.md`.
+
+- **`patterns/mutation-testing/`** — mutation operators, score thresholds,
+  mutmut/Stryker/gremlins tooling, surviving mutant triage. Skill:
+  `.claude/skills/mutation-testing/SKILL.md`.
+
+- **`patterns/multi-agent-coordination/`** — per-feature lock-file protocol,
+  stale detection, worktree isolation, conflict resolution for concurrent
+  agents. Implementation: `tools/agent-lock.sh`. Skill:
+  `.claude/skills/multi-agent-coordination/SKILL.md`.
+
+The cross-framework accessibility pattern is also
+**built** (`patterns/accessibility/README.md`), written from WCAG 2.2
+/ ARIA APG fundamentals.
 ### `tools/{lint,build,deploy}/`
 Standalone per-language lint/build/deploy utility scripts — not started.
 This repo's own tooling is implemented, though: `tools/setup/harness-link.sh`
@@ -90,22 +93,17 @@ This repo's own tooling is implemented, though: `tools/setup/harness-link.sh`
 
 ### Project bootstrap and deterministic policy engine
 
-**Designed, approved, and implementation-planned; implementation not started.**
-The permanent design
-specification is
-[`docs/superpowers/specs/2026-07-14-project-bootstrap-policy-design.md`](docs/superpowers/specs/2026-07-14-project-bootstrap-policy-design.md).
-It replaces ad-hoc expansion of `enforce-profile` with a planned Python core,
-one committed modular project profile, a plugin contract proven first with
-Python, first-use capability discovery, and the same requirements compiled into
-commit, push, CI, protected-merge, and agent-completion gates. Documentation
-and changelog are first-class diff-aware capabilities in that design.
+**Implementation in progress on PR #47 (`feature/project-bootstrap-policy`).**
+Slices 1–5 are complete with tests passing; Slice 6 Task 1
+(machine-verifiable acceptance ledger) is done; Slice 6 Tasks 3–10
+require npm publish authority and a live GitHub sandbox (externally
+blocked until those are configured). See PR #47 for current status and
+the acceptance/evidence matrix for per-criterion tracking.
 
-The approved work is split into six delivery slices in the specification. None
-of those slices should be described as available until its own tests and
-dogfood acceptance criteria pass. The executable program starts at the
-[master implementation plan](docs/superpowers/plans/2026-07-14-project-bootstrap-policy-master-plan.md),
-and the [acceptance/evidence matrix](docs/superpowers/plans/2026-07-14-project-bootstrap-policy-acceptance-matrix.md)
-maps all 31 release criteria to planned code, tests, and durable proof.
+The permanent design specification is
+[`docs/superpowers/specs/2026-07-14-project-bootstrap-policy-design.md`](docs/superpowers/specs/2026-07-14-project-bootstrap-policy-design.md).
+The [acceptance/evidence matrix](docs/superpowers/plans/2026-07-14-project-bootstrap-policy-acceptance-matrix.md)
+tracks all 31 release criteria against code, tests, and durable proof.
 
 ### `.github/workflows/`
 Reusable CI workflows for consuming projects. Not started. This repo's own
@@ -116,10 +114,23 @@ Implemented: `.github/dependabot.yml` (Go modules + GitHub Actions updates)
 and `.github/CODEOWNERS` (review routing for framework/GitHub config areas).
 
 ### Claude Code Skills (`.claude/skills/`)
-Implemented: `committing`, `branching`, `python-conventions`,
-`error-handling`, `agentic-loops`, `audit-review-followup`, each with
-full frontmatter, loading on demand. More language/pattern skills can
-follow the same template.
+Implemented: 24 skills total — 7 original skills (`committing`, `branching`,
+`python-conventions`, `error-handling`, `agentic-loops`, `audit-review-followup`,
+`port-agent-config`) plus 17 new skills added in 2026-07:
+
+**Tier 1 (wraps existing harness content):** `accessibility`, `go-conventions`,
+`logging`, `testing`, `typescript-conventions`
+
+**Tier 2 (new content):** `security-review`, `planning-with-files`,
+`requirements-clarification`, `code-review`, `api-design`
+
+**Tier 3 (ecosystem-specific):** `react-best-practices`, `database-conventions`,
+`docker-conventions`, `dependency-audit`, `performance-profiling`
+
+**Additional:** `mutation-testing`, `multi-agent-coordination`
+
+Each skill is on-demand discoverable by Claude Code, Codex, Cursor, Kilo Code,
+GitHub Copilot, and Gemini CLI via the Agent Skills open standard.
 
 ## Explicitly Deferred / Needs a Decision
 
@@ -313,7 +324,13 @@ label by the review filename cited next to it, never by number alone.
   final code correctness. **Scaffolded:** `tools/eval/.env.sample`
   provides the live-run env template (API key + optional model/cost
   ceiling); `invoke_agent_via_api` is still deliberately unimplemented
-  (spends real money — a user-triggered step).
+  (spends real money — a user-triggered step). Ideation follow-up
+  (2026-07-15, see I-XX backlog below): score whole-task outcomes —
+  implementation attempts before acceptance, corrective prompts caused
+  by misunderstood intent, plan-to-code divergence, total cost through
+  the accepted PR — not first-generation cost alone; a harness that
+  raises first-prompt cost while cutting rework is a win the
+  first-generation metric would misreport as a loss.
 - **P2-02 (this review's numbering) — Dogfood in real repositories.**
   Same substance as the already-tracked "P2-05 (real dogfood) has no
   target" entry above (different review's numbering, same gap): adopt a
@@ -360,3 +377,59 @@ label by the review filename cited next to it, never by number alone.
   native agent plugin, dotfiles, a submodule of policy docs, or an
   organization template — including the smallest migration from one
   existing project and its ongoing maintenance cost.
+
+## Ideation Backlog (I-01…I-06, 2026-07-15)
+
+Distilled from an external ideation note on intent-first harness design
+(full disposition, including everything that was rejected and why:
+`docs/operational/reviews/harness-ideation-2026-07-15-status.md`).
+Documentation-only, same posture as the third-pass backlog above: none
+of the following is scoped or authorized for implementation yet. The
+source note's heavy orchestration machinery — a persona-agent fleet, a
+two-level classification router with schema registries, hard
+edit-blocking hooks — was deliberately filtered out; every item kept
+below is an extension of an existing asset, not a new subsystem.
+
+- **I-01 — Evidence-classified intent contract.** Extend the existing
+  `requirements-clarification` skill (not a parallel skill — one source
+  of truth): before non-trivial implementation, produce a short
+  reviewable contract — requested outcome, in/out of scope, acceptance
+  criteria, constraints, open questions — with each statement classified
+  as verified fact (with file/doc evidence), inference, assumption, or
+  unknown. The gate: assumptions and unknowns are surfaced for review,
+  never silently converted into implementation decisions.
+- **I-02 — Risk-adaptive discovery depth.** Apply the existing
+  rigor-tier idea (`.github/CODING_GUIDELINES.md#rigor-tiers`) to
+  discovery and planning, not just testing and coverage: a typo fix
+  needs no intent contract; a bounded bug fix needs a reproduction and a
+  failing test; a cross-component feature needs the full I-01 contract.
+  One table, living in the rigor-tiers source of truth and referenced
+  from the discovery-oriented skills.
+- **I-03 — Read-only investigation mode.** An explicit always-on rule:
+  an analysis question ("why does X fail?") authorizes evidence
+  gathering and a cited answer, never code changes. Prevents "diagnose"
+  from silently becoming "modify until green." Candidate home: a short
+  addition to `CLAUDE.md`'s always-on rules plus the debugging-adjacent
+  skills.
+- **I-04 — Reclassification checkpoint.** When gathered evidence
+  contradicts the task's initial framing — a "defect" where behavior
+  matches documented requirements, a "refactor" that changes observable
+  behavior, a "prototype" heading for production — stop and re-confirm
+  the task type with the user instead of continuing under the original
+  framing. A pattern-level rule, not a router subsystem.
+- **I-05 — `patterns/refactoring/`.** The one workflow genuinely missing
+  from `patterns/`: a behavior-preservation contract, characterization
+  tests before restructuring, incremental reversible steps, and an
+  explicit list of protected public contracts. (Prototype→production
+  promotion needs no new doc — one line in rigor tiers covers it.)
+- **I-06 — Repository context contract (blocked).** A
+  knowledge-bootstrap companion to the policy-bootstrap program above:
+  committed, provenance-tagged repository context (purpose, structure,
+  build/test/run, documented-vs-observed branching) with a freshness
+  marker and staleness-invalidation rules, keeping mechanically
+  generated inventory separate from curated, human-reviewed knowledge.
+  **Blocked on the PR #47 scope decision** — no second bootstrap
+  subsystem starts while the first one's scope is unresolved. The one
+  piece adoptable independently and cheaply: the provenance vocabulary
+  (verified / inferred / declared / unknown) as a documentation
+  convention for agent-generated repo docs.

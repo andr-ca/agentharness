@@ -7,65 +7,13 @@ section into a tagged version.
 ## [Unreleased]
 
 ### Added
-
-- Slice 3 Tasks 1–8 of the project bootstrap policy program implemented and
-  verified locally (608 tests passing, ruff clean, mypy clean):
-  - Task 1 (`Compile one profile into deterministic gate plans`): policy/scope.py
-    (PathExpression, ChangeClass, ScopeExpression), policy/compiler.py (pure
-    PolicyRequirement→EffectivePolicy+GatePlan compiler with SHA-256 hash),
-    policy/results.py (GateKind, GatePlan, EffectivePolicy) — 17 tests.
-  - Task 2 (`Bind policy evidence to material inputs`): policy/fingerprint.py
-    (FingerprintInputs, compute_fingerprint), policy/git_tree.py (hash_git_index
-    via git ls-files --stage) — 12 tests.
-  - Task 3 (`Emit fresh redacted policy evidence`): policy/verifier.py
-    (VerificationResult, CheckOutcome, is_blocking per mode), policy/evidence.py
-    (atomic EvidenceStore), policy/redaction.py (token/password/key patterns) —
-    23 tests.
-  - Task 4 (`Enforce deterministic policy modes and waivers`): policy/modes.py
-    (ModeAggregator — strict blocks, warn/grace don't), profile/waivers.py
-    (Waiver with required reason+owner, no wildcards) — 13 tests.
-  - Tasks 5-7 (`gate contexts + CI integrity + dispatchers`): gates/commit.py,
-    gates/push.py, gates/ci.py (context readers), gates/context.py, policy/
-    integrity.py (hash-based tamper detection), integrations/hashes.py — 17 tests.
-  - Task 8: ruff clean, mypy clean (18 source files); acceptance matrix updated:
-    AC-08, AC-11, AC-12, AC-21 → implemented.
-- Slice 2 Tasks 1–7 of the project bootstrap policy program implemented and
-  verified locally (526 tests passing, ruff clean, mypy clean):
-  - Task 1 (`Define versioned bootstrap plugin contract`): plugin api.py,
-    registry.py, runner.py, trust.py — 21 unit tests.
-  - Task 2 (`Test bootstrap plugins against shared contract`): compliance
-    suite with 6 broken-fixture categories; sample-quality plugin; 13 tests.
-  - Task 3 (`Discover Python environments and material tasks`): environment.py
-    (pyproject/setup.py/requirements/uv/poetry/pipenv/unknown), tasks.py
-    (tox/nox/make/hatch/invoke), material_inputs.py — 18 tests.
-  - Task 4 (`Profile Python quality and unit test tooling`): linting.py
-    (ruff/black/flake8/pylint/isort), typing.py (mypy/pyright),
-    testing.py (pytest/unittest) — 16 tests.
-  - Task 5 (`Profile Python runtime quality`): logging.py, observability.py,
-    configuration.py — 8 tests.
-  - Task 6 (`Profile Python mutation and project documentation`): mutation.py,
-    documentation.py, changelog.py — 8 tests.
-  - Task 7 (`Compose Python bootstrap recommendations`): recommend.py
-    (deterministic, sorted composition), plan.py (ChangePlan/PlannedChange),
-    verify.py — 10 tests.
-  - Acceptance matrix: AC-04, AC-05, AC-06 updated to implemented.
-- Slice 1 Tasks 5–9 of the project bootstrap policy program implemented and
-  verified locally (86% branch coverage, all Bats tests green):
-  - Task 5 (`Validate committed bootstrap policy profiles`): versioned profile
-    schemas (`profile-v1.json`, `local-override-v1.json`), `profile/schema.py`,
-    `profile/loader.py`, `profile/reduction.py` with 105 passing unit tests.
-  - Task 6 (`Model deterministic bootstrap activation`): `bootstrap/state.py`
-    pure state machine with 9 states, `project.py` context locator, 29 tests
-    covering every state transition including drift and repair paths.
-  - Task 7 (`Apply bootstrap plans as resumable transactions`): `bootstrap/questions.py`
-    (immutable QuestionSet), `bootstrap/transaction.py` (atomic write + fsync +
-    rollback), `profile/history.py` (append-only history log), 33 tests covering
-    TOCTOU detection, rollback, resume, and confirmation flow.
-  - Task 8 (`Bridge legacy lifecycle into bootstrap core`): `profile/migrate.py`
-    (legacy .agentharness-profile import with provenance), `plugins/compatibility.py`
-    (locked Bash delegate), 25 tests; existing Bats lifecycle tests remain green.
-  - Task 9: ruff auto-fix, mypy clean, acceptance matrix updated (AC-01, AC-02,
-    AC-06, AC-07, AC-09, AC-16, AC-23 marked `implemented`).
+- Ideation Backlog (I-01…I-06) in `ROADMAP.md`: six documentation-only
+  items distilled from an external intent-first-harness ideation note
+  (evidence-classified intent contract, risk-adaptive discovery depth,
+  read-only investigation mode, reclassification checkpoint,
+  `patterns/refactoring/`, and a blocked repository-context contract).
+  Disposition with rejected-items rationale:
+  `docs/operational/reviews/harness-ideation-2026-07-15-status.md`.
 - Test-first implementation program for the approved project-bootstrap policy:
   a master plan, six independently gated slice plans, a locked
   `python-build-standalone`/zipapp distribution decision, and a 31-criterion

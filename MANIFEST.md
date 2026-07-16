@@ -49,6 +49,10 @@ they drift (`check_manifest_md_sync()` in `tools/verify-content-quality.py`).
 | Accessibility patterns | `patterns/accessibility/README.md` | guide | Cross-framework WCAG 2.2 AA / ARIA baseline — semantic HTML, keyboard, contrast, custom-widget roles, testing |
 | Mutation testing overview | `patterns/mutation-testing/README.md` | guide | Entry point for mutation testing — routes to MUTATION_TESTING.md |
 | Mutation testing guide | `patterns/mutation-testing/MUTATION_TESTING.md` | guide | Mutation operators, mutation score thresholds, mutmut/Stryker/gremlins tooling, surviving mutant triage |
+| File placement policy overview | `patterns/file-placement-policy/README.md` | guide | Entry point for the file placement protocol |
+| File placement policy | `patterns/file-placement-policy/POLICY.md` | guide | Guarded paths, allowed-additions escape hatch, init-time analysis, pre-commit enforcement |
+| Multi-agent coordination overview | `patterns/multi-agent-coordination/README.md` | guide | Entry point for multi-agent lock protocol |
+| Multi-agent coordination guide | `patterns/multi-agent-coordination/COORDINATION.md` | guide | Lock-file protocol, stale detection, worktree isolation, and conflict resolution for concurrent agents |
 
 ## Error Handling & Reliability
 
@@ -113,6 +117,8 @@ they drift (`check_manifest_md_sync()` in `tools/verify-content-quality.py`).
 | Dependency audit | `.claude/skills/dependency-audit/SKILL.md` | skill | Loads on demand when checking dependencies for vulnerabilities or updating packages |
 | Performance profiling | `.claude/skills/performance-profiling/SKILL.md` | skill | Loads on demand when diagnosing slow code, high memory, or CPU spikes |
 | Mutation testing | `.claude/skills/mutation-testing/SKILL.md` | skill | Loads on demand when auditing test suite quality beyond line coverage or interpreting surviving mutants |
+| Multi-agent coordination | `.claude/skills/multi-agent-coordination/SKILL.md` | skill | Loads on demand when two or more agents may work on the same repository concurrently |
+| File placement policy | `.claude/skills/file-placement-policy/SKILL.md` | skill | Loads at session start in projects with .agentharness-guarded-paths.json; checks before any new file creation |
 
 ## Custom Agents (task delegation to a separate agent instance — a different mechanism from skills, ported to Codex/OpenCode/Cursor/Kilo Code/Copilot/Gemini CLI)
 
@@ -126,6 +132,9 @@ they drift (`check_manifest_md_sync()` in `tools/verify-content-quality.py`).
 |---|---|---|---|
 | Harness lifecycle CLI | `tools/setup/harness-link.sh` | script | init/plan/status/doctor/audit/enforce-profile/generate-clients/update/uninstall; link/copy/submodule modes; state tracked in `<project>/.agentharness-state.json` |
 | Local check entrypoint | `tools/check.sh` | script | Runs every check CI runs (shellcheck, bats, ruff, mypy, pytest+coverage, manifest verify, skill-symlink integrity) in one command (P1-06) |
+| Agent lock manager | `tools/agent-lock.sh` | script | Per-feature lock files for concurrent agent sessions — acquire/release/check/list/clean/suggest-branch |
+| Structure analyzer | `tools/analyze_structure.py` | script | Analyze project structure and generate .agentharness-guarded-paths.json; also --recommend for early-stage projects |
+| File placement check | `tools/check-file-placement.sh` | script | Pre-commit hook check — blocks staged files in guarded paths; wired into .github/hooks/pre-commit alongside trunk protection |
 | Skill-symlink verifier | `tools/verify-skill-symlinks.sh` | script | Verifies `.agents/skills/` stays 1:1 with `.claude/skills/` — every Agent-Skills-standard tool (Codex, Copilot, Gemini, ...) reads the symlinks, so drift silently hides a skill from them while Claude still sees it |
 | Pinned dev/CI toolchain | `requirements-dev.txt` | config | Exact pinned versions of pytest/ruff/mypy/etc. — install after the separate hash-locked runtime requirements (P1-06) |
 | Wheel-only CI runtime lock | `requirements-ci-runtime.lock` | config | Hash-closed PyYAML and fastjsonschema wheel installation for Python 3.12/3.14 CI jobs; versions must match requirements-runtime.lock |

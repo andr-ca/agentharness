@@ -746,6 +746,26 @@ cmd_init() {
     fi
 
     # ------------------------------------------------------------------
+    # 4a. File placement analysis
+    # Analyze the project's top-level structure and generate
+    # .agentharness-guarded-paths.json so pre-commit hooks and AI agents
+    # know which directories and root files are off-limits for new
+    # unannounced files. Requires Python 3 and tools/analyze_structure.py
+    # in the harness source; silently skips if either is absent.
+    # ------------------------------------------------------------------
+    local analyze_script="$HARNESS_DIR/tools/analyze_structure.py"
+    local guarded_paths_dst="$target/.agentharness-guarded-paths.json"
+    if [ ! -f "$guarded_paths_dst" ] && command -v python3 >/dev/null 2>&1 && [ -f "$analyze_script" ]; then
+        if python3 "$analyze_script" "$target" --output "$guarded_paths_dst" 2>/dev/null; then
+            echo "  Generated .agentharness-guarded-paths.json (file placement policy)"
+        else
+            echo "  Warning: failed to analyze project structure — .agentharness-guarded-paths.json not created." >&2
+        fi
+    elif [ -f "$guarded_paths_dst" ]; then
+        echo "  .agentharness-guarded-paths.json already exists — not overwriting"
+    fi
+
+    # ------------------------------------------------------------------
     # 5. State file (written last — a failure above never leaves a state
     #    file describing work that didn't actually finish; if init fails
     #    partway, everything printed above is a paper trail for manual

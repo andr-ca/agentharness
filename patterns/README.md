@@ -15,6 +15,8 @@ list):
 - **accessibility/** – Cross-framework WCAG 2.2 AA / ARIA baseline
 - **api-design/** – REST API conventions (resource naming, HTTP semantics, RFC 9457 errors, versioning, pagination, auth)
 - **mutation-testing/** – Mutation testing: operators, score thresholds, mutmut/Stryker/gremlins tooling, surviving mutant triage
+- **multi-agent-coordination/** – Per-feature lock-file protocol for concurrent agent sessions; stale detection, worktree isolation
+- **file-placement-policy/** – Where agents may create files; guarded paths, init-time analysis, pre-commit enforcement
 
 Other pattern categories remain unbuilt — see
 [ROADMAP.md](../ROADMAP.md) before assuming one exists.

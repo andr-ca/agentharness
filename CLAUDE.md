@@ -93,6 +93,34 @@ it's a per-operator/per-machine authorization, not a repo-wide policy —
 see `docs/DECISIONS.md` for why this replaced the old always-on default,
 and `docs/INTEGRATION.md` for how to create/remove it.
 
+## 📁 File Placement
+
+**In any project with `.agentharness-guarded-paths.json`, you must not
+create new files or directories in guarded paths without explicit user
+permission.**
+
+Before creating any file:
+1. Check `.agentharness-guarded-paths.json` for guarded paths.
+2. If the target location is guarded: **stop and ask the user first.**
+3. After receiving explicit permission: record the approved path in
+   `.agentharness-allowed-additions.txt`, then create the file.
+
+If the project has no guarded-paths config but has an established
+structure (src/, docs/, tests/, etc.), treat those directories as
+guarded by default and ask before adding to them.
+
+If the project appears new (empty or minimal), run
+`python3 tools/analyze_structure.py . --recommend` to get structure
+recommendations, then present them to the user before creating anything.
+
+The pre-commit hook (`tools/check-file-placement.sh`) enforces this
+deterministically — commits adding files to guarded paths without an
+entry in `.agentharness-allowed-additions.txt` are blocked.
+
+See `patterns/file-placement-policy/POLICY.md` for the full protocol
+and `.claude/skills/file-placement-policy/SKILL.md` for the condensed
+on-demand reference.
+
 ## 🔍 Agent Recommendation Assessment
 
 **When an agent is asked to address/review/look into recommendations:**
