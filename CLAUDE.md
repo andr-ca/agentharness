@@ -31,12 +31,27 @@ push to remote with tracking, create a PR with `gh pr create`, and never
 leave verified work uncommitted-and-unpushed — an agent claiming work is
 "complete" while it's only staged locally is incomplete.
 
+**Note on merge commits:** Merging a branch into `main` locally (e.g.,
+`git merge --no-ff <branch>` while checked out on `main`) is a form of
+committing to trunk. It is covered by the same stop-before-publish rule:
+never merge to `main` locally without opening a PR — always go through a
+PR on GitHub, never bypass it with a local merge commit.
+
 **Never merge a PR on CI status alone — wait for review comments, then
 address them, before merging.** A green CI run says nothing about
 feedback left on the diff itself (human or automated, e.g. GitHub
 Copilot's code review). Before merging:
 1. Give automated review time to post (its own check, separate from CI,
    e.g. "Copilot Code Review") — don't merge the instant CI turns green.
+   Concretely: Check whether an automated reviewer is configured on this
+   repo at all (e.g. by examining recent PRs' check-runs to see if a
+   Copilot or bot review check-run has appeared). If none is configured,
+   note this explicitly ("no automated reviewer configured on repo");
+   if one is configured, poll for new review comments and check-runs
+   every ~30s for up to 5 minutes after CI goes green, or until the
+   reviewer's check-run appears and completes, whichever comes first. A
+   single immediate check does not satisfy this step — the wait is the
+   point, not just a verification of absence.
 2. Fetch *both* comment types — issue-level (`gh pr view <n> --json
    comments`) and inline review comments (`gh api
    repos/<owner>/<repo>/pulls/<n>/comments`); the first call alone misses
@@ -59,6 +74,14 @@ Copilot's code review). Before merging:
    comment <n>` for issue-level replies and `gh api --method POST
    repos/<owner>/<repo>/pulls/<n>/comments/<id>/replies -f body=…` for
    inline ones.
+
+**When starting or resuming work in a repo, check for stale PRs with
+unaddressed review comments** — before doing anything else, run `gh pr
+list --state open` and examine any open PR (especially those opened more
+than a day ago) for review comments newer than the PR's last commit, or
+older comments with no replies. This catches PRs previous sessions left
+open without addressing feedback, which the PR-merge checklist alone
+misses.
 
 **Never report a push/merge as done while CI is still running or red —
 watch it through to an actual, current green before moving on or telling
