@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/andr-ca/agentharness/actions/workflows/ci.yml/badge.svg)](https://github.com/andr-ca/agentharness/actions/workflows/ci.yml)
 
+**Home page:** [andr.ca/agentharness](https://andr.ca/agentharness)
+
 Portable engineering policies for coding agents — git, testing, logging,
 and language conventions written once and referenced everywhere, instead
 of re-authored (and drifting) in every project's own `CLAUDE.md`.
@@ -13,7 +15,8 @@ rituals; drift between projects is real and costly. This repo is the
 single source of truth for that shared context — read once here, referenced
 (not copy-pasted-and-forgotten) from every consuming project.
 
-**Status:** early. See [MANIFEST.md](MANIFEST.md) for what actually exists
+**Status:** pre-1.0, preparing for public launch. See
+[MANIFEST.md](MANIFEST.md) for what actually exists
 today and [ROADMAP.md](ROADMAP.md) for what's planned but not built. Don't
 trust a directory tree in prose — trust the manifest.
 
@@ -169,16 +172,27 @@ happens if you asked for that mode.
   that blocks anything): `CLAUDE.md`, the skill files under
   `.claude/skills/`, and every guide under `languages/` and `patterns/`.
   An agent (or a human) can ignore these; nothing stops them mechanically.
-- *Enforced* (a script that actually blocks an action): the
-  `prevent-trunk-commit` pre-commit hook (blocks direct commits to trunk
-  branches), installed once a project opts in via `--with-hook`. The
-  shared `pre-push` hook this repo installs on *itself* (blocks a push
-  below 80% test coverage or a failing suite) only ever tests *this*
-  repo's own suites, and no-ops for a consumer that's merely borrowed
-  `core.hooksPath` (see `.github/hooks/pre-push`'s own comments) — for
-  coverage enforcement in *your own* project, use
-  `init --with-coverage-hook` instead, which generates a project-owned
-  `pre-push` hook that runs `enforce-profile` against your project (P0-03).
+- *Enforced* (a script that actually blocks an action):
+  - The `prevent-trunk-commit` pre-commit hook (blocks direct commits to
+    trunk branches), installed once a project opts in via `--with-hook`.
+  - The file-placement pre-commit check (`tools/check-file-placement.sh`)
+    — blocks commits that add files to paths guarded by
+    `.agentharness-guarded-paths.json` without a recorded approval.
+  - The agent completion gate (`tools/check-completion.sh`, wired as a
+    Stop hook for Claude Code and GitHub Copilot) — an agent can't declare
+    work done while lint, types, tests, coverage, or content checks fail.
+  - The multi-agent mutex (`tools/agent-lock.sh` + the shared `pre-push`
+    hook) — a push to a branch whose lock another live session holds is
+    blocked, and a repo-wide GitHub ruleset rejects force pushes on every
+    branch.
+  - The shared `pre-push` hook this repo installs on *itself* (blocks a
+    push below 80% test coverage or a failing suite) only ever tests
+    *this* repo's own suites, and no-ops for a consumer that's merely
+    borrowed `core.hooksPath` (see `.github/hooks/pre-push`'s own
+    comments) — for coverage enforcement in *your own* project, use
+    `init --with-coverage-hook` instead, which generates a project-owned
+    `pre-push` hook that runs `enforce-profile` against your project
+    (P0-03).
 
 **Agent publish authority is opt-in, not default.** `CLAUDE.md` has an
 agent verify and stage work locally, then stop and ask before pushing,
@@ -210,34 +224,46 @@ orientation map, not the source of truth.
 agentharness/
 ├── README.md                    # This file
 ├── CLAUDE.md                    # Agent-facing router + mandatory rules
-├── AGENTS.md                    # Codex routing rules, generated from CLAUDE.md (skills load on demand from .agents/skills/)
+├── AGENTS.md / GEMINI.md        # Codex/Gemini routing files, generated from CLAUDE.md
 ├── MANIFEST.md                  # Index of every real asset
 ├── ROADMAP.md                   # What's planned but not built yet
 ├── CHANGELOG.md                 # Release history
-├── SECURITY.md                  # Secrets-in-history + instruction-attack-surface procedure
+├── SECURITY.md                  # Threat model: npm dist, git-config mutations, instruction attack surface
 ├── CONTRIBUTING.md              # Contribution workflow
 ├── CODE_OF_CONDUCT.md           # Contributor Covenant
-├── requirements-dev.txt         # Pinned dev/CI toolchain
-├── .markdownlint-cli2.yaml      # Markdown lint rules for CI
+├── package.json                 # npm distribution (agentharness-toolkit; bin/cli.js entrypoint)
+├── pyproject.toml               # Python package: bootstrap-policy engine (src/agentharness/)
+├── src/agentharness/            # Deterministic project-bootstrap policy core + gates
+├── tests/                       # Python suite (unit/integration/contract) for src/
+├── templates/bootstrap/         # Project-bootstrap templates
 ├── .github/
-│   ├── BRANCHING_STRATEGY.md
-│   ├── COMMITTING_GUIDELINES.md
-│   ├── CODING_GUIDELINES.md
-│   ├── pull_request_template.md
-│   ├── ISSUE_TEMPLATE/          # bug_report.md, feature_request.md
+│   ├── BRANCHING_STRATEGY.md, COMMITTING_GUIDELINES.md, CODING_GUIDELINES.md
+│   ├── pull_request_template.md, ISSUE_TEMPLATE/, CODEOWNERS, dependabot.yml
 │   ├── .gitignore.template
-│   ├── CODEOWNERS
-│   ├── dependabot.yml
 │   ├── workflows/               # ci.yml, link-check-scheduled.yml
-│   └── hooks/                   # prevent-trunk-commit, pre-push (+ tests)
+│   └── hooks/                   # prevent-trunk-commit, pre-commit (file placement),
+│                                 # pre-push (coverage + agent-lock), completion gate (+ tests)
 ├── .claude/
-│   └── skills/                  # committing, branching, python-conventions,
-│                                 # error-handling, agentic-loops,
-│                                 # audit-review-followup
+│   ├── skills/                  # 32 on-demand skills: language/framework conventions
+│   │                             # (python, typescript, go, react, database, docker),
+│   │                             # review (code-review + api/db/ui variants, security-review,
+│   │                             # dependency-audit, audit-review-followup), process
+│   │                             # (committing, branching, testing, mutation-testing,
+│   │                             # planning-with-files, requirements-clarification,
+│   │                             # multi-agent-coordination, file-placement-policy,
+│   │                             # port-agent-config), design (solid-principles,
+│   │                             # design-patterns, clean-architecture, dependency-injection,
+│   │                             # api-design), plus logging, error-handling, accessibility,
+│   │                             # performance-profiling, agentic-loops
+│   └── agents/                  # coding-guidelines-reviewer subagent
+├── .agents/ .codex/ .cursor/ .gemini/ .kilo/ .opencode/
+│                                 # generated per-client routing files, skills, and subagents
+│                                 # (see the Product Contract tables above)
 ├── languages/
 │   ├── python/                  # CONVENTIONS.md, COPILOT_INSTRUCTIONS.md
 │   ├── typescript/              # CONVENTIONS.md
-│   └── go/                      # CONVENTIONS.md
+│   ├── go/                      # CONVENTIONS.md
+│   └── rust/                    # CONVENTIONS.md
 ├── frameworks/
 │   └── react/                   # CONVENTIONS.md (add-on to the TS guide)
 ├── patterns/
@@ -245,24 +271,36 @@ agentharness/
 │   ├── logging/                 # logging standards + example config + loader
 │   ├── error-handling/          # retry, circuit-breaker, structured logging
 │   ├── agentic-loops/           # tested agent-loop reference implementation
-│   └── profiles/                # rigor-tier profiles (prototype/internal/production)
-├── examples/                    # sample-project + python/typescript/go fixtures,
+│   ├── profiles/                # rigor-tier profiles (prototype/internal/production)
+│   ├── multi-agent-coordination/ # per-feature lock protocol + worktree isolation
+│   ├── file-placement-policy/   # guarded-paths protocol (enforced by pre-commit hook)
+│   └── ...                      # accessibility, api-design, clean-architecture,
+│                                 # dependency-injection, design-patterns,
+│                                 # mutation-testing, solid-principles
+├── examples/                    # sample-project + python/typescript/go fixtures + plugins,
 │                                 # each verified in CI across every install mode
 ├── tools/
 │   ├── setup/harness-link.sh    # Lifecycle CLI: init/plan/status/doctor/audit/update/uninstall
 │   ├── check.sh                 # One local entrypoint for every CI check
-│   ├── verify-manifest.sh       # This file's own accuracy check
+│   ├── check-completion.sh      # Agent completion gate (lint, types, tests, coverage, content)
+│   ├── agent-lock.sh            # Multi-agent lock protocol (acquire/check/release)
+│   ├── check-file-placement.sh  # Pre-commit guard for guarded paths
+│   ├── analyze_structure.py     # Structure recommendations for new projects
+│   ├── generate-*.sh            # Per-client generators (Codex, Copilot, Cursor,
+│   │                             # Gemini, Kilo, OpenCode — routing, rules, subagents)
+│   ├── verify-manifest.sh       # MANIFEST.md's own accuracy check
 │   ├── verify-content-quality.py
-│   └── tests/                   # bats tests for harness-link.sh
+│   └── tests/                   # bats tests for the shell tooling
 └── docs/
-    ├── ARCHITECTURE.md
-    ├── INTEGRATION.md
+    ├── ARCHITECTURE.md, INTEGRATION.md
     ├── RELEASING.md              # Versioning policy, release checklist, pin/upgrade/rollback
+    ├── CLIENT_COMPATIBILITY.md   # Per-platform support matrix with sources
+    ├── DECISIONS.md, DEMO.md, KNOWN_LIMITATIONS.md, STATUS.md
     └── operational/              # working notes, review history
 ```
 
-Everything else you might expect (more `frameworks/`, more `languages/`,
-`.claude/agents/`, `.codex/`) is intentionally not here yet — see
+More `frameworks/` and `languages/` entries — and everything else you
+might expect but don't see above — are intentionally not here yet; see
 [ROADMAP.md](ROADMAP.md).
 
 ## Quick Start
