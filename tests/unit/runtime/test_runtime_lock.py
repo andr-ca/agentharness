@@ -39,7 +39,9 @@ from agentharness.runtime_lock import (
 ROOT = Path(__file__).resolve().parents[3]
 RUNTIME_MANIFEST = ROOT / "runtime/python-build-standalone.lock.json"
 SCHEMA = ROOT / "src/agentharness/schemas/runtime-lock-v1.json"
-_PKG_VERSION: str = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))["version"]
+_PKG_VERSION: str = json.loads(
+    (ROOT / "package.json").read_text(encoding="utf-8")
+)["version"]
 
 
 def _load_lock_builder() -> ModuleType:
