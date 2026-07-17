@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/andr-ca/agentharness/actions/workflows/ci.yml/badge.svg)](https://github.com/andr-ca/agentharness/actions/workflows/ci.yml)
 
-**Home page:** [andr.ca/agentharness](https://andr.ca/agentharness)
+**Home page:** [andr.ca/agentharness](https://andr.ca/agentharness) · *npm package:* [`agentharness-toolkit`](https://www.npmjs.com/package/agentharness-toolkit)
 
 Portable engineering policies for coding agents — git, testing, logging,
 and language conventions written once and referenced everywhere, instead
