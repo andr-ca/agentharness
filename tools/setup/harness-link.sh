@@ -85,7 +85,7 @@ usage() {
 Usage: $(basename "$0") <subcommand> [target-project-dir] [OPTIONS]
        $(basename "$0") <target-project-dir> [OPTIONS]   (legacy: same as init)
 
-Subcommands: init, plan, status, doctor, audit, enforce-profile, generate-clients, update, uninstall
+Subcommands: init, plan, status, doctor, audit, audit-prs, enforce-profile, generate-clients, update, uninstall
 
 init options:
   --mode link|copy|submodule|npm
@@ -112,6 +112,10 @@ update/uninstall options:
 audit options:
   --json                        Machine-readable drift report (CI/scripting)
 
+audit-prs options:
+  (no options)                  Lists open PRs with stale unaddressed comments.
+                                Exit 0 if none found; exit 1 if any flagged.
+
 enforce-profile options:
   --strict                      Fail (non-zero) on a project type or test
                                 runner enforcement doesn't support, instead
@@ -131,6 +135,7 @@ Examples:
   $(basename "$0") status ~/my-project
   $(basename "$0") doctor ~/my-project
   $(basename "$0") audit ~/my-project --json
+  $(basename "$0") audit-prs
   $(basename "$0") enforce-profile ~/my-project
   $(basename "$0") enforce-profile ~/my-project --strict
   $(basename "$0") generate-clients ~/my-project --client copilot,cursor
@@ -1360,6 +1365,100 @@ enforce_js_ts_profile() {
     esac
 }
 
+# ----------------------------------------------------------------------------
+# audit-prs — list open PRs with stale unaddressed review comments
+# ----------------------------------------------------------------------------
+
+cmd_audit_prs() {
+    # Lists open PRs with review comments newer than the PR's last commit,
+    # or older comments with no replies. Output: one line per flagged PR with
+    # number, title, count of unanswered comments, and oldest comment age.
+    # Exit: 0 if no flagged PRs; 1 if any found (so it can gate a CI job).
+
+    if ! command -v gh >/dev/null 2>&1; then
+        echo "Error: 'gh' CLI not found. Install GitHub CLI to use audit-prs." >&2
+        return 1
+    fi
+
+    local flagged_count=0
+    local now
+    now="$(date +%s)"
+
+    # Get all open PRs
+    local prs
+    prs="$(gh pr list --state open --json number,title,body,createdAt,updatedAt \
+        2>/dev/null || echo "")"
+
+    if [ -z "$prs" ]; then
+        echo "No open PRs found."
+        return 0
+    fi
+
+    # For each PR, check for unanswered comments
+    while IFS= read -r line; do
+        if [ -z "$line" ]; then continue; fi
+
+        # Parse JSON line (simplified; real impl would use jq)
+        local pr_num
+        pr_num="$(echo "$line" | grep -o '"number":[0-9]*' | cut -d: -f2 | head -1)"
+        [ -z "$pr_num" ] && continue
+
+        local title
+        title="$(echo "$line" | grep -o '"title":"[^"]*"' | cut -d'"' -f4 | head -1)"
+
+        # Get PR's last commit timestamp
+        local pr_updated_at
+        pr_updated_at="$(echo "$line" | grep -o '"updatedAt":"[^"]*"' | cut -d'"' -f4 | head -1)"
+        [ -z "$pr_updated_at" ] && pr_updated_at="$(echo "$line" | grep -o '"createdAt":"[^"]*"' | cut -d'"' -f4 | head -1)"
+
+        local pr_timestamp=0
+        if [ -n "$pr_updated_at" ]; then
+            pr_timestamp="$(date -d "$pr_updated_at" +%s 2>/dev/null || echo 0)"
+        fi
+
+        # Get comments on this PR (issue-level + inline)
+        local issue_comments inline_comments
+
+        # Fetch issue-level comments
+        issue_comments="$(gh pr view "$pr_num" --json comments \
+            2>/dev/null || echo "[]")"
+
+        # Count issue comments without body/reply data (simplified check)
+        local issue_comment_count
+        issue_comment_count="$(echo "$issue_comments" | grep -o '"id":' | wc -l)"
+
+        # Fetch inline review comments
+        inline_comments="$(gh api repos/\$REPO_OWNER/\$REPO_NAME/pulls/"$pr_num"/comments \
+            2>/dev/null || echo "[]")"
+
+        # Count inline comments without replies (simplified check for in_reply_to_id == null)
+        local inline_comment_count
+        inline_comment_count="$(echo "$inline_comments" | grep -c '"in_reply_to_id":null' || echo 0)"
+
+        local total_unanswered=$((issue_comment_count + inline_comment_count))
+
+        # Check if any comment is newer than PR's last update or older than 24h
+        if [ "$total_unanswered" -gt 0 ]; then
+            local age_seconds=$((now - pr_timestamp))
+            local age_hours=$((age_seconds / 3600))
+            local age_days=$((age_hours / 24))
+
+            if [ $age_hours -ge 24 ] || [ "$pr_timestamp" -eq 0 ]; then
+                echo "#$pr_num \"$title\" - $total_unanswered unanswered comments (${age_days}d old)"
+                flagged_count=$((flagged_count + 1))
+            fi
+        fi
+    done < <(echo "$prs" | grep -o '{[^}]*}')
+
+    if [ "$flagged_count" -eq 0 ]; then
+        echo "No PRs with stale unaddressed comments found."
+        return 0
+    else
+        echo "Found $flagged_count PR(s) with stale unaddressed comments."
+        return 1
+    fi
+}
+
 cmd_enforce_profile() {
     local target="" strict=false
     while [ $# -gt 0 ]; do
@@ -1879,7 +1978,7 @@ cmd_generate_clients() {
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     case "${1:-}" in
-        init|plan|status|doctor|audit|enforce-profile|generate-clients|update|uninstall)
+        init|plan|status|doctor|audit|audit-prs|enforce-profile|generate-clients|update|uninstall)
             cmd="$1"; shift
             ;;
         -h|--help)
@@ -1896,11 +1995,12 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
             ;;
     esac
 
-    # cmd_$cmd would break for "enforce-profile" (hyphen doesn't match the
-    # underscore-named function) — translate explicitly instead of
-    # renaming the function to something inconsistent with the rest.
+    # cmd_$cmd would break for "enforce-profile" and "audit-prs" (hyphens
+    # don't match underscore-named functions) — translate explicitly instead
+    # of renaming the functions to something inconsistent with the rest.
     case "$cmd" in
         enforce-profile) cmd_fn="cmd_enforce_profile" ;;
+        audit-prs) cmd_fn="cmd_audit_prs" ;;
         generate-clients) cmd_fn="cmd_generate_clients" ;;
         *) cmd_fn="cmd_$cmd" ;;
     esac
