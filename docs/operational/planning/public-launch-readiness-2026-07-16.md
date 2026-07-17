@@ -361,21 +361,21 @@ status file wasn't updated.**
   and dry-run-writes-nothing.
 - **F-04** — `copy_npm_durable_source` tar excludes `.env`, `.env.*`,
   `*.env`, `node_modules`, `.cache`, `__pycache__`, `*.pyc`,
-  `.worktrees` (`harness-link.sh:329–355`).
+  `.worktrees` (`tools/setup/harness-link.sh:329–355`).
 - **F-05** — `previous_hooks_path` recorded in state and restored on
-  uninstall (`harness-link.sh:1642–1647`).
+  uninstall (`tools/setup/harness-link.sh:1642–1647`).
 - **E3** — `tools/acceptance/verify_matrix.py` gone; only
-  `verify-matrix.py` remains.
+  `tools/acceptance/verify-matrix.py` remains.
 - **E4** — `tools/check.sh:147–158` runs the core suite with
   `--cov=src/agentharness --cov-fail-under=65`.
 - **E5** — `SECURITY.md` covers npm distribution, git-config mutations,
   GitHub protection boundary, and the supported boundary.
 - **E6** — `setuptools==83.0.0` exact-pinned in both `pyproject.toml`
   and `requirements-dev.txt`.
-- **E9** — `verify-content-quality.py:322` prunes `.worktrees` from the
+- **E9** — `tools/verify-content-quality.py:322` prunes `.worktrees` from the
   markdown scan.
 - **F-07** — `docs/operational/reviews/README.md` exists;
-  `INDEX.md:26` references it.
+  `docs/operational/INDEX.md:26` references it.
 - **Workstream B (all 6)** — `gh repo view` confirms the description,
   5 topics, and homepage are live; README has the "What makes it
   different" section (line 11) and the repo/npm naming line (line 5);
