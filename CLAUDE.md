@@ -33,9 +33,9 @@ leave verified work uncommitted-and-unpushed — an agent claiming work is
 
 **Note on merge commits:** Merging a branch into `main` locally (e.g.,
 `git merge --no-ff <branch>` while checked out on `main`) is a form of
-committing to trunk. It is covered by the same stop-before-publish rule:
-never merge to `main` locally without opening a PR — always go through a
-PR on GitHub, never bypass it with a local merge commit.
+committing to trunk, and the "Never commit to `main` directly" rule
+applies to it in full: never merge to `main` locally — always integrate
+through a PR on GitHub, never bypass it with a local merge commit.
 
 **Never merge a PR on CI status alone — wait for review comments, then
 address them, before merging.** A green CI run says nothing about
@@ -48,10 +48,13 @@ Copilot's code review). Before merging:
    Copilot or bot review check-run has appeared). If none is configured,
    note this explicitly ("no automated reviewer configured on repo");
    if one is configured, poll for new review comments and check-runs
-   every ~30s for up to 5 minutes after CI goes green, or until the
-   reviewer's check-run appears and completes, whichever comes first. A
-   single immediate check does not satisfy this step — the wait is the
-   point, not just a verification of absence.
+   every ~30s for up to 20 minutes after CI goes green (observed Copilot
+   review latency runs 10–20 minutes on some PRs). If the reviewer's
+   check-run appears during that window, keep polling until it
+   *completes* (allow up to ~30 minutes total) — a check-run that has
+   started is a reason to keep waiting, not to stop. A single immediate
+   check does not satisfy this step — the wait is the point, not just a
+   verification of absence.
 2. Fetch *both* comment types — issue-level (`gh pr view <n> --json
    comments`) and inline review comments (`gh api
    repos/<owner>/<repo>/pulls/<n>/comments`); the first call alone misses
