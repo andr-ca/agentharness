@@ -309,6 +309,26 @@ def _extract_mandate_numbers(text: str, topic_word: re.Pattern[str]) -> set[str]
     return numbers
 
 
+# "worktrees" (no dot) covers Claude Code's agent worktrees at
+# .claude/worktrees/ — stale checkouts there are historical snapshots, not
+# current repo content, same as .worktrees/.
+_MD_SCAN_EXCLUDED_DIR_NAMES = {".git", ".worktrees", "worktrees", "node_modules"}
+
+
+def _find_markdown_files(scan_root: Path) -> list[Path]:
+    # Same os.walk() in-place pruning rationale as find_yaml_files():
+    # rglob() can't stop descending into an excluded directory, so a
+    # post-hoc parts filter still pays the full traversal cost of walking
+    # stale worktree checkouts and node_modules trees.
+    files: list[Path] = []
+    for dirpath, dirnames, filenames in os.walk(scan_root):
+        dirnames[:] = [d for d in dirnames if d not in _MD_SCAN_EXCLUDED_DIR_NAMES]
+        for name in filenames:
+            if name.endswith(".md"):
+                files.append(Path(dirpath) / name)
+    return sorted(files)
+
+
 def check_duplicate_policy_numbers(scan_root: Path = REPO_ROOT) -> list[str]:
     errors = []
     for entry in DUPLICATE_POLICY_REGISTRY:
@@ -318,9 +338,7 @@ def check_duplicate_policy_numbers(scan_root: Path = REPO_ROOT) -> list[str]:
             continue
         source_numbers = _extract_mandate_numbers(_strip_fences(source_path.read_text()), entry["topic_word"])
 
-        for md_file in sorted(scan_root.rglob("*.md")):
-            if ".git" in md_file.parts or ".worktrees" in md_file.parts:
-                continue
+        for md_file in _find_markdown_files(scan_root):
             if md_file == source_path:
                 continue
             rel = md_file.relative_to(scan_root)

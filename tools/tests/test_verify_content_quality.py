@@ -96,6 +96,28 @@ def test_ignores_fenced_code_blocks(tmp_path):
     assert errors == []
 
 
+def test_ignores_worktree_and_node_modules_checkouts(tmp_path):
+    # Regression for #83: stale agent-worktree checkouts under
+    # .claude/worktrees/ (and third-party docs under node_modules/) are
+    # historical snapshots, not current repo content — a conflicting
+    # number there must not fail the gate.
+    _write_source(tmp_path)
+    stale = tmp_path / ".claude" / "worktrees" / "agent-abc" / "docs"
+    stale.mkdir(parents=True)
+    (stale / "old-review.md").write_text(
+        "Coverage must be at least 75% minimum per the old policy.\n"
+    )
+    deps = tmp_path / ".kilo" / "node_modules" / "some-pkg"
+    deps.mkdir(parents=True)
+    (deps / "README.md").write_text(
+        "Coverage must be at least 99% minimum in this package.\n"
+    )
+
+    errors = vcq.check_duplicate_policy_numbers(scan_root=tmp_path)
+
+    assert errors == []
+
+
 def test_ignores_excluded_directories_and_filenames(tmp_path):
     _write_source(tmp_path)
     (tmp_path / "docs" / "operational" / "reviews").mkdir(parents=True)
