@@ -26,8 +26,9 @@
 
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$REPO_ROOT"
+# Deliberately NO cd-to-script-root here: the tool operates on whatever
+# repo the caller is standing in (same resolution as gh itself), so a
+# consumer install can use it on the consumer's own PRs.
 
 # Configuration
 PR_REVIEW_WAIT_SECS=$((20 * 60))      # 20 minutes
@@ -48,7 +49,10 @@ log_error() {
 # Get repo owner/name from git remote
 get_repo_owner_name() {
     local url
-    url="$(git config --get remote.origin.url)"
+    # || true: git config exits 1 when the key is unset, and under set -e
+    # a failing assignment would kill the function before the error below
+    # ever prints.
+    url="$(git config --get remote.origin.url || true)"
     # Handle both https://github.com/owner/repo.git and git@github.com:owner/repo.git
     if [[ "$url" =~ github\.com[:/]([^/]+)/(.+?)(\.git)?$ ]]; then
         echo "${BASH_REMATCH[1]}/${BASH_REMATCH[2]}" | sed 's/\.git$//'
@@ -100,7 +104,12 @@ detect_automated_reviewer() {
         return 1  # Not configured
     fi
 
-    # Check if any of those PRs have an automated review check-run
+    # Check if any of those PRs have an automated review check-run.
+    # local is load-bearing: without it this loop variable clobbers the
+    # caller's global pr_num with the last merged PR inspected, and every
+    # later step then polls/merges the wrong PR (caught dogfooding the
+    # script on its own PR #87 — it waited on #86's comments).
+    local pr_num
     for pr_num in $pr_nums; do
         # Look for Copilot or other bot review checks
         if gh api repos/"$repo"/pulls/"$pr_num"/reviews -q '.[] | select(.user.login | test("bot|copilot|github-actions")) | .user.login' 2>/dev/null | grep -E '(bot|copilot|github-actions)' >/dev/null 2>&1; then
@@ -159,26 +168,48 @@ verify_all_comments_replied() {
     log_step "Verifying all review comments have replies..."
 
     local unanswered=()
+    local pr_author
+    pr_author="$(gh pr view "$pr_num" -R "$repo" --json author -q '.author.login' 2>/dev/null || echo "")"
 
-    # Check issue-level comments for replies
-    local issue_comments
-    issue_comments="$(gh pr view "$pr_num" -R "$repo" --json comments -q '.comments[] | select(.authorAssociation!="OWNER") | .id' 2>/dev/null || true)"
+    # Issue-level comments have no threading; the mandate's reply
+    # convention is a later `gh pr comment` from the PR author. A
+    # non-author comment counts as answered if any author comment is
+    # newer than it.
+    local issue_unreplied
+    issue_unreplied="$(gh pr view "$pr_num" -R "$repo" --json comments 2>/dev/null \
+        | python3 -c '
+import json, sys
+author = sys.argv[1]
+comments = json.load(sys.stdin).get("comments", [])
+author_times = [c["createdAt"] for c in comments if c["author"]["login"] == author]
+last_author = max(author_times) if author_times else ""
+for c in comments:
+    if c["author"]["login"] != author and c["createdAt"] > last_author:
+        print(c["id"])
+' "$pr_author" 2>/dev/null || true)"
 
     while IFS= read -r comment_id; do
         if [ -z "$comment_id" ]; then continue; fi
-        # For issue-level comments, check if there's a reply in the PR
-        # (simplified: count total comments as a proxy for replies)
         unanswered+=("issue-$comment_id")
-    done < <(echo "$issue_comments")
+    done < <(echo "$issue_unreplied")
 
-    # Check inline review comments for replies
-    local inline_comments
-    inline_comments="$(gh api repos/"$repo"/pulls/"$pr_num"/comments --paginate -q '.[] | select(.in_reply_to_id == null) | .id' 2>/dev/null || true)"
+    # Inline review comments thread via in_reply_to_id: a top-level
+    # comment is answered when any other comment replies to its id.
+    local inline_unreplied
+    inline_unreplied="$(gh api repos/"$repo"/pulls/"$pr_num"/comments --paginate 2>/dev/null \
+        | python3 -c '
+import json, sys
+comments = json.load(sys.stdin)
+replied_to = {c.get("in_reply_to_id") for c in comments if c.get("in_reply_to_id")}
+for c in comments:
+    if c.get("in_reply_to_id") is None and c["id"] not in replied_to:
+        print(c["id"])
+' 2>/dev/null || true)"
 
     while IFS= read -r comment_id; do
         if [ -z "$comment_id" ]; then continue; fi
         unanswered+=("inline-$comment_id")
-    done < <(echo "$inline_comments")
+    done < <(echo "$inline_unreplied")
 
     if [ ${#unanswered[@]} -gt 0 ]; then
         log_error "Found ${#unanswered[@]} unanswered comments:"
@@ -201,12 +232,12 @@ wait_for_ci_run() {
 
     # Get the most recent run for this branch
     local run_id
-    run_id="$(gh run list -R "$repo" -b "$branch" --limit 1 -q '.[0].databaseId' 2>/dev/null || echo "")"
+    run_id="$(gh run list -R "$repo" -b "$branch" --limit 1 --json databaseId -q '.[0].databaseId' 2>/dev/null || echo "")"
 
     if [ -z "$run_id" ]; then
         log_info "No CI run found yet for branch '$branch'; waiting a moment..."
-        sleep 5
-        run_id="$(gh run list -R "$repo" -b "$branch" --limit 1 -q '.[0].databaseId' 2>/dev/null || echo "")"
+        sleep 15
+        run_id="$(gh run list -R "$repo" -b "$branch" --limit 1 --json databaseId -q '.[0].databaseId' 2>/dev/null || echo "")"
 
         if [ -z "$run_id" ]; then
             log_error "Could not find CI run for branch '$branch'"
@@ -219,7 +250,9 @@ wait_for_ci_run() {
     # Poll until terminal state
     local status="in_progress"
     local elapsed=0
-    local max_wait=$((60 * 5))  # 5 minutes max wait
+    # This repo's full CI takes ~6-8 minutes wall time; 5 minutes would
+    # time out on every healthy run.
+    local max_wait=$((60 * 15))
 
     while [ "$status" == "in_progress" ] || [ "$status" == "queued" ] || [ "$status" == "requested" ]; do
         if [ $elapsed -gt $max_wait ]; then
@@ -227,7 +260,7 @@ wait_for_ci_run() {
             return 1
         fi
 
-        status="$(gh run view "$run_id" -R "$repo" -q '.status' 2>/dev/null || echo "unknown")"
+        status="$(gh run view "$run_id" -R "$repo" --json status -q '.status' 2>/dev/null || echo "unknown")"
 
         if [ "$status" != "in_progress" ] && [ "$status" != "queued" ] && [ "$status" != "requested" ]; then
             break
@@ -240,7 +273,7 @@ wait_for_ci_run() {
 
     # Check conclusion
     local conclusion
-    conclusion="$(gh run view "$run_id" -R "$repo" -q '.conclusion' 2>/dev/null || echo "unknown")"
+    conclusion="$(gh run view "$run_id" -R "$repo" --json conclusion -q '.conclusion' 2>/dev/null || echo "unknown")"
 
     log_info "CI run completed with status: $status, conclusion: $conclusion"
 
@@ -255,13 +288,22 @@ wait_for_ci_run() {
 
 # Main entrypoint
 main() {
-    if [ $# -lt 1 ]; then
+    if [ $# -lt 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
         echo "Usage: $(basename "$0") <pr-number> [gh pr merge options]" >&2
         return 1
     fi
 
     local pr_num="$1"
     shift
+
+    # Everything downstream feeds pr_num into gh; a non-numeric value
+    # (e.g. --help) makes gh print usage text to stdout, which then gets
+    # misread as check results or comment counts.
+    if ! [[ "$pr_num" =~ ^[0-9]+$ ]]; then
+        echo "Usage: $(basename "$0") <pr-number> [gh pr merge options]" >&2
+        log_error "PR number must be numeric, got: $pr_num"
+        return 1
+    fi
     local merge_args=("$@")
 
     # Get repo owner/name
