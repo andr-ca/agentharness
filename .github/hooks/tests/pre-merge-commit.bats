@@ -27,9 +27,14 @@ init_repo() {
     git config user.name "Test"
 }
 
-install_hook() {
+# Install BOTH the dispatcher and the script it delegates to: the
+# dispatcher resolves prevent-trunk-commit relative to its own directory,
+# so copying pre-merge-commit alone would fail on the missing file rather
+# than exercising trunk protection.
+install_hooks() {
     cp "$HOOK" .git/hooks/pre-merge-commit
-    chmod +x .git/hooks/pre-merge-commit
+    cp "$PREVENT_TRUNK_HOOK" .git/hooks/prevent-trunk-commit
+    chmod +x .git/hooks/pre-merge-commit .git/hooks/prevent-trunk-commit
 }
 
 @test "pre-merge-commit hook file exists and is executable" {
@@ -61,6 +66,39 @@ install_hook() {
     init_repo feature/test
     # Directly invoke the hook script
     run "$HOOK"
+    [ "$status" -eq 0 ]
+}
+
+@test "git merge --no-ff onto main is blocked end-to-end via .git/hooks" {
+    init_repo main
+    touch base.txt
+    git add base.txt
+    git commit -q -m "base" --no-verify
+    git checkout -q -b feature/test
+    touch feat.txt
+    git add feat.txt
+    git commit -q -m "feature"
+    git checkout -q main
+    install_hooks
+    run git merge --no-ff -m "merge feature" feature/test
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"CANNOT COMMIT DIRECTLY TO TRUNK BRANCH"* ]]
+    # The merge commit must not have been created
+    [ "$(git rev-list --count HEAD)" -eq 1 ]
+}
+
+@test "git merge --no-ff between feature branches is allowed end-to-end" {
+    init_repo feature/branch1
+    touch base.txt
+    git add base.txt
+    git commit -q -m "base"
+    git checkout -q -b feature/branch2
+    touch feat.txt
+    git add feat.txt
+    git commit -q -m "feature"
+    git checkout -q feature/branch1
+    install_hooks
+    run git merge --no-ff -m "merge branch2" feature/branch2
     [ "$status" -eq 0 ]
 }
 
