@@ -8,6 +8,45 @@ Portable engineering policies for coding agents — git, testing, logging,
 and language conventions written once and referenced everywhere, instead
 of re-authored (and drifting) in every project's own `CLAUDE.md`.
 
+## What makes it different
+
+Most agent-instruction repos are a folder of markdown the agent may or
+may not follow. agentharness treats agent conventions as a versioned,
+tested, *enforced* product:
+
+- **One source of truth, N projects.** Conventions live here once;
+  every consuming project's `CLAUDE.md` references them instead of
+  restating them. Update the coverage bar in one file and every project
+  picks it up on its next harness sync — no more N drifted copies.
+- **One source, eight clients.** Rules, skills, and subagents are
+  authored once and generated for Claude Code, Codex CLI, Gemini
+  CLI/Antigravity, GitHub Copilot, Cursor, Kilo Code, OpenCode, and Zed
+  — each in the format that client actually reads (see the Product
+  Contract tables below for exactly what's tested vs. structurally
+  supported).
+- **Enforced, not just advisory.** A completion gate stops an agent
+  from declaring work done until lint, types, tests, coverage, and
+  content checks all pass. Git hooks block trunk commits, files added
+  to guarded paths without approval, and pushes below the coverage bar.
+- **Built for parallel agent sessions.** A per-feature lock protocol,
+  worktree isolation, push-time lock checks, and a force-push-rejecting
+  ruleset let multiple concurrent agents work one repo without
+  clobbering each other — dogfooded on this repo daily, where a dozen
+  agent worktrees are routinely live at once.
+- **32 on-demand skills.** Language conventions, code review (with
+  API/DB/UI variants), security review, testing, mutation testing,
+  design principles, and more — loaded only when relevant, so the
+  always-on context stays small.
+- **Safe and transparent by default.** Agents verify and stage, then
+  stop — push/PR authority is an explicit opt-in flag. Installation
+  makes no network calls (except the one submodule-mode clone you ask
+  for), ships no telemetry, previews everything with `--dry-run`, and
+  has an `uninstall` that actually uninstalls.
+- **Docs that can't quietly rot.** `MANIFEST.md` is checked against the
+  real tree in CI, examples for Python/TypeScript/Go are verified across
+  every install mode, and "one source of truth per rule" is a standing
+  mandate — a duplicated number is treated as a bug.
+
 ## Purpose
 
 Every project accumulates its own CLAUDE.md, commit conventions, and CI
