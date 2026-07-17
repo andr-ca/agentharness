@@ -75,7 +75,10 @@ def test_reviewed_real_archives_match_pins_and_supported_tar_subset() -> None:
     }
     assert set(reviewed) == {runtime["target"] for runtime in manifest["runtimes"]}
     cache = ROOT / ".tool-cache/runtime-artifacts"
-    if not cache.exists():
+    runtime_files = [
+        cache / runtime["url"].rsplit("/", 1)[-1] for runtime in manifest["runtimes"]
+    ]
+    if not cache.exists() or not all(f.exists() for f in runtime_files):
         pytest.skip("offline checkout has no reviewed real-runtime archive cache")
     for runtime in manifest["runtimes"]:
         path = cache / runtime["url"].rsplit("/", 1)[-1]

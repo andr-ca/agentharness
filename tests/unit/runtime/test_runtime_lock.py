@@ -39,6 +39,7 @@ from agentharness.runtime_lock import (
 ROOT = Path(__file__).resolve().parents[3]
 RUNTIME_MANIFEST = ROOT / "runtime/python-build-standalone.lock.json"
 SCHEMA = ROOT / "src/agentharness/schemas/runtime-lock-v1.json"
+_PKG_VERSION: str = json.loads((ROOT / "package.json").read_text())["version"]
 
 
 def _load_lock_builder() -> ModuleType:
@@ -60,7 +61,7 @@ def _make_packed_package(
     tmp_path: Path,
     *,
     name: str = "agentharness-toolkit",
-    version: str = "0.2.0",
+    version: str = _PKG_VERSION,
     core_version: str = "0.1.0",
 ) -> tuple[Path, Path, Path]:
     zipapp = io.BytesIO()
@@ -139,11 +140,11 @@ def _consumer_lock() -> dict[str, Any]:
         "schema_version": 1,
         "package": {
             "name": "agentharness-toolkit",
-            "version": "0.2.0",
+            "version": _PKG_VERSION,
             "registry_url": "https://registry.npmjs.org",
             "tarball_url": (
                 "https://registry.npmjs.org/agentharness-toolkit/-/"
-                "agentharness-toolkit-0.2.0.tgz"
+                f"agentharness-toolkit-{_PKG_VERSION}.tgz"
             ),
             "registry_sri": "sha512-"
             + base64.b64encode(bytes.fromhex("01" * 64)).decode("ascii"),
@@ -324,9 +325,9 @@ def test_complete_consumer_lock_preserves_exact_identity_and_limits() -> None:
         lock.acquisition.bootstrap_protocol_version,
     ) == (
         "agentharness-toolkit",
-        "0.2.0",
+        _PKG_VERSION,
         "https://registry.npmjs.org",
-        "https://registry.npmjs.org/agentharness-toolkit/-/agentharness-toolkit-0.2.0.tgz",
+        f"https://registry.npmjs.org/agentharness-toolkit/-/agentharness-toolkit-{_PKG_VERSION}.tgz",
         "sha512-" + base64.b64encode(bytes.fromhex("01" * 64)).decode("ascii"),
         "01" * 64,
         "package/dist/agentharness.pyz",
@@ -485,7 +486,7 @@ def test_builder_uses_real_pack_integrity_and_packed_zipapp_identity(
         document["zipapp"]["compatibility_provider_version"],
     ) == (
         "agentharness-toolkit",
-        "0.2.0",
+        _PKG_VERSION,
         json.loads(pack_result.read_text())[0]["integrity"],
         digest,
         "package/dist/agentharness.pyz",
@@ -737,9 +738,9 @@ def test_lock_builder_rejects_duplicate_npm_tar_members(
 @pytest.mark.parametrize(
     "tarball_url",
     [
-        "https://evil.example/agentharness-toolkit-0.2.0.tgz",
+        f"https://evil.example/agentharness-toolkit-{_PKG_VERSION}.tgz",
         "https://registry.npmjs.org/other/-/other-0.2.0.tgz",
-        "http://registry.npmjs.org/agentharness-toolkit/-/agentharness-toolkit-0.2.0.tgz",
+        f"http://registry.npmjs.org/agentharness-toolkit/-/agentharness-toolkit-{_PKG_VERSION}.tgz",
     ],
 )
 def test_lock_builder_rejects_noncanonical_registry_tarball(

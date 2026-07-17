@@ -17,7 +17,7 @@ line is the bug.
 
 - **Maintained by hand** — update it in the same PR that changes what it
   describes.
-- **Last verified against the tree:** 2026-07-16. (Updated by feat/public-launch-readiness PR).
+- **Last verified against the tree:** 2026-07-17 (commit `af36f2c`).
 - **Standing caveat:** everything except Claude Code is implemented
   against each tool's *published* behavior, **not** dogfooded against a
   live session — see
@@ -26,7 +26,7 @@ line is the bug.
 
 ## Release
 
-- **Current version:** `v0.2.0` (npm `package.json`; `pyproject.toml` still at 0.1.0 — Python core is experimental/unreleased). Published to
+- **Current version:** `v0.2.1` (npm `package.json`; `pyproject.toml` at 0.1.1 — Python core is experimental/unreleased). Published to
   npm as `agentharness-toolkit`. See
   [RELEASING.md](./RELEASING.md) and [DECISIONS.md](./DECISIONS.md).
 
@@ -70,11 +70,27 @@ custom-agent table.
 |---|---|---|
 | Languages | Python, TypeScript, Go, Rust | [languages/](../languages/) |
 | Frameworks | React | [frameworks/react/](../frameworks/react/) |
-| Patterns | testing, logging, agentic-loops, error-handling, profiles, accessibility | [patterns/](../patterns/) |
-| Skills | 6 (`agentic-loops`, `audit-review-followup`, `branching`, `committing`, `error-handling`, `python-conventions`) | [.claude/skills/](../.claude/skills/) |
+| Patterns | testing, logging, agentic-loops, error-handling, profiles, accessibility, api-design, clean-architecture, dependency-injection, design-patterns, file-placement-policy, multi-agent-coordination, mutation-testing, solid-principles | [patterns/](../patterns/) |
+| Skills | 32 (accessibility, agentic-loops, api-design, audit-review-followup, branching, clean-architecture, code-review, code-review-api, code-review-db, code-review-ui, committing, database-conventions, dependency-audit, dependency-injection, design-patterns, docker-conventions, error-handling, file-placement-policy, go-conventions, logging, multi-agent-coordination, mutation-testing, performance-profiling, planning-with-files, port-agent-config, python-conventions, react-best-practices, requirements-clarification, security-review, solid-principles, testing, typescript-conventions) | [.claude/skills/](../.claude/skills/) |
 
-## Enforcement (partial)
+## Enforcement (built)
 
+- **Trunk commit prevention** — `prevent-trunk-commit` pre-commit hook blocks
+  direct commits to trunk branches; installed when a project opts in via
+  `harness-link.sh --with-hook`.
+- **File placement** — `tools/check-file-placement.sh` pre-commit check blocks
+  commits that add files to paths listed in `.agentharness-guarded-paths.json`
+  without a recorded approval in `.agentharness-allowed-additions.txt`.
+- **Agent completion gate** — `tools/check-completion.sh` (wired as a Stop hook
+  for Claude Code via `.claude/settings.json` and GitHub Copilot via
+  `.github/hooks/completion-gate.json`) verifies lint, types, tests, coverage,
+  and content quality; an agent can't end its session until the gate exits 0.
+- **Multi-agent mutex** — `tools/agent-lock.sh check-branch` (called in the
+  `pre-push` hook) blocks pushes to a branch whose lock another live session
+  holds. A Claude Code `PreToolUse` guard (`.github/hooks/claude-push-lock-guard.sh`)
+  blocks `git push` tool calls even before the pre-push hook fires. A repo-wide
+  GitHub ruleset (`no-force-push-any-branch`, no bypass actors) prevents
+  force-pushes on every branch.
 - **Profile enforcement** (`harness-link.sh enforce-profile`) gates for
   real on **Python** (`pytest`), **Go** (`go test` + `go tool cover`),
   and **`node --test`/Vitest JS/TS** projects at the selected tier's
