@@ -1705,11 +1705,43 @@ cmd_uninstall() {
 # isn't a target here: CLAUDE.md is the hand-authored source every one of
 # these files is generated *from*, not something to generate.
 
+# _gc_is_harness_generated FILE
+# Returns 0 if FILE contains the harness provenance marker, 1 otherwise.
+_gc_is_harness_generated() {
+    local f="$1"
+    [ -f "$f" ] && grep -qE "Generated (from|by) .*(generate-|agentharness)" "$f" 2>/dev/null
+}
+
+# _gc_check_file FILE LABEL DRY_RUN FORCE
+# Checks whether FILE can be safely written.
+# Returns 0 if safe (or dry-run); 1 if should be skipped.
+_gc_check_file() {
+    local f="$1" label="$2" dry_run="$3" force="$4"
+    if [ ! -f "$f" ]; then
+        [ "$dry_run" = true ] && echo "  [dry-run] would create: $label"
+        return 0
+    fi
+    if _gc_is_harness_generated "$f"; then
+        [ "$dry_run" = true ] && echo "  [dry-run] would update (harness-owned): $label"
+        return 0
+    fi
+    if [ "$force" = true ]; then
+        echo "  WARNING: overwriting non-harness file with --force: $label" >&2
+        [ "$dry_run" = true ] && echo "  [dry-run] would overwrite (--force): $label"
+        return 0
+    fi
+    echo "  SKIP: $label already exists and was not created by this harness." >&2
+    echo "        Use --force to overwrite, or delete it first." >&2
+    return 1
+}
+
 cmd_generate_clients() {
-    local target="" clients="all"
+    local target="" clients="all" dry_run=false force=false
     while [ $# -gt 0 ]; do
         case "$1" in
             -h|--help) usage; exit 0 ;;
+            --dry-run) dry_run=true; shift ;;
+            --force)   force=true; shift ;;
             --client|--clients)
                 if [ -z "${2:-}" ]; then
                     echo "Error: --client requires a value (codex, gemini, copilot, cursor, kilo, or all)." >&2
@@ -1737,33 +1769,60 @@ cmd_generate_clients() {
     local -a client_list
     read -ra client_list <<< "$selected"
 
+    [ "$dry_run" = true ] && echo "generate-clients: --dry-run mode (no files will be written)"
     echo "generate-clients: $target"
+
+    local skipped=0
     local c
     for c in "${client_list[@]}"; do
         case "$c" in
             codex)
-                bash "$gen/generate-agents-md.sh" "$HARNESS_DIR" --output "$target/AGENTS.md"
-                echo "  codex/opencode/zed -> AGENTS.md" ;;
+                if _gc_check_file "$target/AGENTS.md" "AGENTS.md" "$dry_run" "$force"; then
+                    [ "$dry_run" = false ] && bash "$gen/generate-agents-md.sh" "$HARNESS_DIR" --output "$target/AGENTS.md"
+                    echo "  codex/opencode/zed -> AGENTS.md"
+                else
+                    skipped=$((skipped+1))
+                fi ;;
             gemini)
-                bash "$gen/generate-gemini-md.sh" "$HARNESS_DIR" --output "$target/GEMINI.md"
-                echo "  gemini/antigravity -> GEMINI.md" ;;
+                if _gc_check_file "$target/GEMINI.md" "GEMINI.md" "$dry_run" "$force"; then
+                    [ "$dry_run" = false ] && bash "$gen/generate-gemini-md.sh" "$HARNESS_DIR" --output "$target/GEMINI.md"
+                    echo "  gemini/antigravity -> GEMINI.md"
+                else
+                    skipped=$((skipped+1))
+                fi ;;
             copilot)
-                bash "$gen/generate-copilot-instructions.sh" "$HARNESS_DIR" --output-dir "$target"
-                echo "  copilot -> .github/copilot-instructions.md (+ .github/instructions/)" ;;
+                if _gc_check_file "$target/.github/copilot-instructions.md" ".github/copilot-instructions.md" "$dry_run" "$force"; then
+                    [ "$dry_run" = false ] && bash "$gen/generate-copilot-instructions.sh" "$HARNESS_DIR" --output-dir "$target"
+                    echo "  copilot -> .github/copilot-instructions.md (+ .github/instructions/)"
+                else
+                    skipped=$((skipped+1))
+                fi ;;
             cursor)
-                bash "$gen/generate-cursor-rules.sh" "$HARNESS_DIR" --output-dir "$target"
-                echo "  cursor -> .cursor/rules/" ;;
+                if _gc_check_file "$target/.cursor/rules/agentharness-router.mdc" ".cursor/rules/" "$dry_run" "$force"; then
+                    [ "$dry_run" = false ] && bash "$gen/generate-cursor-rules.sh" "$HARNESS_DIR" --output-dir "$target"
+                    echo "  cursor -> .cursor/rules/"
+                else
+                    skipped=$((skipped+1))
+                fi ;;
             kilo)
-                mkdir -p "$target/.kilo/rules"
-                bash "$gen/generate-kilo-rules.sh" "$HARNESS_DIR" --output "$target/.kilo/rules/agentharness.md"
-                echo "  kilo -> .kilo/rules/agentharness.md" ;;
+                if _gc_check_file "$target/.kilo/rules/agentharness.md" ".kilo/rules/agentharness.md" "$dry_run" "$force"; then
+                    [ "$dry_run" = false ] && mkdir -p "$target/.kilo/rules" && bash "$gen/generate-kilo-rules.sh" "$HARNESS_DIR" --output "$target/.kilo/rules/agentharness.md"
+                    echo "  kilo -> .kilo/rules/agentharness.md"
+                else
+                    skipped=$((skipped+1))
+                fi ;;
             *)
-                echo "Error: unknown client '$c' (valid: codex, gemini, copilot, cursor, kilo, all)." >&2
+                echo "Error: unknown client '${c}' (valid: codex, gemini, copilot, cursor, kilo, all)." >&2
                 exit 1 ;;
         esac
     done
+
+    if [ "$skipped" -gt 0 ]; then
+        echo "generate-clients: $skipped file(s) skipped (pre-existing non-harness files). Use --force to overwrite."
+    fi
     echo "generate-clients: done"
 }
+
 
 # ----------------------------------------------------------------------------
 # Dispatch
