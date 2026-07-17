@@ -61,7 +61,6 @@ from a benign one, only a malformed one). There's no automated
 semantic review of instruction content today; a careful PR reviewer is
 the actual control.
 
-
 ## npm distribution
 
 This repo is distributed as `agentharness-toolkit` on npm. If you believe a published version contains a supply-chain vulnerability (e.g. malicious code injected into the package), report it by opening an issue on this repository. Do not install untrusted versions from unofficial mirrors.
