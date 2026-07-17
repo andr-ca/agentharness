@@ -66,15 +66,15 @@ the actual control.
 
 This repo is distributed as `agentharness-toolkit` on npm. If you believe a published version contains a supply-chain vulnerability (e.g. malicious code injected into the package), report it by opening an issue on this repository. Do not install untrusted versions from unofficial mirrors.
 
-**Integrity verification.** The bootstrap policy's `dist/agentharness.pyz.sha512` file records the SHA-512 digest of the shipped Python zipapp. Consumers using the locked bootstrap protocol verify this digest before execution. If you observe a mismatch, treat the artifact as potentially tampered and report it.
+**Integrity verification.** The consumer's committed `runtime.lock` file records the SHA-512 digest of the shipped Python zipapp under the `zipapp.sha512` key. The dependency-free bootstrapper verifies this digest before executing the zipapp. If you observe a mismatch between the published artifact and the lock file, treat the artifact as potentially tampered and report it.
 
-**What consumers install.** `harness-link.sh --mode npm` copies the tarball into a durable directory inside the consumer's repo (`.agentharness-pkg/`). This copy never executes during normal git operations — it's only invoked explicitly when running harness commands. The npm lifecycle scripts (`prepack`/`postpack`) only run during publishing and packaging on the harness maintainer's machine; they never run on a consumer's machine.
+**What consumers install.** `harness-link.sh --mode npm` copies the tarball into a durable directory inside the consumer's repo (`.agentharness-pkg/`). This copy does not execute arbitrary code on its own — but if the install used `--with-hook`, git's `core.hooksPath` may point at a hooks directory inside the durable copy, meaning hooks (trunk protection, pre-commit checks) run from the copy on every git operation. Hooks inside the copy are fixed at install time; they don't change without an explicit `harness-link.sh update`. The npm lifecycle scripts (`prepack`/`postpack`) only run during publishing and packaging on the harness maintainer's machine; they never run on a consumer's machine.
 
 ## git config mutations
 
 Several harness commands write to a consumer's git configuration:
 
-- `harness-link.sh --with-hook` sets `core.hooksPath` to `.github/hooks` in the consumer.
+- `harness-link.sh --with-hook` sets `core.hooksPath` in the consumer. The exact path depends on the install mode: `link`/`submodule`/`npm` installs point to the shared `.github/hooks` directory inside the harness source; `copy` and `--with-coverage-hook` installs write real files into the consumer's own `.github/hooks/` and point there.
 - `harness-link.sh uninstall` restores the previous `core.hooksPath` value (recorded in `.agentharness-state.json`).
 
 **Trust boundary.** These mutations are opt-in (`--with-hook` is a flag, not the default) and documented. The harness never sets config values outside the consumer's own repository.
@@ -85,13 +85,13 @@ If you find a case where `uninstall` leaves the consumer's git config in an unex
 
 ## GitHub branch protection changes
 
-`harness-link.sh generate-clients` and the Python core's `agentharness github protection apply` command write to a consumer repo's branch protection settings via the GitHub REST API. These commands:
+The Python core's `agentharness github protection apply` command writes to a consumer repo's branch protection settings via the GitHub REST API. `harness-link.sh generate-clients` does **not** make GitHub API calls — it only writes local files. The `protection apply` command:
 
-- Require an explicit `--repo owner/repo` argument and a GitHub token with `repo` scope.
-- Only set fields declared in the harness's protection plan (required reviews, status checks).
-- Read back the settings after writing to verify they match.
+- Requires an explicit `--repo owner/repo` argument and a GitHub token with `repo: admin` scope.
+- Sets `required_pull_request_reviews`, `required_status_checks`, `enforce_admins`, and `restrictions` on the target branch.
+- Reads back the settings after writing to verify they match the declared plan.
 
-**Trust boundary.** These commands are never invoked automatically. They require an explicit user invocation with an API token. The harness does not store or transmit tokens.
+**Trust boundary.** The command is never invoked automatically. It requires an explicit user invocation with an API token. The harness does not store or transmit tokens.
 
 **Least-privilege recommendation.** Use a fine-grained personal access token scoped to the specific repository and the `administration: write` permission, not a classic token with broad org access.
 
