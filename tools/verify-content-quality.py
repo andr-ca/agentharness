@@ -319,7 +319,10 @@ def check_duplicate_policy_numbers(scan_root: Path = REPO_ROOT) -> list[str]:
         source_numbers = _extract_mandate_numbers(_strip_fences(source_path.read_text()), entry["topic_word"])
 
         for md_file in sorted(scan_root.rglob("*.md")):
-            if ".git" in md_file.parts or ".worktrees" in md_file.parts:
+            # "worktrees" (no dot) covers Claude Code's agent worktrees at
+            # .claude/worktrees/ — stale checkouts there are historical
+            # snapshots, not current repo content, same as .worktrees/.
+            if any(p in (".git", ".worktrees", "worktrees", "node_modules") for p in md_file.parts):
                 continue
             if md_file == source_path:
                 continue
