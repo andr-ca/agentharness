@@ -1370,93 +1370,96 @@ enforce_js_ts_profile() {
 # ----------------------------------------------------------------------------
 
 cmd_audit_prs() {
-    # Lists open PRs with review comments newer than the PR's last commit,
-    # or older comments with no replies. Output: one line per flagged PR with
-    # number, title, count of unanswered comments, and oldest comment age.
-    # Exit: 0 if no flagged PRs; 1 if any found (so it can gate a CI job).
+    # Lists open PRs carrying stale unaddressed review feedback: a
+    # top-level comment with no reply that is newer than the PR's last
+    # commit, or older than 24h. One line per flagged PR; exit 1 if any
+    # (so it can gate), 0 otherwise.
 
     if ! command -v gh >/dev/null 2>&1; then
         echo "Error: 'gh' CLI not found. Install GitHub CLI to use audit-prs." >&2
         return 1
     fi
 
-    local flagged_count=0
-    local now
-    now="$(date +%s)"
-
-    # Get all open PRs
-    local prs
-    prs="$(gh pr list --state open --json number,title,body,createdAt,updatedAt \
-        2>/dev/null || echo "")"
-
-    if [ -z "$prs" ]; then
-        echo "No open PRs found."
-        return 0
-    fi
-
-    # For each PR, check for unanswered comments
-    while IFS= read -r line; do
-        if [ -z "$line" ]; then continue; fi
-
-        # Parse JSON line (simplified; real impl would use jq)
-        local pr_num
-        pr_num="$(echo "$line" | grep -o '"number":[0-9]*' | cut -d: -f2 | head -1)"
-        [ -z "$pr_num" ] && continue
-
-        local title
-        title="$(echo "$line" | grep -o '"title":"[^"]*"' | cut -d'"' -f4 | head -1)"
-
-        # Get PR's last commit timestamp
-        local pr_updated_at
-        pr_updated_at="$(echo "$line" | grep -o '"updatedAt":"[^"]*"' | cut -d'"' -f4 | head -1)"
-        [ -z "$pr_updated_at" ] && pr_updated_at="$(echo "$line" | grep -o '"createdAt":"[^"]*"' | cut -d'"' -f4 | head -1)"
-
-        local pr_timestamp=0
-        if [ -n "$pr_updated_at" ]; then
-            pr_timestamp="$(date -d "$pr_updated_at" +%s 2>/dev/null || echo 0)"
-        fi
-
-        # Get comments on this PR (issue-level + inline)
-        local issue_comments inline_comments
-
-        # Fetch issue-level comments
-        issue_comments="$(gh pr view "$pr_num" --json comments \
-            2>/dev/null || echo "[]")"
-
-        # Count issue comments without body/reply data (simplified check)
-        local issue_comment_count
-        issue_comment_count="$(echo "$issue_comments" | grep -o '"id":' | wc -l)"
-
-        # Fetch inline review comments
-        inline_comments="$(gh api repos/\$REPO_OWNER/\$REPO_NAME/pulls/"$pr_num"/comments \
-            2>/dev/null || echo "[]")"
-
-        # Count inline comments without replies (simplified check for in_reply_to_id == null)
-        local inline_comment_count
-        inline_comment_count="$(echo "$inline_comments" | grep -c '"in_reply_to_id":null' || echo 0)"
-
-        local total_unanswered=$((issue_comment_count + inline_comment_count))
-
-        # Check if any comment is newer than PR's last update or older than 24h
-        if [ "$total_unanswered" -gt 0 ]; then
-            local age_seconds=$((now - pr_timestamp))
-            local age_hours=$((age_seconds / 3600))
-            local age_days=$((age_hours / 24))
-
-            if [ $age_hours -ge 24 ] || [ "$pr_timestamp" -eq 0 ]; then
-                echo "#$pr_num \"$title\" - $total_unanswered unanswered comments (${age_days}d old)"
-                flagged_count=$((flagged_count + 1))
-            fi
-        fi
-    done < <(echo "$prs" | grep -o '{[^}]*}')
-
-    if [ "$flagged_count" -eq 0 ]; then
-        echo "No PRs with stale unaddressed comments found."
-        return 0
-    else
-        echo "Found $flagged_count PR(s) with stale unaddressed comments."
+    local repo
+    repo="$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || true)"
+    if [ -z "$repo" ]; then
+        echo "Error: could not resolve a GitHub repository from the current directory." >&2
         return 1
     fi
+
+    AH_AUDIT_REPO="$repo" python3 - <<'PY'
+import json, os, subprocess, sys
+from datetime import datetime, timedelta, timezone
+
+repo = os.environ["AH_AUDIT_REPO"]
+
+
+def gh(*args):
+    out = subprocess.run(["gh", *args], capture_output=True, text=True)
+    return out.stdout if out.returncode == 0 else None
+
+
+def ts(value):
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+prs_raw = gh("pr", "list", "-R", repo, "--state", "open",
+             "--json", "number,title,author")
+prs = json.loads(prs_raw) if prs_raw else []
+if not prs:
+    print("No open PRs found.")
+    sys.exit(0)
+
+now = datetime.now(timezone.utc)
+flagged = 0
+for pr in prs:
+    num = str(pr["number"])
+    author = pr["author"]["login"]
+    view_raw = gh("pr", "view", num, "-R", repo, "--json", "comments,commits")
+    if view_raw is None:
+        continue
+    view = json.loads(view_raw)
+    commits = view.get("commits", [])
+    last_commit = ts(commits[-1]["committedDate"]) if commits else None
+
+    unanswered = []
+
+    # Issue-level comments have no threading; the reply convention is a
+    # later comment from the PR author.
+    comments = view.get("comments", [])
+    author_times = [ts(c["createdAt"]) for c in comments
+                    if c["author"]["login"] == author]
+    last_author = max(author_times) if author_times else None
+    for c in comments:
+        if c["author"]["login"] == author:
+            continue
+        created = ts(c["createdAt"])
+        if last_author is None or created > last_author:
+            unanswered.append(created)
+
+    # Inline review comments thread via in_reply_to_id.
+    inline_raw = gh("api", f"repos/{repo}/pulls/{num}/comments?per_page=100")
+    inline = json.loads(inline_raw) if inline_raw else []
+    replied_to = {c.get("in_reply_to_id") for c in inline if c.get("in_reply_to_id")}
+    for c in inline:
+        if c.get("in_reply_to_id") is None and c["id"] not in replied_to:
+            unanswered.append(ts(c["created_at"]))
+
+    stale = [t for t in unanswered
+             if (last_commit is not None and t > last_commit)
+             or (now - t > timedelta(hours=24))]
+    if stale:
+        oldest_hours = int((now - min(stale)).total_seconds() // 3600)
+        title = pr["title"]
+        print(f'#{num} "{title}" - {len(stale)} unanswered comment(s), '
+              f"oldest {oldest_hours}h")
+        flagged += 1
+
+if flagged:
+    print(f"Found {flagged} PR(s) with stale unaddressed comments.")
+    sys.exit(1)
+print("No PRs with stale unaddressed comments found.")
+PY
 }
 
 cmd_enforce_profile() {
