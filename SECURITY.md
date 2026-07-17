@@ -61,6 +61,55 @@ from a benign one, only a malformed one). There's no automated
 semantic review of instruction content today; a careful PR reviewer is
 the actual control.
 
+
+## npm distribution
+
+This repo is distributed as `agentharness-toolkit` on npm. If you believe a published version contains a supply-chain vulnerability (e.g. malicious code injected into the package), report it by opening an issue on this repository. Do not install untrusted versions from unofficial mirrors.
+
+**Integrity verification.** The bootstrap policy's `dist/agentharness.pyz.sha512` file records the SHA-512 digest of the shipped Python zipapp. Consumers using the locked bootstrap protocol verify this digest before execution. If you observe a mismatch, treat the artifact as potentially tampered and report it.
+
+**What consumers install.** `harness-link.sh --mode npm` copies the tarball into a durable directory inside the consumer's repo (`.agentharness-pkg/`). This copy never executes during normal git operations — it's only invoked explicitly when running harness commands. The npm lifecycle scripts (`prepack`/`postpack`) only run during publishing and packaging on the harness maintainer's machine; they never run on a consumer's machine.
+
+## git config mutations
+
+Several harness commands write to a consumer's git configuration:
+
+- `harness-link.sh --with-hook` sets `core.hooksPath` to `.github/hooks` in the consumer.
+- `harness-link.sh uninstall` restores the previous `core.hooksPath` value (recorded in `.agentharness-state.json`).
+
+**Trust boundary.** These mutations are opt-in (`--with-hook` is a flag, not the default) and documented. The harness never sets config values outside the consumer's own repository.
+
+**What could go wrong.** A bug in `uninstall` that fails to restore `core.hooksPath` would redirect the consumer's git hooks to the (now-removed) harness path — silently disabling trunk protection, pre-commit checks, etc. This is tracked as F-05 in the project's readiness plan; the fix (recording and restoring the previous value) was shipped in `v0.2.0`.
+
+If you find a case where `uninstall` leaves the consumer's git config in an unexpected state, report it as a bug issue. The mitigation is to run `git config --unset core.hooksPath` in the consumer and re-install.
+
+## GitHub branch protection changes
+
+`harness-link.sh generate-clients` and the Python core's `agentharness github protection apply` command write to a consumer repo's branch protection settings via the GitHub REST API. These commands:
+
+- Require an explicit `--repo owner/repo` argument and a GitHub token with `repo` scope.
+- Only set fields declared in the harness's protection plan (required reviews, status checks).
+- Read back the settings after writing to verify they match.
+
+**Trust boundary.** These commands are never invoked automatically. They require an explicit user invocation with an API token. The harness does not store or transmit tokens.
+
+**Least-privilege recommendation.** Use a fine-grained personal access token scoped to the specific repository and the `administration: write` permission, not a classic token with broad org access.
+
+## Supported boundary
+
+The following are **in scope** as security bugs:
+
+- A hook script that modifies files outside the targeted repository.
+- A skill instruction that could cause an agent to exfiltrate secrets, disable safety checks, or run destructive commands.
+- A harness-link subcommand that mutates git config or file system state without restoring it on uninstall.
+- A supply-chain issue with the published npm package or Python zipapp.
+
+The following are **out of scope** (by design):
+
+- The agent following a harness instruction in a way the user didn't intend — agents are non-deterministic; the skill instructions are guidance, not a sandbox.
+- A consumer project's own CI or branch rules that happen to conflict with what the harness suggests.
+- Vulnerabilities in tools the harness recommends (ruff, mypy, bats, etc.) — report those upstream.
+
 ## Reporting
 
 Open an issue, or a PR with the fix if you have one.
