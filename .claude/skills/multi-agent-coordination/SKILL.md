@@ -108,3 +108,21 @@ A lock is stale when its `pid` is no longer a running process.
 `.agentharness-locks/` should be in `.gitignore` — lock files are
 operational state, not committed history. The harness adds this entry
 automatically when you run `agentharness init`.
+
+---
+
+## Enforcement — locks are checked at push time
+
+This protocol is no longer purely advisory:
+
+- Acquire a lock **before your first commit on any branch** (CLAUDE.md
+  mandate) and `export AGENTHARNESS_AGENT_ID=<the printed id>`.
+- The `pre-push` hook runs `tools/agent-lock.sh check-branch <branch>`
+  for every branch you push: a live lock held by a *different* session
+  blocks the push. Your own locks pass (agent-id or ancestor-pid match).
+- A repo-wide GitHub ruleset rejects force pushes on all branches — if
+  your push is rejected as non-fast-forward, fetch and rebase; never
+  force.
+
+Full details: `patterns/multi-agent-coordination/COORDINATION.md`
+("Enforcement").
