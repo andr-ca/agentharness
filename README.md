@@ -6,6 +6,8 @@ Portable engineering policies for coding agents — git, testing, logging,
 and language conventions written once and referenced everywhere, instead
 of re-authored (and drifting) in every project's own `CLAUDE.md`.
 
+*Repository:* `agentharness` · *npm package:* [`agentharness-toolkit`](https://www.npmjs.com/package/agentharness-toolkit)
+
 ## Purpose
 
 Every project accumulates its own CLAUDE.md, commit conventions, and CI
@@ -63,6 +65,35 @@ project referencing it picks up the change the next time its harness
 checkout syncs (see "Pin, Upgrade, Rollback" in
 [docs/RELEASING.md](docs/RELEASING.md) for exactly when that happens per
 install mode).
+
+## What makes this different
+
+Most agent configuration is advisory — conventions a model is expected to
+follow, with no mechanical enforcement. agentharness layers in three
+governance mechanisms that most coding-agent setups lack:
+
+**Opt-in publish authority.** Agents verify and stage work locally, then
+stop and ask before pushing, opening a PR, or auto-implementing a
+recommendation. Full remote-write authority requires either a local
+`.agentharness-publish-mode` flag file or explicit per-task instruction from
+the user. An agent that declares work "complete" while it's only staged
+locally is considered incomplete. See
+[docs/INTEGRATION.md](docs/INTEGRATION.md)'s "Publish Authority" section.
+
+**Enforced completion gate.** Before an agent can declare done, it runs
+`bash tools/check-completion.sh` — verifies lint, types, tests, coverage,
+and content quality in one shot. The Stop hook in
+`.github/hooks/completion-gate.json` enforces this; the agent cannot end
+its session until the gate exits 0.
+
+**Review and merge mandates.** Merging on CI green alone is not enough. The
+mandate requires fetching both issue-level and inline PR comments, verifying
+each finding against current code before acting on it, fixing what's real,
+and replying to every comment with the action taken or a rationale for
+skipping. This closes the "agent silently ignored review feedback" failure
+class.
+
+See [docs/DEMO.md](docs/DEMO.md) for a walkthrough of these in practice.
 
 ## Product Contract
 
@@ -164,28 +195,17 @@ Nothing else is installed. No telemetry, no background processes; no
 network calls except the one submodule-mode clone above, which only
 happens if you asked for that mode.
 
-**Advisory vs. enforced:**
-- *Advisory* (a convention the agent is expected to follow, not something
-  that blocks anything): `CLAUDE.md`, the skill files under
-  `.claude/skills/`, and every guide under `languages/` and `patterns/`.
-  An agent (or a human) can ignore these; nothing stops them mechanically.
-- *Enforced* (a script that actually blocks an action): the
-  `prevent-trunk-commit` pre-commit hook (blocks direct commits to trunk
-  branches), installed once a project opts in via `--with-hook`. The
-  shared `pre-push` hook this repo installs on *itself* (blocks a push
-  below 80% test coverage or a failing suite) only ever tests *this*
-  repo's own suites, and no-ops for a consumer that's merely borrowed
-  `core.hooksPath` (see `.github/hooks/pre-push`'s own comments) — for
-  coverage enforcement in *your own* project, use
-  `init --with-coverage-hook` instead, which generates a project-owned
-  `pre-push` hook that runs `enforce-profile` against your project (P0-03).
-
-**Agent publish authority is opt-in, not default.** `CLAUDE.md` has an
-agent verify and stage work locally, then stop and ask before pushing,
-opening a PR, or auto-implementing a recommendation — full authority to
-do those requires a local `.agentharness-publish-mode` flag file (never
-committed) or explicit per-task instruction. See
-[docs/INTEGRATION.md](docs/INTEGRATION.md)'s "Publish Authority" section.
+**Advisory vs. enforced (detail):**
+- *Advisory*: `CLAUDE.md`, skill files under `.claude/skills/`, and guides
+  under `languages/` and `patterns/`. An agent (or a human) can ignore these;
+  nothing stops them mechanically.
+- *Enforced*: the `prevent-trunk-commit` pre-commit hook (blocks direct commits
+  to trunk), installed when a project opts in via `--with-hook`. Coverage
+  enforcement for a consuming project uses `init --with-coverage-hook`, which
+  generates a project-owned `pre-push` hook (P0-03). The governance mechanisms
+  described above (publish authority, completion gate, review mandates) are
+  enforced in this repo's own `CLAUDE.md`/hooks — see
+  [What makes this different](#what-makes-this-different).
 
 **Non-goals** — this project deliberately does not:
 - Orchestrate or run agents itself (no agent loop, scheduler, or runtime
