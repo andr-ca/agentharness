@@ -37,7 +37,7 @@ short header if it doesn't exist). Use this template:
 
 **What agentharness should change:** [Concrete recommendation — a new check, clearer guidance, a new tool, a code fix, etc.]
 
-**Corrective action taken:** [What you did to work around or fix it] Logged upstream as #[issue-number].
+**Corrective action taken:** [What you did to work around or fix it] Logged upstream as #[issue-number] — or "Not filed upstream (opted out via .agentharness-no-upstream-feedback)".
 ```
 
 ### 3. File upstream
@@ -72,6 +72,12 @@ both directions are auditable.
   backup plan.
 - **Both directions always.** Local entry → issue link; GitHub issue → origin
   repo reference and local entry. Bidirectional traceability.
+- **Redact before you write — locally and upstream.** The upstream repo is
+  public. Never include secrets, credentials, tokens, PII, customer data, or
+  proprietary code in the local log or the issue; summarize sensitive logs
+  rather than pasting them verbatim, and replace identifying values with
+  placeholders. If the finding can't be described without sensitive detail,
+  log locally with redactions and skip the upstream filing, noting why.
 - **Keep dates in ISO 8601 format** (e.g., `2026-07-17`) for sorting and CI
   matching.
 
