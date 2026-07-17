@@ -47,8 +47,8 @@ Tracks progress against
 
 | Item | Status | Notes |
 |---|---|---|
-| E1 label core experimental | ✅ | MANIFEST.md and STATUS.md both label bootstrap policy core as `⚠ EXPERIMENTAL — unreleased; not wired into public CLI` |
-| E2 reconcile versions | 🔄 | STATUS.md acknowledges the gap; pyproject.toml version pin at 0.1.0 matches experimental status; full reconciliation + tagging deferred to post-launch (E2 is a label issue, not a breakage) |
+| E1 label core experimental | ✅ | STATUS.md labels the core experimental/unreleased (PR #65). MANIFEST.md was **not** labeled by PR #65 despite this row's original claim — caught by the 2026-07-17 session-3 audit; `manifest.yaml` row for `src/agentharness/` added and MANIFEST.md regenerated 2026-07-17 |
+| E2 reconcile versions | 🔄 | STATUS.md acknowledges the gap; versions now npm `v0.2.1` / pyproject `0.1.1` (still split, experimental status documented); full reconciliation + tagging deferred to post-launch (E2 is a label issue, not a breakage) |
 | E3 dedupe acceptance verifiers | ✅ | Removed `tools/acceptance/verify_matrix.py` (underscore variant); `verify-matrix.py` is canonical |
 | E4 check.sh parity | ✅ | `tools/check.sh` now runs `pytest tests/ --cov=src/agentharness --cov-fail-under=65` with same excludes as `check-completion.sh` |
 | E5 SECURITY.md refresh | ✅ | SECURITY.md now covers: npm distribution, git-config mutations, GitHub protection boundary, private reporting advisory; logged 2026-07-16 but status table was not updated at the time |
@@ -73,7 +73,7 @@ Tracks progress against
 
 | Item | Status | Notes |
 |---|---|---|
-| STATUS.md re-verification | 🔄 | Last-verified date updated to 2026-07-16; version gap and experimental label added; full row-by-row sweep deferred to Workstream C milestone |
+| STATUS.md re-verification | ✅ | Full row-by-row sweep completed via PR #74 (2026-07-17); STATUS.md now reads "Last verified against the tree: 2026-07-17 (commit `af36f2c`)" |
 | KNOWN_LIMITATIONS.md re-verification | ❌ | Pending dogfood (D) and A/E items |
 | F-07 archive review cycles | ✅ | Created `docs/operational/reviews/README.md` — cycle-by-cycle index (5 named cycles, all 16 files described); INDEX.md updated to reference it. Files kept flat to preserve cross-references |
 
@@ -100,9 +100,9 @@ Tracks progress against
 | A — P0 fixes | 4 | 0 | 1 | 0 |
 | E — Release integrity | 6 | 1 | 0 | 2 |
 | D — Dogfood | 0 | 0 | 0 | 3 |
-| C — Doc accuracy | 1 | 1 | 1 | 0 |
+| C — Doc accuracy | 2 | 0 | 1 | 0 |
 | B — Front door | 6 | 0 | 0 | 0 |
-| **Total** | **17** | **2** | **2** | **6** |
+| **Total** | **18** | **1** | **2** | **6** |
 
 ---
 
@@ -128,3 +128,6 @@ Tracks progress against
 | 2026-07-17 | B: Provenance headers | All 11 generators + 18 generated files updated with GitHub URL |
 | 2026-07-17 | B: GitHub metadata | Description, 5 topics, homepage set via `gh repo edit` |
 | 2026-07-17 | check-completion.sh | Aligned shellcheck to `-S warning` (consistent with check.sh; pre-existing SC1091 info messages) |
+| 2026-07-17 | Session 3: audit | Independent re-verification of all ✅ claims against `main` (`96ef3be`); findings appended as "Session 3" in the plan file (PR #75) |
+| 2026-07-17 | Session 3: E1 fix | Added `src/agentharness/` EXPERIMENTAL row to `manifest.yaml`, regenerated MANIFEST.md — closing the half of E1 the original ✅ claimed but never shipped |
+| 2026-07-17 | Session 3: C row | Marked STATUS.md re-verification ✅ (completed by PR #74's full sweep); refreshed stale E2 version note (npm v0.2.1 / pyproject 0.1.1) |

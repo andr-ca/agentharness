@@ -393,9 +393,10 @@ status file wasn't updated.**
   across all branches is empty. MANIFEST's bootstrap rows say
   "(approved; not implemented)"/"(planned; not implemented)", which
   describes the *plans*, not the shipped `src/agentharness/` core.
-  **Action needed:** add the experimental/unreleased label to the
-  relevant MANIFEST.md rows, then correct the E1 note in the status
-  file.
+  **Resolved same session:** a `src/agentharness/` package row with the
+  `⚠ EXPERIMENTAL — unreleased; not wired into public CLI` label was
+  added to `manifest.yaml`, MANIFEST.md regenerated, and the status
+  file's E1 note corrected (this PR).
 
 ### Status file stale in the other direction
 
@@ -413,7 +414,7 @@ status file wasn't updated.**
 |---|---|---|
 | Workstream 0 — clearance record | ⏸ owner | Recorded outside repo; nothing verifiable here |
 | A — disposition wrap-up | ❌ | `fable-gpt5-sol-disposition-2026-07-14.md` F-02–F-05 sections still read as open; no per-item status updates |
-| E1 — MANIFEST.md label | ❌ (new) | See missed gap above |
+| E1 — MANIFEST.md label | ✅ fixed this session | See missed gap above; `manifest.yaml` + MANIFEST.md updated in this PR |
 | E2 — version reconciliation | 🔄 deferred | Deliberate post-launch deferral; STATUS.md documents the split |
 | E7 — secret/history scan | ⏸ owner | No recorded gitleaks/trufflehog result |
 | E8 — RC smoke test | ⏸ owner | Needs clean environment |

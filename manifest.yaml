@@ -457,6 +457,10 @@ sections:
     path: tools/runtime/seed-runtime-artifacts.py
     type: script
     when_to_use: Downloads fixed official artifacts as inert bytes, strictly parses requirements-runtime.lock, promotes each file atomically under a cache lock, and fails closed if a mixed generation remains
+  - asset: Bootstrap policy core (⚠ EXPERIMENTAL — unreleased; not wired into public CLI)
+    path: src/agentharness/
+    type: package
+    when_to_use: Deterministic Python policy core (bootstrap, gates, profiles, plugins) — experimental and unreleased; the public npm launcher does not invoke it. See docs/STATUS.md for the version split and E1/E2 in the 2026-07-16 launch-readiness plan
   - asset: Canonical runtime requirements parser
     path: src/agentharness/runtime_requirements.py
     type: utility
