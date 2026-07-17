@@ -149,6 +149,36 @@ tools/agent-lock.sh clean
 
 ---
 
+## Enforcement (added 2026-07-16)
+
+The protocol above is advisory on its own — and stayed unused when two
+sessions collided on one branch on 2026-07-16 (different feature names,
+same remote branch). Three enforcement layers now back it:
+
+1. **Remote (zero cooperation needed):** a GitHub ruleset
+   (`no-force-push-any-branch`) rejects non-fast-forward pushes on every
+   branch, with no bypass actors. A session that would have clobbered
+   another's commits gets its push rejected and must fetch + rebase.
+2. **`pre-push` hook:** for each branch being pushed,
+   `tools/agent-lock.sh check-branch <branch>` runs before any test
+   suite. A live lock held by a different session blocks the push.
+   `AGENTHARNESS_LOCK_BYPASS=1` overrides (emergencies only).
+3. **Claude Code `PreToolUse` hook**
+   (`.github/hooks/claude-push-lock-guard.sh`, wired in
+   `.claude/settings.json`): blocks a `git push` Bash call at the agent
+   layer, before git even runs — this fires whether or not the session
+   ever loaded this skill. A `SessionStart` hook also prints active
+   locks and worktrees so every session starts aware of its neighbors.
+
+**Branch is the unit of exclusion for pushes.** `check-branch` matches
+locks by their `branch` field, not the feature name — the contended
+resource is the remote ref. Ownership is recognized by
+`AGENTHARNESS_AGENT_ID` matching the lock's `agent_id`, or by the lock's
+recorded `pid` being an ancestor of the checking process (so a session
+recognizes its own lock without exporting anything).
+
+---
+
 ## Integration with the branching skill
 
 See `.agents/skills/branching/SKILL.md` for the full branch and worktree

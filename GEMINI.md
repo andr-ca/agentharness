@@ -256,6 +256,13 @@ referenced everywhere instead of drifting across projects. Full rationale:
 - **Never commit to `main` directly.** Branch protection enforces this for
   everyone except repo admins; agents should never rely on the admin
   bypass.
+- **One branch, one session.** Before your first commit on any branch,
+  acquire the multi-agent lock — `tools/agent-lock.sh acquire "<feature>"
+  "<branch>"` — and export the printed id as `AGENTHARNESS_AGENT_ID`.
+  The pre-push hook blocks pushes to a branch whose lock another live
+  session holds. Never force-push: a repo-wide GitHub ruleset rejects
+  non-fast-forward pushes on every branch, so when a push is rejected,
+  fetch and rebase instead. See the multi-agent-coordination skill.
 
 ### Operational Documents
 

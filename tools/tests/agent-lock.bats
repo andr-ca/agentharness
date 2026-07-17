@@ -129,3 +129,92 @@ EOF
     count="$(find "$TEST_ROOT/.agentharness-locks" -name 'stale-*.json' | wc -l)"
     [[ $count -eq 0 ]]
 }
+
+# ---------------------------------------------------------------------------
+# check-branch (branch is the unit of exclusion for pushes)
+# ---------------------------------------------------------------------------
+
+_write_foreign_lock() {
+    # A lock held by a live process that is NOT an ancestor of this test.
+    local branch="$1"
+    local pid="$2"
+    cat > "$TEST_ROOT/.agentharness-locks/foreign-feature-deadbeef.json" <<JSON
+{
+  "agent_id": "11111111-2222-3333-4444-555555555555",
+  "branch": "$branch",
+  "feature": "foreign-feature",
+  "pid": $pid,
+  "started_at": "2026-07-16T00:00:00Z",
+  "worktree": null
+}
+JSON
+}
+
+@test "check-branch: FREE when no locks exist" {
+    run bash "$LOCK_SCRIPT" check-branch "feat/anything"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "FREE" ]]
+}
+
+@test "check-branch: blocks when another live session holds the branch" {
+    sleep 60 &
+    local other_pid=$!
+    _write_foreign_lock "feat/contested" "$other_pid"
+    run bash "$LOCK_SCRIPT" check-branch "feat/contested"
+    kill "$other_pid" 2>/dev/null || true
+    [ "$status" -eq 1 ]
+    [[ "$output" =~ "LOCKED" ]]
+    [[ "$output" =~ "foreign-feature" ]]
+}
+
+@test "check-branch: a lock on a different branch does not block" {
+    sleep 60 &
+    local other_pid=$!
+    _write_foreign_lock "feat/other-branch" "$other_pid"
+    run bash "$LOCK_SCRIPT" check-branch "feat/mine"
+    kill "$other_pid" 2>/dev/null || true
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "FREE" ]]
+}
+
+@test "check-branch: OWNED via AGENTHARNESS_AGENT_ID match" {
+    sleep 60 &
+    local other_pid=$!
+    _write_foreign_lock "feat/contested" "$other_pid"
+    run env AGENTHARNESS_AGENT_ID="11111111-2222-3333-4444-555555555555" \
+        bash "$LOCK_SCRIPT" check-branch "feat/contested"
+    kill "$other_pid" 2>/dev/null || true
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "OWNED" ]]
+}
+
+@test "check-branch: OWNED via ancestor pid without env var" {
+    # AGENT_LOCK_PID=$$ (the bats process) is an ancestor of the check
+    # subshell, so a lock this test acquires is recognized as its own.
+    _acquire "my-own-feature" "feat/my-own"
+    run bash "$LOCK_SCRIPT" check-branch "feat/my-own"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "OWNED" ]]
+}
+
+@test "check-branch: stale lock (dead pid) is removed and branch is FREE" {
+    # A guaranteed-nonexistent pid (above the kernel's pid_max) instead of
+    # a reaped process's pid, which could be recycled on a busy host.
+    local dead_pid=$(( $(cat /proc/sys/kernel/pid_max 2>/dev/null || echo 4194304) + 1 ))
+    _write_foreign_lock "feat/contested" "$dead_pid"
+    run bash "$LOCK_SCRIPT" check-branch "feat/contested"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "FREE" ]]
+    [ ! -f "$TEST_ROOT/.agentharness-locks/foreign-feature-deadbeef.json" ]
+}
+
+@test "check-branch: owned lock does not mask a foreign live lock on the same branch" {
+    _acquire "my-own-feature" "feat/shared"
+    sleep 60 &
+    local other_pid=$!
+    _write_foreign_lock "feat/shared" "$other_pid"
+    run bash "$LOCK_SCRIPT" check-branch "feat/shared"
+    kill "$other_pid" 2>/dev/null || true
+    [ "$status" -eq 1 ]
+    [[ "$output" =~ "LOCKED" ]]
+}
