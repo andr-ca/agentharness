@@ -132,3 +132,31 @@ STUB
 
     rm -rf "$stub_dir"
 }
+
+@test "pre-push: blocks a push to a branch locked by another live session" {
+    # The branch-lock gate fires before any test suite runs, so this test
+    # is fast: a foreign live lock on the pushed branch must exit 1 with
+    # the block message. Locks live under AGENTHARNESS_ROOT so the real
+    # repo's .agentharness-locks/ is never touched.
+    lock_root="$(mktemp -d)"
+    mkdir -p "$lock_root/.agentharness-locks"
+    sleep 60 &
+    other_pid=$!
+    cat > "$lock_root/.agentharness-locks/foreign-feature-deadbeef.json" <<JSON
+{
+  "agent_id": "11111111-2222-3333-4444-555555555555",
+  "branch": "feat/locked-elsewhere",
+  "feature": "foreign-feature",
+  "pid": $other_pid,
+  "started_at": "2026-07-16T00:00:00Z",
+  "worktree": null
+}
+JSON
+
+    run bash -c "echo 'refs/heads/feat/locked-elsewhere 1111111 refs/heads/feat/locked-elsewhere 2222222' | AGENTHARNESS_ROOT='$lock_root' bash '$HOOK'"
+    kill "$other_pid" 2>/dev/null || true
+    rm -rf "$lock_root"
+    [ "$status" -eq 1 ]
+    [[ "$output" =~ "Push blocked" ]]
+    [[ "$output" != *"pytest:"* ]]
+}

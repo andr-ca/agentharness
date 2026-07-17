@@ -5,6 +5,7 @@
 #   tools/agent-lock.sh acquire <feature> <branch> [worktree]
 #   tools/agent-lock.sh release <feature> <agent_id>
 #   tools/agent-lock.sh check   <feature>
+#   tools/agent-lock.sh check-branch <branch>
 #   tools/agent-lock.sh list
 #   tools/agent-lock.sh clean
 #   tools/agent-lock.sh suggest-branch <feature>
@@ -40,6 +41,23 @@ _is_stale() {
         return 1  # still alive
     fi
     return 0  # stale
+}
+
+_is_ancestor_pid() {
+    # Is $1 an ancestor of this process? Lets a session recognize its own
+    # lock without exporting AGENTHARNESS_AGENT_ID: the pid recorded at
+    # acquire time (the session's long-lived parent) is an ancestor of
+    # every later shell that session spawns.
+    local target="$1"
+    local cur=$$
+    while [[ "$cur" -gt 1 ]]; do
+        if [[ "$cur" -eq "$target" ]]; then
+            return 0
+        fi
+        cur="$(ps -o ppid= -p "$cur" 2>/dev/null | tr -d '[:space:]')"
+        [[ -n "$cur" ]] || return 1
+    done
+    return 1
 }
 
 _make_agent_id() {
@@ -194,6 +212,60 @@ print(f\"  since    : {d['started_at']}\")
     return 1
 }
 
+cmd_check_branch() {
+    # The unit of exclusion for pushes is the remote branch, not the feature
+    # label — two sessions with different feature names can still collide on
+    # one branch (observed 2026-07-16 on docs/public-launch-readiness).
+    # Exit 0: FREE (no live lock for this branch) or OWNED (this session
+    # holds it, via AGENTHARNESS_AGENT_ID match or ancestor-pid match).
+    # Exit 1: LOCKED by another live session.
+    local branch="$1"
+    mkdir -p "$LOCKS_DIR"
+    local f
+    for f in "$LOCKS_DIR"/*.json; do
+        [[ -f "$f" ]] || continue
+        local info
+        info="$(python3 -c "
+import json
+d = json.load(open('$f'))
+print(d.get('branch', ''))
+print(d.get('agent_id', ''))
+print(d.get('pid', 0))
+print(d.get('feature', ''))
+print(d.get('started_at', ''))
+" 2>/dev/null)" || continue
+        local l_branch l_agent l_pid l_feature l_since
+        {
+            read -r l_branch
+            read -r l_agent
+            read -r l_pid
+            read -r l_feature
+            read -r l_since
+        } <<< "$info"
+        [[ "$l_branch" == "$branch" ]] || continue
+        if [[ "$l_pid" -gt 0 ]] && _is_stale "$l_pid"; then
+            rm -f "$f"
+            continue
+        fi
+        if [[ -n "${AGENTHARNESS_AGENT_ID:-}" && "$l_agent" == "$AGENTHARNESS_AGENT_ID" ]]; then
+            echo "OWNED: branch '$branch' is locked by this session (feature '$l_feature')."
+            return 0
+        fi
+        if [[ "$l_pid" -gt 0 ]] && _is_ancestor_pid "$l_pid"; then
+            echo "OWNED: branch '$branch' is locked by this session's process tree (feature '$l_feature')."
+            return 0
+        fi
+        echo "LOCKED: branch '$branch' is held by another live agent session." >&2
+        echo "  feature  : $l_feature" >&2
+        echo "  agent_id : $l_agent" >&2
+        echo "  since    : $l_since" >&2
+        echo "Wait for it to release, or coordinate — see patterns/multi-agent-coordination/COORDINATION.md" >&2
+        return 1
+    done
+    echo "FREE: no live lock for branch '$branch'"
+    return 0
+}
+
 cmd_list() {
     mkdir -p "$LOCKS_DIR"
     local count=0
@@ -254,11 +326,12 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
         acquire)        cmd_acquire "$@" ;;
         release)        cmd_release "$@" ;;
         check)          cmd_check "$@" ;;
+        check-branch)   cmd_check_branch "$@" ;;
         list)           cmd_list ;;
         clean)          cmd_clean ;;
         suggest-branch) cmd_suggest_branch "$@" ;;
         *)
-            echo "Usage: tools/agent-lock.sh <acquire|release|check|list|clean|suggest-branch> ..." >&2
+            echo "Usage: tools/agent-lock.sh <acquire|release|check|check-branch|list|clean|suggest-branch> ..." >&2
             echo "See patterns/multi-agent-coordination/COORDINATION.md" >&2
             exit 1 ;;
     esac

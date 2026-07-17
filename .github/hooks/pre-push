@@ -79,6 +79,33 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 NC='\033[0m'
 
+# ----------------------------------------------------------------------------
+# Branch-lock gate (multi-agent mutex)
+# ----------------------------------------------------------------------------
+# If another live agent session holds a lock for a branch being pushed,
+# block the push before spending minutes on test suites. Owned locks (this
+# session's, via AGENTHARNESS_AGENT_ID or ancestor pid) and stale locks
+# pass. See patterns/multi-agent-coordination/COORDINATION.md.
+# AGENTHARNESS_LOCK_BYPASS=1 skips the gate (emergencies only — say why in
+# the PR). This gate only ever runs for pushes to this repo itself: the
+# consumer no-op guard above has already exited for borrowed-hooksPath
+# pushes.
+if [ "${AGENTHARNESS_LOCK_BYPASS:-0}" != "1" ] && [ -x "$REPO_ROOT/tools/agent-lock.sh" ]; then
+    while read -r _local_ref _local_sha _remote_ref _remote_sha; do
+        [ -n "$_remote_ref" ] || continue
+        _lock_branch="${_remote_ref#refs/heads/}"
+        # Skip non-branch refs (tags, notes) — only branches are locked.
+        [ "$_lock_branch" != "$_remote_ref" ] || continue
+        if ! "$REPO_ROOT/tools/agent-lock.sh" check-branch "$_lock_branch" >/dev/null; then
+            "$REPO_ROOT/tools/agent-lock.sh" check-branch "$_lock_branch" || true
+            echo -e "${RED}✗ Push blocked: branch '$_lock_branch' is locked by another live agent session.${NC}"
+            echo "  Coordinate or wait; AGENTHARNESS_LOCK_BYPASS=1 overrides in an emergency."
+            exit 1
+        fi
+    done
+    unset _local_ref _local_sha _remote_ref _remote_sha _lock_branch
+fi
+
 COVERAGE_MIN=80
 FAILED=0
 
