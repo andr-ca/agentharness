@@ -291,7 +291,7 @@ wait_for_ci_run() {
     local find_max_wait="${SAFE_PR_MERGE_FIND_RUN_MAX_WAIT:-120}"
     while [ -z "$run_id" ]; do
         run_id="$(gh run list -R "$repo" -b "$branch" -c "$expected_sha" --limit 1 --json databaseId \
-            -q '.[0].databaseId' 2>/dev/null || echo "")"
+            -q '.[0].databaseId // empty' 2>/dev/null || echo "")"
 
         if [ -n "$run_id" ]; then
             break
@@ -427,7 +427,7 @@ main() {
     local merge_sha=""
     local sha_elapsed=0
     while [ -z "$merge_sha" ] && [ $sha_elapsed -lt 30 ]; do
-        merge_sha="$(gh pr view "$pr_num" -R "$repo" --json mergeCommit -q '.mergeCommit.oid' 2>/dev/null || echo "")"
+        merge_sha="$(gh pr view "$pr_num" -R "$repo" --json mergeCommit -q '.mergeCommit.oid // empty' 2>/dev/null || echo "")"
         if [ -z "$merge_sha" ]; then
             sleep 3
             sha_elapsed=$((sha_elapsed + 3))
