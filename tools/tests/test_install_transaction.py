@@ -4,11 +4,13 @@ journal used by harness-link.sh's existing-surface integration.
 """
 import importlib.util
 import json
+import sys
 from pathlib import Path
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "setup" / "install_transaction.py"
 spec = importlib.util.spec_from_file_location("install_transaction", MODULE_PATH)
 it = importlib.util.module_from_spec(spec)
+sys.modules["install_transaction"] = it
 spec.loader.exec_module(it)
 
 
@@ -149,3 +151,124 @@ def test_never_overwrites_existing_backup_file(tmp_path):
     )
     assert result != collide
     assert not result.exists()
+
+
+def test_build_plan_reports_hard_fail_with_zero_mutations(tmp_path):
+    target = tmp_path / "AGENTS.md"
+    content = (
+        "<!-- agentharness:begin id=core-instructions version=0.1.0 -->\n"
+        "no end\n"
+    )
+    target.write_text(content)
+    surfaces = [it.Surface(
+        path=target, is_block_surface=True, block_body="rendered\n"
+    )]
+    plan = it.build_plan(
+        surfaces, state={"collision_decisions": []},
+        install_id="x", base_dir=tmp_path,
+        decide=lambda item: None
+    )
+    assert plan.ok is False
+    assert plan.actions == []
+    assert any("AGENTS.md" in e for e in plan.errors)
+
+
+def test_build_plan_block_managed_surface_plans_upsert(tmp_path):
+    target = tmp_path / "AGENTS.md"
+    surfaces = [it.Surface(
+        path=target, is_block_surface=True, block_body="rendered\n"
+    )]
+    plan = it.build_plan(
+        surfaces, state={"collision_decisions": []},
+        install_id="x", base_dir=tmp_path,
+        decide=lambda item: None
+    )
+    assert plan.ok is True
+    assert len(plan.actions) == 1
+    assert plan.actions[0].kind == "upsert_block"
+
+
+def test_build_plan_whole_file_collision_calls_decide_callback(tmp_path):
+    target = tmp_path / ".cursor" / "rules" / "testing.mdc"
+    target.parent.mkdir(parents=True)
+    target.write_text("consumer content\n")
+    surfaces = [it.Surface(
+        path=target, is_block_surface=False,
+        content="harness content\n"
+    )]
+
+    decisions = []
+    def decide(item):
+        decisions.append(item.path)
+        return "overwrite"
+
+    plan = it.build_plan(
+        surfaces, state={"collision_decisions": []},
+        install_id="x", base_dir=tmp_path, decide=decide
+    )
+    assert plan.ok is True
+    assert decisions == [target]
+    assert plan.actions[0].kind == "overwrite_with_backup"
+
+
+def test_build_plan_keep_existing_decision_skips_write(tmp_path):
+    target = tmp_path / ".cursor" / "rules" / "testing.mdc"
+    target.parent.mkdir(parents=True)
+    target.write_text("consumer content\n")
+    surfaces = [it.Surface(
+        path=target, is_block_surface=False,
+        content="harness content\n"
+    )]
+    plan = it.build_plan(
+        surfaces, state={"collision_decisions": []},
+        install_id="x", base_dir=tmp_path,
+        decide=lambda item: "keep-existing"
+    )
+    assert plan.ok is True
+    assert plan.actions == []
+
+
+def test_build_plan_reuses_persisted_decision_when_hash_matches(tmp_path):
+    target = tmp_path / ".cursor" / "rules" / "testing.mdc"
+    target.parent.mkdir(parents=True)
+    target.write_text("consumer content\n")
+    state = {"collision_decisions": [
+        {"item": ".cursor/rules/testing.mdc", "kind": "whole-file",
+         "choice": "keep-existing",
+         "existing_sha256": it.sha256_of_file(target),
+         "decided_at": "2026-01-01T00:00:00Z"}
+    ]}
+    surfaces = [it.Surface(
+        path=target, is_block_surface=False,
+        content="harness content\n"
+    )]
+    called = []
+    plan = it.build_plan(
+        surfaces, state=state, install_id="x", base_dir=tmp_path,
+        decide=lambda item: called.append(item) or "overwrite"
+    )
+    # decide() never invoked — persisted decision honored
+    assert called == []
+    assert plan.actions == []
+
+
+def test_build_plan_stale_decision_recalls_decide(tmp_path):
+    target = tmp_path / ".cursor" / "rules" / "testing.mdc"
+    target.parent.mkdir(parents=True)
+    target.write_text("changed content\n")
+    state = {"collision_decisions": [
+        {"item": ".cursor/rules/testing.mdc", "kind": "whole-file",
+         "choice": "keep-existing",
+         "existing_sha256": "stale-hash-does-not-match",
+         "decided_at": "2026-01-01T00:00:00Z"}
+    ]}
+    surfaces = [it.Surface(
+        path=target, is_block_surface=False,
+        content="harness content\n"
+    )]
+    called = []
+    it.build_plan(
+        surfaces, state=state, install_id="x", base_dir=tmp_path,
+        decide=lambda item: called.append(item) or "keep-existing"
+    )
+    assert len(called) == 1

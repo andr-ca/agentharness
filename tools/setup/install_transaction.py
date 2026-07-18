@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import json
 import sys
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from enum import Enum, auto
 from pathlib import Path
 
@@ -34,8 +36,8 @@ def load_state(path: Path) -> dict:
     if data.get("schema_version") == SCHEMA_VERSION:
         return data
     data["schema_version"] = SCHEMA_VERSION
-    for field in _V2_LIST_FIELDS:
-        data.setdefault(field, [])
+    for f in _V2_LIST_FIELDS:
+        data.setdefault(f, [])
     return data
 
 
@@ -118,3 +120,93 @@ def resolve_backup_path(
         suffix += 1
         candidate = backup_path_for(target, f"{install_id}-{suffix}")
     return candidate
+
+
+@dataclass
+class Surface:
+    path: Path
+    is_block_surface: bool
+    block_body: str = ""   # used when is_block_surface=True
+    content: str = ""      # used when is_block_surface=False (whole-file)
+    block_id: str = "core-instructions"
+    block_version: str = "0.0.0"
+
+
+@dataclass
+class PlanItem:
+    path: Path
+
+
+@dataclass
+class Action:
+    kind: str  # "upsert_block" | "create" | "overwrite_with_backup"
+    surface: Surface
+
+
+@dataclass
+class Plan:
+    ok: bool
+    actions: list = field(default_factory=list)
+    errors: list = field(default_factory=list)
+
+
+def _rel(path: Path, base_dir: Path) -> str:
+    return str(Path(path).relative_to(base_dir))
+
+
+def _find_decision(
+    state: dict, rel_path: str, target: Path
+) -> str | None:
+    for entry in state.get("collision_decisions", []):
+        if entry["item"] != rel_path:
+            continue
+        if entry["existing_sha256"] == sha256_of_file(target):
+            return entry["choice"]
+        return None  # stale — caller must re-decide
+    return None
+
+
+def build_plan(
+    surfaces: list[Surface],
+    state: dict,
+    install_id: str,
+    base_dir: Path,
+    decide: Callable[[PlanItem], str],
+) -> Plan:
+    """Discover -> validate -> resolve decisions -> construct plan.
+    Fails the whole plan (zero actions) if any surface hard-fails
+    classification, per spec section 6's zero-mutation guarantee."""
+    errors: list[str] = []
+    actions: list[Action] = []
+
+    for surface in surfaces:
+        classification = classify_path(
+            surface.path, is_block_surface=surface.is_block_surface
+        )
+
+        if classification is Classification.HARD_FAIL:
+            errors.append(
+                f"{surface.path}: malformed markers or unsafe target"
+            )
+            continue
+        if errors:
+            continue  # stop planning actions once any surface has failed
+
+        if classification is Classification.BLOCK_MANAGED:
+            actions.append(Action(kind="upsert_block", surface=surface))
+        elif classification is Classification.CREATE:
+            actions.append(Action(kind="create", surface=surface))
+        elif classification is Classification.WHOLE_FILE_COLLISION:
+            rel_path = _rel(surface.path, base_dir)
+            choice = _find_decision(state, rel_path, surface.path)
+            if choice is None:
+                choice = decide(PlanItem(path=surface.path))
+            if choice == "overwrite":
+                actions.append(
+                    Action(kind="overwrite_with_backup", surface=surface)
+                )
+            # "keep-existing" -> no action
+
+    if errors:
+        return Plan(ok=False, actions=[], errors=errors)
+    return Plan(ok=True, actions=actions, errors=[])
