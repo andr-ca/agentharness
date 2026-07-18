@@ -128,6 +128,14 @@ detect_automated_reviewer() {
 # True if the automated reviewer's check-run for the PR's current head
 # commit has reached a *completed* state (started-but-pending doesn't
 # count — only a finished run means "the review already happened").
+#
+# Matches on check-run *name* against "copilot" or "code review"-shaped
+# terms specifically, not "bot" or "github-actions" — every check-run on
+# this repo's own CI runs under the "github-actions" app slug regardless
+# of what job it is, and "bot" is a substring collision waiting to happen
+# against unrelated job names (e.g. a future "robot-tests" job). A false
+# match here would short-circuit the wait on a check-run that was never
+# the reviewer at all.
 review_check_run_completed() {
     local pr_num="$1"
     local repo="$2"
@@ -139,7 +147,7 @@ review_check_run_completed() {
     fi
 
     gh api repos/"$repo"/commits/"$head_sha"/check-runs \
-        -q '.check_runs[] | select(.name | test("bot|copilot|github-actions"; "i")) | select(.status == "completed") | .name' \
+        -q '.check_runs[] | select(.name | test("copilot|code.?review"; "i")) | select(.status == "completed") | .name' \
         2>/dev/null | grep -q .
 }
 
@@ -177,7 +185,7 @@ poll_for_review_comments() {
         # to address only delays the merge for no benefit.
         if review_check_run_completed "$pr_num" "$repo"; then
             log_info "Automated review check-run already completed on PR #$pr_num with zero comments — review has already happened, no need to wait out the rest of the window"
-            return 1  # No comments, but the wait is satisfied
+            return 0  # Wait satisfied by a completed run; verify_all_comments_replied is a no-op with zero comments
         fi
 
         elapsed=$(($(date +%s) - start_time))
