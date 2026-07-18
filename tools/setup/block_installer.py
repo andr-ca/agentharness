@@ -8,8 +8,11 @@ no CLI. Orchestration lives in install_transaction.py.
 from __future__ import annotations
 
 import hashlib
+import os
 import re
+import tempfile
 from dataclasses import dataclass
+from pathlib import Path
 
 
 def detect_newline_style(text: str) -> str:
@@ -138,3 +141,46 @@ def remove_block(content: str, block_id: str) -> str:
         return content
     match = matches[0]
     return content[: match.start] + content[match.end :]
+
+
+class UnsafeTargetError(Exception):
+    """Target path fails the filesystem-discipline check (spec section
+    1/6): not a regular file, or a symlink. Hard-fail, never a prompt."""
+
+
+def is_safe_write_target(path: Path) -> None:
+    """Raise UnsafeTargetError if path exists and is not a plain regular
+    file (symlink, directory, device, etc.). Does not raise for a path
+    that doesn't exist yet."""
+    if path.is_symlink():
+        raise UnsafeTargetError(f"{path}: refusing to write through a symlink")
+    if path.exists() and not path.is_file():
+        raise UnsafeTargetError(f"{path}: not a regular file")
+
+
+def atomic_write(path: Path, content: str) -> bool:
+    """Write content to path via temp-file + atomic rename, preserving
+    mode bits. Returns False (no write performed) if the existing content
+    is already byte-identical, so mtime is preserved. Raises
+    UnsafeTargetError per is_safe_write_target."""
+    path = Path(path)
+    is_safe_write_target(path)
+
+    existing_bytes = path.read_bytes() if path.exists() else None
+    new_bytes = content.encode("utf-8")
+    if existing_bytes == new_bytes:
+        return False
+
+    mode = path.stat().st_mode & 0o777 if path.exists() else 0o644
+    fd, tmp_name = tempfile.mkstemp(
+        dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp"
+    )
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(new_bytes)
+        os.chmod(tmp_name, mode)
+        os.replace(tmp_name, path)
+    except BaseException:
+        Path(tmp_name).unlink(missing_ok=True)
+        raise
+    return True

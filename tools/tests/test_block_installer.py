@@ -163,3 +163,45 @@ def test_remove_block_deletes_marker_region_only():
 def test_remove_block_noop_when_absent():
     content = "# File\n\nno block here\n"
     assert bi.remove_block(content, "core-instructions") == content
+
+
+def test_atomic_write_creates_file_with_content(tmp_path):
+    target = tmp_path / "AGENTS.md"
+    changed = bi.atomic_write(target, "hello\n")
+    assert changed is True
+    assert target.read_text() == "hello\n"
+
+
+def test_atomic_write_noop_when_content_unchanged(tmp_path):
+    target = tmp_path / "AGENTS.md"
+    target.write_text("hello\n")
+    mtime_before = target.stat().st_mtime_ns
+    changed = bi.atomic_write(target, "hello\n")
+    assert changed is False
+    assert target.stat().st_mtime_ns == mtime_before
+
+
+def test_atomic_write_preserves_mode_bits(tmp_path):
+    target = tmp_path / "script.sh"
+    target.write_text("old\n")
+    target.chmod(0o755)
+    bi.atomic_write(target, "new\n")
+    assert target.stat().st_mode & 0o777 == 0o755
+
+
+def test_atomic_write_refuses_symlink(tmp_path):
+    real = tmp_path / "real.md"
+    real.write_text("x\n")
+    link = tmp_path / "AGENTS.md"
+    link.symlink_to(real)
+    import pytest
+    with pytest.raises(bi.UnsafeTargetError, match="symlink"):
+        bi.atomic_write(link, "new\n")
+
+
+def test_atomic_write_refuses_non_regular_file(tmp_path):
+    target = tmp_path / "adir"
+    target.mkdir()
+    import pytest
+    with pytest.raises(bi.UnsafeTargetError, match="regular file"):
+        bi.atomic_write(target, "new\n")
