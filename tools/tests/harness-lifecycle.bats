@@ -130,7 +130,7 @@ print(d['with_hook'])
 
 @test "lifecycle: init warns about untracked files when target is a git repo (issue #88)" {
     git -C "$TEST_PROJECT" init --quiet
-    git -C "$TEST_PROJECT" commit --quiet --allow-empty -m init
+    git -C "$TEST_PROJECT" -c user.email=test@example.com -c user.name=Test commit --quiet --allow-empty -m init
 
     run bash "$SCRIPT" init "$TEST_PROJECT" --skills committing
     [ "$status" -eq 0 ]
@@ -145,7 +145,7 @@ print(d['with_hook'])
 
 @test "lifecycle: plan/--dry-run never prints the untracked-files note" {
     git -C "$TEST_PROJECT" init --quiet
-    git -C "$TEST_PROJECT" commit --quiet --allow-empty -m init
+    git -C "$TEST_PROJECT" -c user.email=test@example.com -c user.name=Test commit --quiet --allow-empty -m init
 
     run bash "$SCRIPT" plan "$TEST_PROJECT" --skills committing
     [ "$status" -eq 0 ]
@@ -154,7 +154,7 @@ print(d['with_hook'])
 
 @test "lifecycle: doctor warns when installed skills are untracked by git (issue #88)" {
     git -C "$TEST_PROJECT" init --quiet
-    git -C "$TEST_PROJECT" commit --quiet --allow-empty -m init
+    git -C "$TEST_PROJECT" -c user.email=test@example.com -c user.name=Test commit --quiet --allow-empty -m init
     bash "$SCRIPT" init "$TEST_PROJECT" --skills committing
 
     run bash "$SCRIPT" doctor "$TEST_PROJECT"
@@ -165,10 +165,10 @@ print(d['with_hook'])
 
 @test "lifecycle: doctor stops warning once the installed skills are committed" {
     git -C "$TEST_PROJECT" init --quiet
-    git -C "$TEST_PROJECT" commit --quiet --allow-empty -m init
+    git -C "$TEST_PROJECT" -c user.email=test@example.com -c user.name=Test commit --quiet --allow-empty -m init
     bash "$SCRIPT" init "$TEST_PROJECT" --skills committing
     git -C "$TEST_PROJECT" add -A
-    git -C "$TEST_PROJECT" commit --quiet -m "add skills"
+    git -C "$TEST_PROJECT" -c user.email=test@example.com -c user.name=Test commit --quiet -m "add skills"
 
     run bash "$SCRIPT" doctor "$TEST_PROJECT"
     [ "$status" -eq 0 ]
