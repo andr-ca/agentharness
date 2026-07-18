@@ -5,6 +5,7 @@ docs/superpowers/specs/2026-07-17-existing-surface-integration-design.md.
 """
 from __future__ import annotations
 
+import datetime
 import json
 import sys
 from collections.abc import Callable
@@ -210,3 +211,106 @@ def build_plan(
     if errors:
         return Plan(ok=False, actions=[], errors=errors)
     return Plan(ok=True, actions=actions, errors=[])
+
+
+def journal_status(journal_path: Path) -> dict:
+    journal_path = Path(journal_path)
+    if not journal_path.exists():
+        return {"pending": False, "summary": []}
+    data = json.loads(journal_path.read_text())
+    return {"pending": True, "summary": data.get("plan_summary", [])}
+
+
+def _write_journal(journal_path: Path, plan: Plan, base_dir: Path) -> None:
+    summary = [
+        f"{_rel(a.surface.path, base_dir)}: {a.kind}" for a in plan.actions
+    ]
+    journal_path.write_text(
+        json.dumps({"plan_summary": summary}, indent=2) + "\n"
+    )
+
+
+def apply_plan(
+    plan: Plan,
+    state: dict,
+    base_dir: Path,
+    journal_path: Path,
+    install_id: str,
+) -> dict:
+    """Apply every action in a validated (plan.ok) plan, journaling
+    before mutation and removing the journal only after the caller
+    persists state (spec section 6). Returns the updated state dict —
+    the caller is responsible for calling save_state() with it, which
+    is also what allows the journal to be safely deleted."""
+    if not plan.ok:
+        raise ValueError("cannot apply a plan with ok=False")
+
+    _write_journal(Path(journal_path), plan, base_dir)
+    now = datetime.datetime.now(datetime.UTC).isoformat()
+
+    for action in plan.actions:
+        surface = action.surface
+        rel_path = _rel(surface.path, base_dir)
+
+        if action.kind == "upsert_block":
+            existing = (
+                surface.path.read_text() if surface.path.exists() else ""
+            )
+            rendered = bi.upsert_block(
+                existing,
+                surface.block_id,
+                surface.block_version,
+                surface.block_body,
+            )
+            bi.atomic_write(surface.path, rendered)
+            block_hash = bi.sha256_bytes(
+                bi.render_block(
+                    surface.block_id,
+                    surface.block_version,
+                    surface.block_body,
+                ).encode()
+            )
+            state["managed_blocks"] = [
+                b for b in state["managed_blocks"] if b["file"] != rel_path
+            ] + [{
+                "file": rel_path,
+                "block_id": surface.block_id,
+                "rendered_version": surface.block_version,
+                "rendered_sha256": block_hash,
+            }]
+
+        elif action.kind == "create":
+            surface.path.parent.mkdir(parents=True, exist_ok=True)
+            bi.atomic_write(surface.path, surface.content)
+
+        elif action.kind == "overwrite_with_backup":
+            backup = resolve_backup_path(
+                surface.path,
+                state,
+                install_id=install_id,
+                base_dir=base_dir,
+            )
+            if not backup.exists():
+                backup.write_bytes(surface.path.read_bytes())
+            bi.atomic_write(surface.path, surface.content)
+            written_hash = bi.sha256_bytes(surface.content.encode())
+            state["overwritten_files"] = [
+                f for f in state["overwritten_files"] if f["file"] != rel_path
+            ] + [{
+                "file": rel_path,
+                "backup": _rel(backup, base_dir),
+                "written_sha256": written_hash,
+            }]
+            state["collision_decisions"] = [
+                d for d in state["collision_decisions"]
+                if d["item"] != rel_path
+            ] + [{
+                "item": rel_path,
+                "kind": "whole-file",
+                "choice": "overwrite",
+                "existing_sha256": written_hash,
+                "decided_at": now,
+            }]
+
+    journal_path.unlink(missing_ok=True)
+    return state

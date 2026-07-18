@@ -272,3 +272,88 @@ def test_build_plan_stale_decision_recalls_decide(tmp_path):
         decide=lambda item: called.append(item) or "keep-existing"
     )
     assert len(called) == 1
+
+
+def test_apply_plan_writes_journal_then_removes_it_on_success(tmp_path):
+    target = tmp_path / "AGENTS.md"
+    surfaces = [it.Surface(
+        path=target, is_block_surface=True, block_body="rendered\n"
+    )]
+    plan = it.build_plan(
+        surfaces, state={"collision_decisions": []},
+        install_id="x", base_dir=tmp_path, decide=lambda i: None
+    )
+    journal_path = tmp_path / ".agentharness-state.pending.json"
+    state = it.load_state(tmp_path / ".agentharness-state.json")
+    it.apply_plan(
+        plan, state=state, base_dir=tmp_path, journal_path=journal_path,
+        install_id="x"
+    )
+    assert target.read_text().count("agentharness:begin") == 1
+    assert not journal_path.exists()
+
+
+def test_apply_plan_records_managed_block_in_state(tmp_path):
+    target = tmp_path / "AGENTS.md"
+    surfaces = [it.Surface(
+        path=target, is_block_surface=True, block_body="rendered\n"
+    )]
+    plan = it.build_plan(
+        surfaces, state={"collision_decisions": []},
+        install_id="x", base_dir=tmp_path, decide=lambda i: None
+    )
+    state = it.load_state(tmp_path / ".agentharness-state.json")
+    updated = it.apply_plan(
+        plan, state=state, base_dir=tmp_path,
+        journal_path=tmp_path / ".agentharness-state.pending.json",
+        install_id="x"
+    )
+    assert len(updated["managed_blocks"]) == 1
+    assert updated["managed_blocks"][0]["file"] == "AGENTS.md"
+
+
+def test_apply_plan_overwrite_with_backup_records_backup_and_decision(
+    tmp_path
+):
+    target = tmp_path / ".cursor" / "rules" / "testing.mdc"
+    target.parent.mkdir(parents=True)
+    target.write_text("consumer content\n")
+    surfaces = [it.Surface(
+        path=target, is_block_surface=False,
+        content="harness content\n"
+    )]
+    plan = it.build_plan(
+        surfaces, state={"collision_decisions": []},
+        install_id="abc123", base_dir=tmp_path,
+        decide=lambda i: "overwrite"
+    )
+    state = it.load_state(tmp_path / ".agentharness-state.json")
+    updated = it.apply_plan(
+        plan, state=state, base_dir=tmp_path,
+        journal_path=tmp_path / ".agentharness-state.pending.json",
+        install_id="abc123"
+    )
+    assert target.read_text() == "harness content\n"
+    backup = tmp_path / ".cursor" / "rules" / "testing.mdc.pre-agentharness.abc123"
+    assert backup.read_text() == "consumer content\n"
+    assert len(updated["overwritten_files"]) == 1
+    assert len(updated["collision_decisions"]) == 1
+
+
+def test_journal_status_reports_leftover_journal(tmp_path):
+    journal_path = tmp_path / ".agentharness-state.pending.json"
+    journal_path.write_text(
+        json.dumps(
+            {"plan_summary": ["AGENTS.md: upsert_block"]}
+        )
+    )
+    status = it.journal_status(journal_path)
+    assert status["pending"] is True
+    assert "AGENTS.md" in status["summary"][0]
+
+
+def test_journal_status_clean_when_no_journal(tmp_path):
+    status = it.journal_status(
+        tmp_path / ".agentharness-state.pending.json"
+    )
+    assert status["pending"] is False
