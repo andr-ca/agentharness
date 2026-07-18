@@ -894,7 +894,10 @@ cmd_init() {
         release_install_lock "$target"
         exit 1
     }
-    resolve_collisions_and_apply "$target" "$surfaces_json" "$install_id" "$force" "$dry_run"
+    resolve_collisions_and_apply "$target" "$surfaces_json" "$install_id" "$force" "$dry_run" || {
+        release_install_lock "$target"
+        exit 1
+    }
     release_install_lock "$target"
 
     # Pass the pre-install hooks path so uninstall can restore it (F-05)

@@ -981,3 +981,13 @@ PYEOF
     [ -f "$TEST_PROJECT/.github/copilot-instructions.md" ]
     grep -q "agentharness:begin id=core-instructions" "$TEST_PROJECT/.github/copilot-instructions.md"
 }
+
+@test "init: releases lock if resolve_collisions_and_apply fails (regression: lock leak prevention)" {
+    # Force a failure by creating a file with malformed markers (no end tag)
+    # This causes classification HARD_FAIL, apply exits 1, but lock must be released
+    echo "<!-- agentharness:begin id=core-instructions version=0.1.0 -->" > "$TEST_PROJECT/AGENTS.md"
+    echo "no end marker" >> "$TEST_PROJECT/AGENTS.md"
+    run bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    [ "$status" -ne 0 ]
+    [ ! -d "$TEST_PROJECT/.agentharness-install.lock" ]
+}
