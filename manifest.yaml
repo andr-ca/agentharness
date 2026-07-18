@@ -283,6 +283,10 @@ sections:
     path: .claude/skills/audit-review-followup/SKILL.md
     type: skill
     when_to_use: Verifying that review recommendations were actually implemented; re-scoring
+  - asset: GitHub issue triage
+    path: .claude/skills/github-issue-triage/SKILL.md
+    type: skill
+    when_to_use: Triage GitHub issues by verifying claims against running code, assessing roadmap fit, and posting structured findings with recommendations
   - asset: Harness feedback
     path: .claude/skills/harness-feedback/SKILL.md
     type: skill
