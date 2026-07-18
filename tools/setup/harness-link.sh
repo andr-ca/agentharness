@@ -717,6 +717,8 @@ cmd_init() {
             echo "  Hook: install trunk-protection hook only — not coverage (mode: $mode; see --with-coverage-hook)"
         fi
         [ -n "$profile" ] && echo "  Profile: write $PROFILE_FILE_NAME = $profile"
+        echo "  Managed blocks: update CLAUDE.md, AGENTS.md, GEMINI.md, .github/copilot-instructions.md"
+        echo "  Generated surfaces: .cursor/rules/testing.mdc"
         echo "  State: write $target/$STATE_FILE_NAME"
         echo "(dry run — nothing was changed)"
         return 0
@@ -1856,58 +1858,59 @@ cmd_update() {
     [ "${#to_refresh[@]}" -gt 0 ] && printf '  ~ content changed upstream: %s\n' "${to_refresh[@]}"
 
     if [ "${#to_add[@]}" -eq 0 ] && [ "${#to_remove[@]}" -eq 0 ] && [ "${#to_refresh[@]}" -eq 0 ]; then
-        echo "  (nothing to do)"
-        return 0
-    fi
+        # Even if no skills changed, we still need to check for drifted managed blocks
+        # (re-render them back to current content). So we continue to the managed-block flow.
+        echo "  (no skill changes, checking for drifted managed blocks...)"
+    else
+        confirm "$yes" "Apply this update?" || { echo "Aborted."; return 1; }
 
-    confirm "$yes" "Apply this update?" || { echo "Aborted."; return 1; }
-
-    for name in "${to_remove[@]}"; do
-        for dest_subdir in "${SKILL_DEST_SUBDIRS[@]}"; do
-            local dst="$target/$dest_subdir/$name"
-            if [ -L "$dst" ] || [ -d "$dst" ]; then
-                rm -rf "$dst"
-            fi
-        done
-        echo "  Removed: $name"
-    done
-
-    for name in "${current[@]}"; do
-        for dest_subdir in "${SKILL_DEST_SUBDIRS[@]}"; do
-            mkdir -p "$target/$dest_subdir"
-            local src="$source_path/.claude/skills/$name"
-            local dst="$target/$dest_subdir/$name"
-            case "$mode" in
-                link|submodule|npm)
-                    [ -e "$dst" ] && [ ! -L "$dst" ] && continue
-                    [ -L "$dst" ] && rm "$dst"
-                    ln -s "$src" "$dst"
-                    ;;
-                copy)
+        for name in "${to_remove[@]}"; do
+            for dest_subdir in "${SKILL_DEST_SUBDIRS[@]}"; do
+                local dst="$target/$dest_subdir/$name"
+                if [ -L "$dst" ] || [ -d "$dst" ]; then
                     rm -rf "$dst"
-                    # -L: dereference symlinks instead of copying them as
-                    # symlinks. Skills bundle relative symlinks back to
-                    # patterns/<name>/ (see P1-03) that only resolve from
-                    # inside this checkout; a plain `cp -r` would copy those
-                    # links literally into the target, where they point at a
-                    # patterns/ directory copy mode never creates.
-                    cp -rL "$src" "$dst"
-                    ;;
-            esac
+                fi
+            done
+            echo "  Removed: $name"
         done
-    done
-    echo "  Re-synced ${#current[@]} skill(s)"
 
-    local gitignore_template="$HARNESS_DIR/.github/.gitignore.template"
-    local gitignore_dst="$target/.gitignore"
-    if [ -f "$gitignore_template" ] && [ -f "$gitignore_dst" ]; then
-        local new_entries
-        new_entries="$(comm -23 \
-            <(grep -vE '^\s*(#|$)' "$gitignore_template" | sort -u) \
-            <(grep -vE '^\s*(#|$)' "$gitignore_dst" | sort -u))"
-        if [ -n "$new_entries" ]; then
-            { echo ""; echo "$GITIGNORE_MARKER"; echo "$new_entries"; } >> "$gitignore_dst"
-            echo "  Merged new .gitignore entries"
+        for name in "${current[@]}"; do
+            for dest_subdir in "${SKILL_DEST_SUBDIRS[@]}"; do
+                mkdir -p "$target/$dest_subdir"
+                local src="$source_path/.claude/skills/$name"
+                local dst="$target/$dest_subdir/$name"
+                case "$mode" in
+                    link|submodule|npm)
+                        [ -e "$dst" ] && [ ! -L "$dst" ] && continue
+                        [ -L "$dst" ] && rm "$dst"
+                        ln -s "$src" "$dst"
+                        ;;
+                    copy)
+                        rm -rf "$dst"
+                        # -L: dereference symlinks instead of copying them as
+                        # symlinks. Skills bundle relative symlinks back to
+                        # patterns/<name>/ (see P1-03) that only resolve from
+                        # inside this checkout; a plain `cp -r` would copy those
+                        # links literally into the target, where they point at a
+                        # patterns/ directory copy mode never creates.
+                        cp -rL "$src" "$dst"
+                        ;;
+                esac
+            done
+        done
+        echo "  Re-synced ${#current[@]} skill(s)"
+
+        local gitignore_template="$HARNESS_DIR/.github/.gitignore.template"
+        local gitignore_dst="$target/.gitignore"
+        if [ -f "$gitignore_template" ] && [ -f "$gitignore_dst" ]; then
+            local new_entries
+            new_entries="$(comm -23 \
+                <(grep -vE '^\s*(#|$)' "$gitignore_template" | sort -u) \
+                <(grep -vE '^\s*(#|$)' "$gitignore_dst" | sort -u))"
+            if [ -n "$new_entries" ]; then
+                { echo ""; echo "$GITIGNORE_MARKER"; echo "$new_entries"; } >> "$gitignore_dst"
+                echo "  Merged new .gitignore entries"
+            fi
         fi
     fi
 
@@ -1919,12 +1922,18 @@ cmd_update() {
     new_skills_csv="$(IFS=,; echo "${current[*]}")"
 
     # Existing-surface integration: same as cmd_init
+    # When there are no skill changes, default to --force for whole-file surfaces (re-apply them)
+    local managed_block_force="$force"
+    if [ "${#to_add[@]}" -eq 0 ] && [ "${#to_remove[@]}" -eq 0 ] && [ "${#to_refresh[@]}" -eq 0 ]; then
+        managed_block_force=true
+    fi
+
     acquire_install_lock "$target" || exit 1
     local surfaces_json rendered_block install_id
     install_id="$(python3 -c 'import uuid; print(uuid.uuid4().hex[:8])')"
     rendered_block="$(render_core_instructions_block "$target" "$new_skills_csv")"
     surfaces_json="$(build_surfaces_spec "$target" "$rendered_block" "$source_revision")"
-    resolve_collisions_and_apply "$target" "$surfaces_json" "$install_id" "$force" "$dry_run" "$keep_existing" || {
+    resolve_collisions_and_apply "$target" "$surfaces_json" "$install_id" "$managed_block_force" "$dry_run" "$keep_existing" || {
         release_install_lock "$target"
         exit 1
     }
