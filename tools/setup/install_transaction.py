@@ -340,6 +340,57 @@ def _load_surfaces_spec(spec_path: Path) -> list[Surface]:
     ]
 
 
+def uninstall_all(state: dict[str, Any], base_dir: Path) -> list[str]:
+    """Reverse every managed block and overwritten file recorded in
+    state, per the spec's per-file-class uninstall semantics. Returns a
+    list of human-readable log lines for harness-link.sh to print."""
+    log: list[str] = []
+
+    for entry in state.get("managed_blocks", []):
+        path = base_dir / entry["file"]
+        if not path.exists():
+            log.append(f"{entry['file']}: no longer exists, nothing to remove")
+            continue
+        content = path.read_text()
+        removed = bi.remove_block(content, entry["block_id"])
+        if removed != content:
+            bi.atomic_write(path, removed)
+            log.append(f"{entry['file']}: removed managed block")
+        else:
+            log.append(f"{entry['file']}: block not found, nothing to remove")
+
+    for entry in state.get("overwritten_files", []):
+        path = base_dir / entry["file"]
+        backup = base_dir / entry["backup"]
+        if not path.exists():
+            log.append(f"{entry['file']}: deleted since install, nothing to restore")
+            continue
+        current_hash = sha256_of_file(path)
+        if current_hash != entry["written_sha256"]:
+            log.append(
+                f"{entry['file']}: edited since install — left in place; "
+                f"backup available at {entry['backup']}"
+            )
+            continue
+        if not backup.exists():
+            msg = f"{entry['file']}: backup missing ({entry['backup']}) — left in place"
+            log.append(msg)
+            continue
+        bi.atomic_write(path, backup.read_text())
+        log.append(f"{entry['file']}: restored from backup")
+
+    state["managed_blocks"] = []
+    state["overwritten_files"] = []
+    return log
+
+
+def _cli_uninstall(args: Any) -> None:
+    state = load_state(Path(args.state))
+    log = uninstall_all(state, base_dir=Path(args.base_dir))
+    save_state(Path(args.state), state)
+    print(json.dumps({"ok": True, "log": log}))
+
+
 def _cli_journal_status(args: Any) -> None:
     print(json.dumps(journal_status(Path(args.journal))))
 
@@ -435,6 +486,11 @@ def main() -> None:
     p_apply.add_argument("--journal", required=True)
     p_apply.add_argument("--decisions", default=None)
     p_apply.set_defaults(func=_cli_apply)
+
+    p_uninstall = sub.add_parser("uninstall")
+    p_uninstall.add_argument("--state", required=True)
+    p_uninstall.add_argument("--base-dir", required=True)
+    p_uninstall.set_defaults(func=_cli_uninstall)
 
     args = parser.parse_args()
     args.func(args)

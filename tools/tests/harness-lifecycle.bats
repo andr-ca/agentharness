@@ -1061,3 +1061,54 @@ PYEOF
     [ "$status" -eq 0 ]
     grep -q "Installed skills" "$TEST_PROJECT/AGENTS.md"
 }
+
+@test "uninstall: removes managed block, preserves surrounding content" {
+    echo "# My project" > "$TEST_PROJECT/AGENTS.md"
+    echo "custom line" >> "$TEST_PROJECT/AGENTS.md"
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+    ! grep -q "agentharness:begin" "$TEST_PROJECT/AGENTS.md"
+    grep -q "# My project" "$TEST_PROJECT/AGENTS.md"
+    grep -q "custom line" "$TEST_PROJECT/AGENTS.md"
+}
+
+@test "uninstall: restores backup for an unmodified overwritten file" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    mkdir -p "$TEST_PROJECT/.cursor/rules"
+    echo "my own rule" > "$TEST_PROJECT/.cursor/rules/testing.mdc"
+    # Seed a real overwritten_files state entry via the collision-resolution
+    # helper (same one Task 13's tests use), targeting the state file that
+    # init just created, so uninstall has something real to reverse.
+    local surfaces_json
+    surfaces_json="$(python3 -c "import json; print(json.dumps([{'path': '$TEST_PROJECT/.cursor/rules/testing.mdc', 'is_block_surface': False, 'content': 'harness content\n'}]))")"
+    run bash "$SCRIPT" __test_resolve_collisions_and_apply "$TEST_PROJECT" "$surfaces_json" testid true false false
+    [ "$status" -eq 0 ]
+    run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+    grep -q "my own rule" "$TEST_PROJECT/.cursor/rules/testing.mdc"
+}
+
+@test "uninstall: leaves post-install user edits in place with a warning" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    mkdir -p "$TEST_PROJECT/.cursor/rules"
+    echo "my own rule" > "$TEST_PROJECT/.cursor/rules/testing.mdc"
+    local surfaces_json
+    surfaces_json="$(python3 -c "import json; print(json.dumps([{'path': '$TEST_PROJECT/.cursor/rules/testing.mdc', 'is_block_surface': False, 'content': 'harness content\n'}]))")"
+    run bash "$SCRIPT" __test_resolve_collisions_and_apply "$TEST_PROJECT" "$surfaces_json" testid true false false
+    [ "$status" -eq 0 ]
+    echo "edited after install" > "$TEST_PROJECT/.cursor/rules/testing.mdc"
+    run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+    grep -q "edited after install" "$TEST_PROJECT/.cursor/rules/testing.mdc"
+    [[ "$output" =~ "backup" ]] || [[ "$output" =~ "edited" ]]
+}
+
+@test "uninstall: called twice is a no-op the second time" {
+    echo "# My project" > "$TEST_PROJECT/AGENTS.md"
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
+    run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
+    [ "$status" -ne 0 ]  # require_state fails: no state file left — expected message, not a crash
+    [[ "$output" =~ "no .agentharness-state.json" ]] || [[ "$output" =~ "init" ]]
+}

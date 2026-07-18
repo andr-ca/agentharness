@@ -2068,6 +2068,15 @@ cmd_uninstall() {
         echo "  Removed the $NPM_DURABLE_PATH durable source copy"
     fi
 
+    local uninstall_json
+    uninstall_json="$(python3 "$HARNESS_DIR/tools/setup/install_transaction.py" uninstall \
+        --state "$(state_path "$target")" --base-dir "$target")"
+    echo "$uninstall_json" | python3 -c '
+import json, sys
+for line in json.load(sys.stdin)["log"]:
+    print("  " + line)
+'
+
     rm -f "$(state_path "$target")"
     echo "Uninstalled."
 }

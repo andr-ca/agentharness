@@ -6,6 +6,7 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "setup" / "install_transaction.py"
 spec = importlib.util.spec_from_file_location("install_transaction", MODULE_PATH)
@@ -490,3 +491,59 @@ def test_apply_plan_creates_parent_dirs_for_upsert_block(tmp_path):
     )
     assert target.exists()
     assert "agentharness:begin" in target.read_text()
+
+
+def test_uninstall_all_removes_block_and_restores_backup(tmp_path: Any) -> None:
+    agents = tmp_path / "AGENTS.md"
+    agents.write_text(
+        "keep me\n\n<!-- agentharness:begin id=core-instructions version=0.2.1 "
+        "-->\nbody\n<!-- agentharness:end id=core-instructions -->\n"
+    )
+    rule = tmp_path / "rule.mdc"
+    rule.write_text("harness content\n")
+    backup = tmp_path / "rule.mdc.pre-agentharness.abc"
+    backup.write_text("consumer original\n")
+
+    state: dict[str, Any] = {
+        "managed_blocks": [
+            {
+                "file": "AGENTS.md",
+                "block_id": "core-instructions",
+                "rendered_version": "0.2.1",
+                "rendered_sha256": "x",
+            }
+        ],
+        "overwritten_files": [
+            {
+                "file": "rule.mdc",
+                "backup": "rule.mdc.pre-agentharness.abc",
+                "written_sha256": it.sha256_of_file(rule),
+            }
+        ],
+        "collision_decisions": [],
+    }
+    it.uninstall_all(state, base_dir=tmp_path)
+    assert "keep me" in agents.read_text()
+    assert "agentharness:begin" not in agents.read_text()
+    assert rule.read_text() == "consumer original\n"
+    assert state["managed_blocks"] == []
+    assert state["overwritten_files"] == []
+
+
+def test_uninstall_all_leaves_edited_file_and_warns(tmp_path: Any) -> None:
+    rule = tmp_path / "rule.mdc"
+    rule.write_text("edited after install\n")
+    state: dict[str, Any] = {
+        "managed_blocks": [],
+        "overwritten_files": [
+            {
+                "file": "rule.mdc",
+                "backup": "rule.mdc.pre-agentharness.abc",
+                "written_sha256": "does-not-match-current-content",
+            }
+        ],
+        "collision_decisions": [],
+    }
+    log = it.uninstall_all(state, base_dir=tmp_path)
+    assert rule.read_text() == "edited after install\n"
+    assert any("edited" in line for line in log)
