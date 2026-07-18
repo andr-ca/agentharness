@@ -25,7 +25,9 @@
 #      found nothing to say)
 #   4. Verify all review comments have replies
 #   5. Merge the PR
-#   6. Poll post-merge CI to terminal state and report conclusion
+#   6. Poll post-merge CI to terminal state and report conclusion — matched
+#      by the merge commit's SHA, not just "newest run on the branch"
+#      (that alone races GitHub's run-list indexing; see issue #94)
 
 set -euo pipefail
 
@@ -263,26 +265,47 @@ for c in comments:
 }
 
 # Wait for a GitHub Actions run to complete
+#
+# expected_sha is the merge commit this run must belong to. "Most recent
+# run for the branch" is not a safe proxy for "the run this merge
+# triggered" — GitHub's run-list index can lag a few seconds behind a
+# merge, so an immediate query can return the *previous* run instead of
+# the new one. If that previous run happened to already be green, this
+# function would report a false "post-merge CI is green" while the real
+# run for this merge was still queued (observed live: PR #93's merge,
+# see docs/operational/harness-feedback.md 2026-07-18 entry / issue #94).
+# Retrying on headSha match, not just presence, closes that race.
 wait_for_ci_run() {
     local repo="$1"
     local branch="$2"
+    local expected_sha="$3"
 
-    log_step "Waiting for CI run on branch '$branch' to complete..."
+    log_step "Waiting for CI run on branch '$branch' (commit ${expected_sha:0:12}) to complete..."
 
-    # Get the most recent run for this branch
-    local run_id
-    run_id="$(gh run list -R "$repo" -b "$branch" --limit 1 --json databaseId -q '.[0].databaseId' 2>/dev/null || echo "")"
+    # Find the run whose headSha matches the merge commit, not just
+    # whatever happens to be newest in the list yet.
+    local run_id=""
+    local find_elapsed=0
+    # Overridable so tests can exercise the timeout path in seconds, not
+    # minutes; production callers get the real 120s default.
+    local find_max_wait="${SAFE_PR_MERGE_FIND_RUN_MAX_WAIT:-120}"
+    while [ -z "$run_id" ]; do
+        run_id="$(gh run list -R "$repo" -b "$branch" -c "$expected_sha" --limit 1 --json databaseId \
+            -q '.[0].databaseId' 2>/dev/null || echo "")"
 
-    if [ -z "$run_id" ]; then
-        log_info "No CI run found yet for branch '$branch'; waiting a moment..."
-        sleep 15
-        run_id="$(gh run list -R "$repo" -b "$branch" --limit 1 --json databaseId -q '.[0].databaseId' 2>/dev/null || echo "")"
+        if [ -n "$run_id" ]; then
+            break
+        fi
 
-        if [ -z "$run_id" ]; then
-            log_error "Could not find CI run for branch '$branch'"
+        if [ $find_elapsed -ge $find_max_wait ]; then
+            log_error "No CI run found for commit ${expected_sha:0:12} on branch '$branch' after ${find_max_wait}s"
             return 1
         fi
-    fi
+
+        log_info "No CI run yet for commit ${expected_sha:0:12}; waiting 5s (elapsed ${find_elapsed}s / ${find_max_wait}s)..."
+        sleep 5
+        find_elapsed=$((find_elapsed + 5))
+    done
 
     log_info "Polling CI run $run_id..."
 
@@ -397,8 +420,29 @@ main() {
 
     log_info "PR #$pr_num merged successfully"
 
+    # Get the merge commit SHA so Step 6 can verify it's polling the run
+    # this merge actually triggered, not just whatever's newest on the
+    # branch (see wait_for_ci_run's comment for why that distinction
+    # matters).
+    local merge_sha=""
+    local sha_elapsed=0
+    while [ -z "$merge_sha" ] && [ $sha_elapsed -lt 30 ]; do
+        merge_sha="$(gh pr view "$pr_num" -R "$repo" --json mergeCommit -q '.mergeCommit.oid' 2>/dev/null || echo "")"
+        if [ -z "$merge_sha" ]; then
+            sleep 3
+            sha_elapsed=$((sha_elapsed + 3))
+        fi
+    done
+
+    if [ -z "$merge_sha" ]; then
+        log_error "Could not determine merge commit SHA for PR #$pr_num"
+        return 1
+    fi
+
+    log_info "Merge commit: $merge_sha"
+
     # Step 6: Wait for post-merge CI
-    if ! wait_for_ci_run "$repo" "$base_branch"; then
+    if ! wait_for_ci_run "$repo" "$base_branch" "$merge_sha"; then
         log_error "Post-merge CI failed on branch '$base_branch'"
         return 1
     fi
