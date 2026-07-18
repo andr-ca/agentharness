@@ -950,5 +950,6 @@ PYEOF
     run bash "$SCRIPT" __test_acquire_install_lock "$TEST_PROJECT"
     [ "$status" -ne 0 ]
     [[ "$output" =~ "already in progress" ]] || [[ "$output" =~ "lock" ]]
-    bash "$SCRIPT" __test_release_install_lock "$TEST_PROJECT"
+    run bash "$SCRIPT" __test_release_install_lock "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
 }
