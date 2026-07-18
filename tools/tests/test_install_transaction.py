@@ -377,3 +377,15 @@ def test_cli_journal_status_via_subprocess(tmp_path):
     )
     payload = json.loads(result.stdout)
     assert payload["pending"] is False
+
+
+def test_rel_handles_relative_paths(tmp_path):
+    # Regression test: _rel() should handle both absolute and relative paths
+    # without raising ValueError (matches resolve_backup_path() behavior)
+    rel_path = Path("cursor/rules/testing.mdc")
+    result = it._rel(rel_path, tmp_path)
+    assert result == "cursor/rules/testing.mdc"
+    # Also verify absolute paths still work
+    abs_path = tmp_path / "AGENTS.md"
+    result = it._rel(abs_path, tmp_path)
+    assert result == "AGENTS.md"

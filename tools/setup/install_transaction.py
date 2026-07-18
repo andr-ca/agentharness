@@ -157,7 +157,8 @@ class Plan:
 
 
 def _rel(path: Path, base_dir: Path) -> str:
-    return str(Path(path).relative_to(base_dir))
+    path = Path(path)
+    return str(path.relative_to(base_dir)) if path.is_absolute() else str(path)
 
 
 def _find_decision(
