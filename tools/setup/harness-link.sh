@@ -1211,19 +1211,28 @@ cmd_doctor() {
 
     # Existing-surface integration: leftover crash journal
     local journal_status
-    journal_status="$(python3 "$HARNESS_DIR/tools/setup/install_transaction.py" journal-status \
-        --journal "$target/.agentharness-state.pending.json")"
-    local journal_pending
-    journal_pending="$(echo "$journal_status" | python3 -c 'import json,sys; print(json.load(sys.stdin)["pending"])')"
-    if [ "$journal_pending" = "True" ]; then
-        echo "  ✗ an install/update was interrupted mid-apply (pending journal found)." >&2
-        echo "$journal_status" | python3 -c '
+    if journal_status="$(python3 "$HARNESS_DIR/tools/setup/install_transaction.py" journal-status \
+        --journal "$target/.agentharness-state.pending.json" 2>&1)"; then
+        local journal_pending
+        journal_pending="$(echo "$journal_status" | python3 -c 'import json,sys; print(json.load(sys.stdin)["pending"])' 2>/dev/null || echo "")"
+        if [ "$journal_pending" = "True" ]; then
+            echo "  ✗ an install/update was interrupted mid-apply (pending journal found)." >&2
+            echo "$journal_status" | python3 -c '
 import json, sys
 for s in json.load(sys.stdin)["summary"]:
     print("    " + s)
 '
-        echo "    Recovery: re-run '\''init'\''/'\''update'\'' to complete the interrupted apply, or" >&2
-        echo "    inspect .agentharness-state.pending.json and remove it if safe." >&2
+            echo "    Recovery: re-run '\''init'\''/'\''update'\'' to complete the interrupted apply, or" >&2
+            echo "    inspect .agentharness-state.pending.json and remove it if safe." >&2
+            failed=1
+        elif [ -z "$journal_pending" ]; then
+            echo "  ✗ could not parse journal-status output — the pending journal file may be corrupted." >&2
+            echo "$journal_status" >&2
+            failed=1
+        fi
+    else
+        echo "  ✗ journal-status check itself failed to run:" >&2
+        echo "$journal_status" >&2
         failed=1
     fi
 
@@ -1925,9 +1934,13 @@ cmd_update() {
     [ "${#to_refresh[@]}" -gt 0 ] && printf '  ~ content changed upstream: %s\n' "${to_refresh[@]}"
 
     if [ "${#to_add[@]}" -eq 0 ] && [ "${#to_remove[@]}" -eq 0 ] && [ "${#to_refresh[@]}" -eq 0 ]; then
-        # Even if no skills changed, we still need to check for drifted managed blocks
-        # (re-render them back to current content). So we continue to the managed-block flow.
-        echo "  (no skill changes, checking for drifted managed blocks...)"
+        # Preserve the original "(nothing to do)" wording several existing
+        # tests assert on. We still fall through to the unconditional
+        # managed-block flow below (outside this if/else) to catch drifted
+        # blocks even when no skills changed — that flow is idempotent
+        # (atomic_write no-ops on unchanged content) and silent when
+        # there's nothing to fix, so it doesn't contradict this message.
+        echo "  (nothing to do)"
     else
         confirm "$yes" "Apply this update?" || { echo "Aborted."; return 1; }
 

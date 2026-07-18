@@ -450,6 +450,16 @@ print(d['hooks_path'])
     [[ "$output" =~ "drift" ]]
 }
 
+@test "doctor: fails when pending journal is corrupted/unparseable" {
+    echo "# My project" > "$TEST_PROJECT/AGENTS.md"
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    echo "not valid json" > "$TEST_PROJECT/.agentharness-state.pending.json"
+    run bash "$SCRIPT" doctor "$TEST_PROJECT"
+    [ "$status" -ne 0 ]
+    [[ "$output" =~ "corrupted" ]] || [[ "$output" =~ "parse" ]] || [[ "$output" =~ "failed to run" ]]
+    rm -f "$TEST_PROJECT/.agentharness-state.pending.json"
+}
+
 @test "lifecycle: uninstall declines without confirmation" {
     bash "$SCRIPT" init "$TEST_PROJECT" --skills committing
 
