@@ -141,6 +141,8 @@ they drift (`check_manifest_md_sync()` in `tools/verify-content-quality.py`).
 | Asset | Path | Type | When to use |
 |---|---|---|---|
 | Harness lifecycle CLI | `tools/setup/harness-link.sh` | script | init/plan/status/doctor/audit/audit-prs/enforce-profile/generate-clients/update/uninstall; link/copy/submodule modes; state tracked in `<project>/.agentharness-state.json` |
+| Block-managed instructions file installer | `tools/setup/block_installer.py` | utility | Pure functions for marker-block insert/replace/remove used by harness-link.sh's existing-surface integration (see docs/superpowers/specs/2026-07-17-existing-surface-integration-design.md) |
+| Existing-surface install transaction orchestrator | `tools/setup/install_transaction.py` | script | Preflight planning, collision classification, crash-safe apply, and uninstall reversal for pre-existing consumer instructions files and generated surfaces |
 | Local check entrypoint | `tools/check.sh` | script | Runs every check CI runs (shellcheck, bats, ruff, mypy, pytest+coverage, manifest verify, skill-symlink integrity) in one command (P1-06) |
 | Agent lock manager | `tools/agent-lock.sh` | script | Per-feature lock files for concurrent agent sessions — acquire/release/check/list/clean/suggest-branch |
 | Safe PR merge script | `tools/safe-pr-merge.sh` | script | Merge a PR safely while enforcing CLAUDE.md checklist: verify CI is green, detect automated reviewer, wait for review comments, verify all comments have replies, merge, poll post-merge CI |

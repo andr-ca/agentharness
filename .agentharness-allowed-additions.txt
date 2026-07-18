@@ -14,3 +14,8 @@ tools/setup/block_installer.py
 tools/tests/test_block_installer.py
 tools/setup/install_transaction.py
 tools/tests/test_install_transaction.py
+examples/existing-surface-project/AGENTS.md
+examples/existing-surface-project/.cursor/rules/testing.mdc
+examples/existing-surface-project/.gitignore
+examples/existing-surface-project/verify.sh
+examples/existing-surface-project/README.md

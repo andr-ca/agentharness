@@ -413,6 +413,14 @@ sections:
     path: tools/setup/harness-link.sh
     type: script
     when_to_use: "init/plan/status/doctor/audit/audit-prs/enforce-profile/generate-clients/update/uninstall; link/copy/submodule modes; state tracked in `<project>/.agentharness-state.json`"
+  - asset: Block-managed instructions file installer
+    path: tools/setup/block_installer.py
+    type: utility
+    when_to_use: "Pure functions for marker-block insert/replace/remove used by harness-link.sh's existing-surface integration (see docs/superpowers/specs/2026-07-17-existing-surface-integration-design.md)"
+  - asset: Existing-surface install transaction orchestrator
+    path: tools/setup/install_transaction.py
+    type: script
+    when_to_use: "Preflight planning, collision classification, crash-safe apply, and uninstall reversal for pre-existing consumer instructions files and generated surfaces"
   - asset: Local check entrypoint
     path: tools/check.sh
     type: script
