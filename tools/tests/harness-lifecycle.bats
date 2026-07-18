@@ -991,3 +991,45 @@ PYEOF
     [ "$status" -ne 0 ]
     [ ! -d "$TEST_PROJECT/.agentharness-install.lock" ]
 }
+
+@test "init --dry-run prints plan without writing" {
+    echo "# existing" > "$TEST_PROJECT/AGENTS.md"
+    run bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "AGENTS.md" ]]
+    ! grep -q "agentharness:begin" "$TEST_PROJECT/AGENTS.md"
+}
+
+@test "init: whole-file collision on generated cursor rule prompts and honors 'keep' via stdin" {
+    mkdir -p "$TEST_PROJECT/.cursor/rules"
+    echo "my own rule" > "$TEST_PROJECT/.cursor/rules/testing.mdc"
+    run bash -c "printf 'k\n' | bash '$SCRIPT' init '$TEST_PROJECT' --mode copy --skills committing"
+    [ "$status" -eq 0 ]
+    grep -q "my own rule" "$TEST_PROJECT/.cursor/rules/testing.mdc"
+}
+
+@test "init --force overwrites whole-file collision with backup" {
+    mkdir -p "$TEST_PROJECT/.cursor/rules"
+    echo "my own rule" > "$TEST_PROJECT/.cursor/rules/testing.mdc"
+    run bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --force
+    [ "$status" -eq 0 ]
+    ! grep -q "my own rule" "$TEST_PROJECT/.cursor/rules/testing.mdc"
+    compgen -G "$TEST_PROJECT/.cursor/rules/testing.mdc.pre-agentharness.*" >/dev/null
+}
+
+@test "init --keep-existing skips all collisions without prompting" {
+    mkdir -p "$TEST_PROJECT/.cursor/rules"
+    echo "my own rule" > "$TEST_PROJECT/.cursor/rules/testing.mdc"
+    run bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --keep-existing
+    [ "$status" -eq 0 ]
+    grep -q "my own rule" "$TEST_PROJECT/.cursor/rules/testing.mdc"
+}
+
+@test "update: re-renders drifted managed block back to current content" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    sed -i 's/Installed skills/DRIFTED TEXT/' "$TEST_PROJECT/AGENTS.md" 2>/dev/null || \
+        sed -i '' 's/Installed skills/DRIFTED TEXT/' "$TEST_PROJECT/AGENTS.md"
+    run bash "$SCRIPT" update "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+    grep -q "Installed skills" "$TEST_PROJECT/AGENTS.md"
+}

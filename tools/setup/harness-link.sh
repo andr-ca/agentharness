@@ -101,13 +101,24 @@ init options:
   --with-coverage-hook          Like --with-hook, plus a generated
                                 pre-push hook that runs 'enforce-profile'
                                 against this project on every push
-  --force                       Overwrite an existing, different core.hooksPath
+  --force                       Overwrite an existing, different core.hooksPath;
+                                also auto-overwrite whole-file collisions
+                                without prompting
   --profile prototype|internal|production
                                 Write .agentharness-profile
-  --dry-run                    Show the plan; change nothing (same as 'plan')
+  --dry-run                     Show the plan; change nothing (same as 'plan');
+                                reports whole-file collisions without resolving
+  --keep-existing               Auto-keep all whole-file collisions (do not
+                                overwrite pre-existing surfaces)
 
-update/uninstall options:
-  --yes                        Skip the confirmation prompt
+update options:
+  --yes                         Skip the confirmation prompt
+  --force                       Auto-overwrite whole-file collisions without prompting
+  --dry-run                     Show what would happen, make no changes
+  --keep-existing               Auto-keep all whole-file collisions
+
+uninstall options:
+  --yes                         Skip the confirmation prompt
 
 audit options:
   --json                        Machine-readable drift report (CI/scripting)
@@ -481,22 +492,154 @@ build_surfaces_spec() {
     python3 -c "
 import json, sys
 target, body, version = sys.argv[1], sys.argv[2], sys.argv[3]
-files = ['CLAUDE.md', 'AGENTS.md', 'GEMINI.md', '.github/copilot-instructions.md']
+block_files = ['CLAUDE.md', 'AGENTS.md', 'GEMINI.md', '.github/copilot-instructions.md']
+whole_files = [
+    {'path': f'{target}/.cursor/rules/testing.mdc', 'is_block_surface': False,
+     'content': body}
+]
 print(json.dumps([
     {'path': f'{target}/{f}', 'is_block_surface': True, 'block_body': body,
      'block_id': 'core-instructions', 'block_version': version}
-    for f in files
-]))
+    for f in block_files
+] + whole_files))
 " "$target" "$block_body" "$block_version"
 }
 
 resolve_collisions_and_apply() {
-    local target="$1" surfaces_json="$2" install_id="$3"
-    python3 "$HARNESS_DIR/tools/setup/install_transaction.py" apply \
+    local target="$1" surfaces_json="$2" install_id="$3" force="$4" dry_run="$5" keep_existing="$6"
+
+    # Step 1: Plan the installation (identifies collisions)
+    local plan_result
+    plan_result="$(python3 "$HARNESS_DIR/tools/setup/install_transaction.py" plan \
         --surfaces <(echo "$surfaces_json") \
         --state "$(state_path "$target")" \
-        --base-dir "$target" --install-id "$install_id" \
-        --journal "$target/.agentharness-state.pending.json"
+        --base-dir "$target" --install-id "$install_id" 2>&1)" || {
+        echo "Error: existing-surface planning failed:" >&2
+        echo "$plan_result" >&2
+        return 1
+    }
+
+    # Extract the collisions list from the plan result
+    local collisions
+    collisions="$(echo "$plan_result" | python3 -c "
+import json, sys
+plan = json.load(sys.stdin)
+collisions = plan.get('collisions', [])
+for c in collisions:
+    print(c)
+" 2>/dev/null)"
+
+    # If there are collisions, resolve them
+    if [ -n "$collisions" ]; then
+        if [ "$dry_run" = true ]; then
+            # In dry-run mode, just report collisions
+            echo "  File collisions (would prompt for resolution in normal mode):"
+            echo "$collisions" | sed 's/^/    - /'
+            return 0
+        fi
+
+        # Build the decisions map based on user preferences
+        local decisions_json="{}"
+        local collision_count=0
+        local unresolved=0
+
+        # Set up fd 3 for reading prompts (stdin in the main shell context)
+        exec 3<&0
+
+        # Process each collision
+        while IFS= read -r collision_path; do
+            [ -z "$collision_path" ] && continue
+            collision_count=$((collision_count + 1))
+
+            local decision
+            if [ "$force" = true ]; then
+                decision="overwrite"
+            elif [ "$keep_existing" = true ]; then
+                decision="keep-existing"
+            else
+                # Interactive prompt via fd 3
+                local reply
+                if ! read -u 3 -r -p "Collision: $collision_path — [o]verwrite/[k]eep/[a]ll-overwrite/[n]one? " reply 2>/dev/null; then
+                    # EOF on stdin in non-interactive mode
+                    echo "Error: non-interactive mode detected with unresolved collisions (stdin EOF)" >&2
+                    unresolved=$((unresolved + 1))
+                    continue
+                fi
+
+                case "$reply" in
+                    o|overwrite) decision="overwrite" ;;
+                    k|keep) decision="keep-existing" ;;
+                    a|all)
+                        decision="overwrite"
+                        force=true  # Switch to --force mode for remaining collisions
+                        ;;
+                    n|none)
+                        decision="keep-existing"
+                        keep_existing=true  # Switch to --keep-existing mode
+                        ;;
+                    *)
+                        echo "Invalid choice. Using default (keep-existing)."
+                        decision="keep-existing"
+                        ;;
+                esac
+            fi
+
+            # Add the decision to the JSON map
+            decisions_json="$(python3 -c "
+import json, sys
+data = json.loads(sys.argv[1])
+data[sys.argv[2]] = sys.argv[3]
+print(json.dumps(data))
+" "$decisions_json" "$collision_path" "$decision")"
+        done <<< "$collisions"
+
+        # Close fd 3
+        exec 3<&-
+
+        if [ "$unresolved" -gt 0 ]; then
+            echo "Error: $unresolved collision(s) could not be resolved (non-interactive mode)" >&2
+            return 1
+        fi
+
+        if [ "$collision_count" -gt 0 ]; then
+            echo "  Resolved $collision_count collision(s)"
+        fi
+
+        # Write decisions to a temporary file for apply
+        local decisions_file
+        decisions_file="$(mktemp)"
+        echo "$decisions_json" > "$decisions_file"
+
+        # Step 2: Apply the installation with the decisions
+        local apply_result
+        apply_result="$(python3 "$HARNESS_DIR/tools/setup/install_transaction.py" apply \
+            --surfaces <(echo "$surfaces_json") \
+            --state "$(state_path "$target")" \
+            --base-dir "$target" --install-id "$install_id" \
+            --journal "$target/.agentharness-state.pending.json" \
+            --decisions "$decisions_file" 2>&1)" || {
+            echo "Error: existing-surface apply failed:" >&2
+            echo "$apply_result" >&2
+            rm -f "$decisions_file"
+            return 1
+        }
+
+        rm -f "$decisions_file"
+    else
+        # No collisions, just apply
+        local apply_result
+        apply_result="$(python3 "$HARNESS_DIR/tools/setup/install_transaction.py" apply \
+            --surfaces <(echo "$surfaces_json") \
+            --state "$(state_path "$target")" \
+            --base-dir "$target" --install-id "$install_id" \
+            --journal "$target/.agentharness-state.pending.json" 2>&1)" || {
+            echo "Error: existing-surface apply failed:" >&2
+            echo "$apply_result" >&2
+            return 1
+        }
+    fi
+
+    return 0
 }
 
 # ----------------------------------------------------------------------------
@@ -505,7 +648,7 @@ resolve_collisions_and_apply() {
 
 cmd_init() {
     local target="" mode="link" skills_filter="" with_hook=false force=false
-    local profile="" dry_run=false coverage_hook=false
+    local profile="" dry_run=false coverage_hook=false keep_existing=false
 
     while [ $# -gt 0 ]; do
         case "$1" in
@@ -516,6 +659,7 @@ cmd_init() {
             --force) force=true; shift ;;
             --profile) profile="$2"; shift 2 ;;
             --dry-run) dry_run=true; shift ;;
+            --keep-existing) keep_existing=true; shift ;;
             -h|--help) usage; exit 0 ;;
             *)
                 if [ -z "$target" ]; then target="$1"; else echo "Unexpected argument: $1" >&2; usage; exit 1; fi
@@ -884,17 +1028,7 @@ cmd_init() {
     rendered_block="$(render_core_instructions_block "$target" "$skills_csv")"
     surfaces_json="$(build_surfaces_spec "$target" "$rendered_block" "$source_revision")"
 
-    local plan_result
-    plan_result="$(python3 "$HARNESS_DIR/tools/setup/install_transaction.py" plan \
-        --surfaces <(echo "$surfaces_json") \
-        --state "$(state_path "$target")" \
-        --base-dir "$target" --install-id "$install_id" 2>&1)" || {
-        echo "Error: existing-surface planning failed:" >&2
-        echo "$plan_result" >&2
-        release_install_lock "$target"
-        exit 1
-    }
-    resolve_collisions_and_apply "$target" "$surfaces_json" "$install_id" "$force" "$dry_run" || {
+    resolve_collisions_and_apply "$target" "$surfaces_json" "$install_id" "$force" "$dry_run" "$keep_existing" || {
         release_install_lock "$target"
         exit 1
     }
@@ -1641,10 +1775,13 @@ confirm() {
 }
 
 cmd_update() {
-    local target="" yes=false
+    local target="" yes=false force=false dry_run=false keep_existing=false
     while [ $# -gt 0 ]; do
         case "$1" in
             --yes) yes=true; shift ;;
+            --force) force=true; shift ;;
+            --dry-run) dry_run=true; shift ;;
+            --keep-existing) keep_existing=true; shift ;;
             -h|--help) usage; exit 0 ;;
             *) if [ -z "$target" ]; then target="$1"; else echo "Unexpected argument: $1" >&2; exit 1; fi; shift ;;
         esac
@@ -1780,6 +1917,19 @@ cmd_update() {
     source_remote="$(git -C "$source_path" remote get-url origin 2>/dev/null || true)"
     local new_skills_csv
     new_skills_csv="$(IFS=,; echo "${current[*]}")"
+
+    # Existing-surface integration: same as cmd_init
+    acquire_install_lock "$target" || exit 1
+    local surfaces_json rendered_block install_id
+    install_id="$(python3 -c 'import uuid; print(uuid.uuid4().hex[:8])')"
+    rendered_block="$(render_core_instructions_block "$target" "$new_skills_csv")"
+    surfaces_json="$(build_surfaces_spec "$target" "$rendered_block" "$source_revision")"
+    resolve_collisions_and_apply "$target" "$surfaces_json" "$install_id" "$force" "$dry_run" "$keep_existing" || {
+        release_install_lock "$target"
+        exit 1
+    }
+    release_install_lock "$target"
+
     state_write "$target" "$mode" "$new_skills_csv" "$skills_filter" "$with_hook" \
         "$profile" "$source_path" "$source_revision" "$source_remote" "$hooks_path" "$coverage_hook"
     echo "Updated."
