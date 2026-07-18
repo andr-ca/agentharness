@@ -1,0 +1,122 @@
+---
+name: github-issue-triage
+description: Triage a GitHub issue by verifying all factual claims against running code, assessing roadmap fit, then posting a structured response comment with confirmed findings, stale corrections, a recommendation, and concrete test steps.
+metadata:
+  type: skills
+  when: "User asks: 'triage issue #N', 'assess this issue', 'verify the claim in #N', 'is this issue still valid?'"
+---
+
+# GitHub Issue Triage
+
+Assess a GitHub issue by verifying its claims against actual code, checking fit against product vision, and leaving a structured comment with findings, corrections, and a test plan. **This skill assesses and comments — it does not implement fixes.** Fixes follow a separate deliberate step per this repo's Recommendation Assessment mandate in CLAUDE.md.
+
+## The Prompt (canonical form)
+
+> Triage issue #N. Start by fetching the full issue details (title, body, comments, labels, linked PRs). Then verify every factual claim in the issue against the actual running code — grep the relevant source, read the actual files/lines, and where feasible run the relevant code path (in a scratch/sandboxed way) to confirm it's real, not stale, not a misunderstanding. Check the ask against roadmap/vision docs (ROADMAP.md, ARCHITECTURE.md, DECISIONS.md, MANIFEST.md) and note whether it's a scoped fix vs. a bigger direction-setting ask needing human scoping. Draft and post a `gh issue comment` with: confirmed findings with evidence, corrections to stale/wrong claims, a recommendation per CLAUDE.md's Recommendation Assessment mandate, and concrete test/verification steps for the fix. Report what you found and what you posted.
+
+## Procedure
+
+### 1. Fetch the issue
+Run `gh issue view <n> --json title,body,comments,labels,linkedPullRequests`.
+Extract:
+- Title and body (claims to verify)
+- All comments (context, earlier findings, clarifications)
+- Labels (priority, type, status signals)
+- Linked PRs (related work, partial fixes, predecessor context)
+
+### 2. Verify every factual claim against running code
+This is the hardest step and the highest leverage. **Do not trust the issue's prose — verify against the source.**
+
+For each claim:
+- **File changes**: Does the file exist? `test -e <path>`. Read it and check the actual line/section.
+- **Behavior claims**: Grep for the relevant code path. If feasible, run it in a scratch/sandboxed context (e.g., a test, a manual script in a temp directory, a clone of this repo or the repo's dependency) to observe actual behavior.
+- **"Already fixed" archaeology**: Run `git log --all -p --grep=<keyword>` or `git log --all -S<string>` to check whether a claimed-broken thing was already fixed by a later commit on a different branch or after the issue was filed.
+- **Misunderstandings**: If the claim rests on a false premise (wrong file path, misread config, older API surface), note that explicitly.
+
+Categorize each claim:
+- **✅ Confirmed true**: verified against current code, currently reproducible.
+- **⚠️ Partially stale**: some parts fixed, some remain (e.g., one of two gitignore patterns is now correct).
+- **❌ Already fixed**: code shows it's no longer broken; link the commit with `git log`.
+- **🤔 Misunderstanding**: the issue misread/misinterpreted something; explain the actual behavior.
+
+### 3. Check roadmap fit and scope
+Read `ROADMAP.md`, `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`, and `MANIFEST.md` (or equivalent for consuming projects).
+
+Ask:
+- Does this ask align with stated product direction?
+- Is it a scoped fix (a bug, a correctness gap, closing a partial build) or a bigger ask (new subsystem, direction change, architecture pivot)?
+- Does it conflict with an existing decision?
+- Should it be split (small confirmed bug vs. larger design question)?
+
+Map to CLAUDE.md's Recommendation Assessment mandate:
+- **Scoped, low-risk fix**: implement directly without asking permission (though publication still follows the workflow-completion default: verify + stage, or full publish if authorized).
+- **Anything larger**: needs explicit human scoping confirmation before implementing; don't treat the issue alone as authorization for a multi-session build-out.
+
+### 4. Draft the comment
+Structure it as:
+
+```
+## Triage Summary
+
+**Status:** [Confirmed / Partially stale / Already fixed / Needs scoping]
+
+### Verified Findings
+- [Claim 1]: ✅ Confirmed — [evidence, e.g., "file X line 42 shows..."]
+- [Claim 2]: ❌ Already fixed — [commit hash + explanation]
+- [Claim 3]: ⚠️ Partially stale — [what's still broken, what's fixed]
+
+### Corrections to Earlier Claims
+- [Claim N]: The issue states "X", but the actual code shows "Y" — [evidence link or explanation]
+
+### Recommendation
+[Scoped, low-risk fix / Needs scoping before implementation / Decline with reason / Already resolved]
+
+If scoped: [concrete fix scope]
+
+### Test & Verification Steps
+To verify the fix works:
+1. [Specific command or repro step]
+2. [Assertion / expected outcome]
+3. [CI or test command to confirm]
+
+Example:
+- Clone the repo in a scratch dir
+- Run `tools/setup/harness-link.sh init --mode npm`
+- Run `doctor` — confirm no errors referencing [symptom]
+- Verify `[file]` contains [expected content]
+```
+
+### 5. Post the comment
+```bash
+gh issue comment <n> --body "$(cat <<'EOF'
+...your comment here...
+EOF
+)"
+```
+
+If you lack `gh issue comment` authority in the session context (rare but possible), draft the comment and present it to the user first rather than posting silently.
+
+### 6. Report findings
+Include:
+- Issue number
+- Summary of verified claims (confirmed / stale / already-fixed count)
+- Recommendation category
+- Whether comment was posted and if so, the outcome (no auto-reply expected; purpose is to inform triage, not to resolve)
+
+## Rules
+
+- **Verify against running code, not against the issue.** A misread claim in the issue should be caught and corrected, not re-implemented.
+- **Archeology matters.** If a claim looks stale, run `git log` to confirm it was fixed — a partial fix merged elsewhere is evidence, not speculation.
+- **Sandboxing for behavioral verification.** When feasible (e.g., running an installer, checking a tool), do it in a scratch directory or container — don't pollute your working tree or the local repo.
+- **Scope assessment is structural.** Use CLAUDE.md's Recommendation Assessment mandate, not ad-hoc judgment, to decide if this is a scoped fix or a bigger ask.
+- **Link everything.** Every claim and every finding should have a source: line number, commit hash, command output, repro step. "It works" without evidence is the exact mistake this skill exists to prevent.
+- **Do not implement.** This skill posts findings and a recommendation. Actual fixes come next, deliberately, if the recommendation is "implement it" and it's scoped. If it's larger or needs scoping, stop here and wait for confirmation.
+
+## Output shape
+
+1. **Quick summary**: Issue #N, verified status (confirmed / stale / already-fixed / mixed), recommendation category.
+2. **Verified findings** with evidence.
+3. **Stale/wrong claims corrected** with actual behavior.
+4. **Recommendation** tied explicitly to CLAUDE.md's Recommendation Assessment mandate.
+5. **Test plan** with concrete commands, not abstract steps.
+6. **Comment posted?** Yes/No; if yes, link/reference to the comment for audit trail.
