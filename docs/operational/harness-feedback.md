@@ -40,9 +40,9 @@ scanner exclusion in the same PR as this entry. Logged upstream as
 
 ## 2026-07-18 – `safe-pr-merge.sh`'s post-merge CI wait can report a false green
 
-**What happened:** Merging PR #93 with `tools/safe-pr-merge.sh 93
---delete-branch`, the script's final step reported "Post-merge CI is
-green" and "Safe merge complete" — but the run it polled
+**What happened:** Merging PR #93 with
+`tools/safe-pr-merge.sh 93 --delete-branch`, the script's final step
+reported "Post-merge CI is green" and "Safe merge complete" — but the run it polled
 (`29645328747`) was a stale, already-`success` run left over from the
 PR #91 merge ~50 minutes earlier, not the run PR #93's merge commit
 (`8abf99a`) actually triggered (`29646923757`, still `queued` at that
