@@ -451,6 +451,54 @@ EOF
     chmod +x "$target/.github/hooks/pre-push"
 }
 
+# Managed-block rendering and collision handling — renders core-instructions
+# block into existing instructions files and handles whole-file collisions
+# on directory-style generated surfaces. Wired into cmd_init (Task 12) and
+# cmd_update (Task 13).
+
+render_core_instructions_block() {
+    local target="$1" skills_csv="$2"
+    local skills_list
+    skills_list="$(echo "$skills_csv" | tr ',' '\n' | sed 's/^/- /')"
+    cat <<EOF
+This project uses [agentharness](https://github.com/andr-ca/agentharness)
+for engineering policies (git conventions, testing, review workflow).
+
+**Precedence:** harness-enforced constraints (hooks, completion gate)
+cannot be weakened by this file's instructions; this file's own
+instructions take precedence over harness *defaults* everywhere else.
+
+Installed skills:
+$skills_list
+
+Full policy: see the harness's own CLAUDE.md via your install mode, or
+https://github.com/andr-ca/agentharness/blob/main/CLAUDE.md
+EOF
+}
+
+build_surfaces_spec() {
+    local target="$1" block_body="$2" block_version="$3"
+    python3 -c "
+import json, sys
+target, body, version = sys.argv[1], sys.argv[2], sys.argv[3]
+files = ['CLAUDE.md', 'AGENTS.md']
+print(json.dumps([
+    {'path': f'{target}/{f}', 'is_block_surface': True, 'block_body': body,
+     'block_id': 'core-instructions', 'block_version': version}
+    for f in files
+]))
+" "$target" "$block_body" "$block_version"
+}
+
+resolve_collisions_and_apply() {
+    local target="$1" surfaces_json="$2" install_id="$3"
+    python3 "$HARNESS_DIR/tools/setup/install_transaction.py" apply \
+        --surfaces <(echo "$surfaces_json") \
+        --state "$(state_path "$target")" \
+        --base-dir "$target" --install-id "$install_id" \
+        --journal "$target/.agentharness-state.pending.json"
+}
+
 # ----------------------------------------------------------------------------
 # init / plan
 # ----------------------------------------------------------------------------
@@ -824,6 +872,31 @@ cmd_init() {
     source_remote="$(git -C "$skills_src_root" remote get-url origin 2>/dev/null || true)"
     local skills_csv
     skills_csv="$(IFS=,; echo "${linked_skills[*]}")"
+
+    # Existing-surface integration (docs/superpowers/specs/2026-07-17-existing-surface-integration-design.md):
+    # render managed blocks into any instructions files the consumer
+    # already has, and handle whole-file collisions on generated
+    # directory-style surfaces the same way. Reuses this function's
+    # existing $force/$dry_run.
+    acquire_install_lock "$target" || exit 1
+    local surfaces_json rendered_block install_id
+    install_id="$(python3 -c 'import uuid; print(uuid.uuid4().hex[:8])')"
+    rendered_block="$(render_core_instructions_block "$target" "$skills_csv")"
+    surfaces_json="$(build_surfaces_spec "$target" "$rendered_block" "$source_revision")"
+
+    local plan_result
+    plan_result="$(python3 "$HARNESS_DIR/tools/setup/install_transaction.py" plan \
+        --surfaces <(echo "$surfaces_json") \
+        --state "$(state_path "$target")" \
+        --base-dir "$target" --install-id "$install_id" 2>&1)" || {
+        echo "Error: existing-surface planning failed:" >&2
+        echo "$plan_result" >&2
+        release_install_lock "$target"
+        exit 1
+    }
+    resolve_collisions_and_apply "$target" "$surfaces_json" "$install_id" "$force" "$dry_run"
+    release_install_lock "$target"
+
     # Pass the pre-install hooks path so uninstall can restore it (F-05)
     state_write "$target" "$mode" "$skills_csv" "$skills_filter" "$with_hook" \
         "$profile" "$skills_src_root" "$source_revision" "$source_remote" "$installed_hooks_path" "$coverage_hook" \

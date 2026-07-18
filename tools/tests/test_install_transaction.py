@@ -389,3 +389,82 @@ def test_rel_handles_relative_paths(tmp_path):
     abs_path = tmp_path / "AGENTS.md"
     result = it._rel(abs_path, tmp_path)
     assert result == "AGENTS.md"
+
+
+def test_cli_plan_reports_actions_via_subprocess(tmp_path):
+    import subprocess
+
+    surfaces_spec = tmp_path / "surfaces.json"
+    surfaces_spec.write_text(
+        json.dumps([
+            {
+                "path": str(tmp_path / "AGENTS.md"),
+                "is_block_surface": True,
+                "block_body": "rendered\n",
+                "block_id": "core-instructions",
+                "block_version": "0.2.1",
+            }
+        ])
+    )
+    result = subprocess.run(
+        [
+            "python3",
+            str(MODULE_PATH),
+            "plan",
+            "--surfaces",
+            str(surfaces_spec),
+            "--state",
+            str(tmp_path / ".agentharness-state.json"),
+            "--base-dir",
+            str(tmp_path),
+            "--install-id",
+            "abc",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is True
+    assert payload["actions"][0]["kind"] == "upsert_block"
+
+
+def test_cli_apply_writes_file_via_subprocess(tmp_path):
+    import subprocess
+
+    surfaces_spec = tmp_path / "surfaces.json"
+    target = tmp_path / "AGENTS.md"
+    surfaces_spec.write_text(
+        json.dumps([
+            {
+                "path": str(target),
+                "is_block_surface": True,
+                "block_body": "rendered\n",
+                "block_id": "core-instructions",
+                "block_version": "0.2.1",
+            }
+        ])
+    )
+    result = subprocess.run(
+        [
+            "python3",
+            str(MODULE_PATH),
+            "apply",
+            "--surfaces",
+            str(surfaces_spec),
+            "--state",
+            str(tmp_path / ".agentharness-state.json"),
+            "--base-dir",
+            str(tmp_path),
+            "--install-id",
+            "abc",
+            "--journal",
+            str(tmp_path / ".agentharness-state.pending.json"),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is True
+    assert "agentharness:begin" in target.read_text()

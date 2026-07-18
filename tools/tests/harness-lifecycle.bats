@@ -953,3 +953,23 @@ PYEOF
     run bash "$SCRIPT" __test_release_install_lock "$TEST_PROJECT"
     [ "$status" -eq 0 ]
 }
+
+@test "init: renders managed block into pre-existing AGENTS.md" {
+    echo "# My project" > "$TEST_PROJECT/AGENTS.md"
+    run bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    [ "$status" -eq 0 ]
+    grep -q "agentharness:begin id=core-instructions" "$TEST_PROJECT/AGENTS.md"
+    grep -q "# My project" "$TEST_PROJECT/AGENTS.md"
+}
+
+@test "init: re-running is idempotent on the managed block" {
+    echo "# My project" > "$TEST_PROJECT/AGENTS.md"
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    local first_hash
+    first_hash="$(sha256sum "$TEST_PROJECT/AGENTS.md" | cut -d' ' -f1)"
+    run bash "$SCRIPT" update "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+    local second_hash
+    second_hash="$(sha256sum "$TEST_PROJECT/AGENTS.md" | cut -d' ' -f1)"
+    [ "$first_hash" = "$second_hash" ]
+}

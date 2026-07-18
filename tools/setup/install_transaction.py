@@ -324,8 +324,87 @@ def apply_plan(
     return state
 
 
+def _load_surfaces_spec(spec_path: Path) -> list[Surface]:
+    """spec_path is a JSON file harness-link.sh writes describing what to
+    install: a list of {"path", "is_block_surface", "block_body" or
+    "content", "block_id", "block_version"} objects. Keeping this as a
+    file (not argv) avoids shell-escaping rendered markdown bodies."""
+    raw = json.loads(Path(spec_path).read_text())
+    return [
+        Surface(
+            path=Path(r["path"]),
+            **{k: v for k, v in r.items() if k != "path"},
+        )
+        for r in raw
+    ]
+
+
 def _cli_journal_status(args: Any) -> None:
     print(json.dumps(journal_status(Path(args.journal))))
+
+
+def _cli_plan(args: Any) -> None:
+    surfaces = _load_surfaces_spec(args.surfaces)
+    state = load_state(Path(args.state))
+    base_dir = Path(args.base_dir)
+    decisions: list[str] = []
+
+    def decide(item: PlanItem) -> str:
+        decisions.append(str(item.path))
+        return "report-only"
+
+    plan = build_plan(
+        surfaces,
+        state,
+        install_id=args.install_id,
+        base_dir=base_dir,
+        decide=decide,
+    )
+    print(
+        json.dumps({
+            "ok": plan.ok,
+            "errors": plan.errors,
+            "actions": [
+                {"kind": a.kind, "path": str(a.surface.path)}
+                for a in plan.actions
+            ],
+            "collisions": decisions,
+        })
+    )
+
+
+def _cli_apply(args: Any) -> None:
+    surfaces = _load_surfaces_spec(args.surfaces)
+    state = load_state(Path(args.state))
+    base_dir = Path(args.base_dir)
+
+    decisions_map: dict[str, str] = {}
+    if args.decisions:
+        decisions_map = json.loads(Path(args.decisions).read_text())
+
+    def decide(item: PlanItem) -> str:
+        return decisions_map.get(str(item.path), "keep-existing")
+
+    plan = build_plan(
+        surfaces,
+        state,
+        install_id=args.install_id,
+        base_dir=base_dir,
+        decide=decide,
+    )
+    if not plan.ok:
+        print(json.dumps({"ok": False, "errors": plan.errors}))
+        raise SystemExit(1)
+
+    updated_state = apply_plan(
+        plan,
+        state=state,
+        base_dir=base_dir,
+        journal_path=Path(args.journal),
+        install_id=args.install_id,
+    )
+    save_state(Path(args.state), updated_state)
+    print(json.dumps({"ok": True, "applied": len(plan.actions)}))
 
 
 def main() -> None:
@@ -339,6 +418,22 @@ def main() -> None:
     )
     p_journal.add_argument("--journal", required=True)
     p_journal.set_defaults(func=_cli_journal_status)
+
+    p_plan = sub.add_parser("plan")
+    p_plan.add_argument("--surfaces", required=True)
+    p_plan.add_argument("--state", required=True)
+    p_plan.add_argument("--base-dir", required=True)
+    p_plan.add_argument("--install-id", required=True)
+    p_plan.set_defaults(func=_cli_plan)
+
+    p_apply = sub.add_parser("apply")
+    p_apply.add_argument("--surfaces", required=True)
+    p_apply.add_argument("--state", required=True)
+    p_apply.add_argument("--base-dir", required=True)
+    p_apply.add_argument("--install-id", required=True)
+    p_apply.add_argument("--journal", required=True)
+    p_apply.add_argument("--decisions", default=None)
+    p_apply.set_defaults(func=_cli_apply)
 
     args = parser.parse_args()
     args.func(args)
