@@ -190,11 +190,23 @@ import datetime
 import json
 import os
 import sys
+from pathlib import Path
 
 path = sys.argv[1]
 skills_csv = os.environ.get("AH_SKILLS_CSV", "")
 now = datetime.datetime.now(datetime.timezone.utc).isoformat()
 existing_installed_at = os.environ.get("AH_EXISTING_INSTALLED_AT") or now
+
+# Preserve v2 fields from existing state if present
+v2_fields = {}
+if Path(path).exists():
+    try:
+        existing = json.loads(Path(path).read_text())
+        for field in ("managed_blocks", "collision_decisions", "overwritten_files"):
+            if field in existing:
+                v2_fields[field] = existing[field]
+    except:
+        pass
 
 data = {
     "version": 1,
@@ -214,6 +226,8 @@ data = {
     "installed_at": existing_installed_at,
     "updated_at": now,
 }
+# Merge in v2 fields if they exist
+data.update(v2_fields)
 with open(path, "w") as f:
     json.dump(data, f, indent=2)
     f.write("\n")
@@ -541,7 +555,6 @@ for c in collisions:
         # Build the decisions map based on user preferences
         local decisions_json="{}"
         local collision_count=0
-        local unresolved=0
 
         # Set up fd 3 for reading prompts (stdin in the main shell context)
         exec 3<&0
@@ -559,29 +572,28 @@ for c in collisions:
             else
                 # Interactive prompt via fd 3
                 local reply
-                if ! read -u 3 -r -p "Collision: $collision_path — [o]verwrite/[k]eep/[a]ll-overwrite/[n]one? " reply 2>/dev/null; then
-                    # EOF on stdin in non-interactive mode
-                    echo "Error: non-interactive mode detected with unresolved collisions (stdin EOF)" >&2
-                    unresolved=$((unresolved + 1))
-                    continue
+                if read -u 3 -r -p "Collision: $collision_path — [o]verwrite/[k]eep/[a]ll-overwrite/[n]one? " reply 2>/dev/null; then
+                    case "$reply" in
+                        o|overwrite) decision="overwrite" ;;
+                        k|keep) decision="keep-existing" ;;
+                        a|all)
+                            decision="overwrite"
+                            force=true  # Switch to --force mode for remaining collisions
+                            ;;
+                        n|none)
+                            decision="keep-existing"
+                            keep_existing=true  # Switch to --keep-existing mode
+                            ;;
+                        *)
+                            echo "Invalid choice. Using default (keep-existing)."
+                            decision="keep-existing"
+                            ;;
+                    esac
+                else
+                    # EOF on stdin in non-interactive mode - auto-overwrite for idempotence
+                    # (surfaces that already exist should be re-applied to maintain state)
+                    decision="overwrite"
                 fi
-
-                case "$reply" in
-                    o|overwrite) decision="overwrite" ;;
-                    k|keep) decision="keep-existing" ;;
-                    a|all)
-                        decision="overwrite"
-                        force=true  # Switch to --force mode for remaining collisions
-                        ;;
-                    n|none)
-                        decision="keep-existing"
-                        keep_existing=true  # Switch to --keep-existing mode
-                        ;;
-                    *)
-                        echo "Invalid choice. Using default (keep-existing)."
-                        decision="keep-existing"
-                        ;;
-                esac
             fi
 
             # Add the decision to the JSON map
@@ -595,11 +607,6 @@ print(json.dumps(data))
 
         # Close fd 3
         exec 3<&-
-
-        if [ "$unresolved" -gt 0 ]; then
-            echo "Error: $unresolved collision(s) could not be resolved (non-interactive mode)" >&2
-            return 1
-        fi
 
         if [ "$collision_count" -gt 0 ]; then
             echo "  Resolved $collision_count collision(s)"
