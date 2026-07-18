@@ -17,6 +17,9 @@
 #   1 — any step failed (CI checks, review comments, merge, post-merge CI)
 #
 # Checklist (enforced in order):
+#   0. Warn (not block) if this copy of the script differs from the one on
+#      the repo's default branch — a stale checkout can silently reproduce
+#      already-fixed bugs in this file itself (see issue #99)
 #   1. Verify PR's CI checks are green
 #   2. Detect whether an automated reviewer is configured on this repo
 #   3. If configured: poll for new review comments on THIS PR (up to 20 min,
@@ -348,12 +351,48 @@ wait_for_ci_run() {
     return 0
 }
 
+# Warn (never block — this repo's own sessions routinely need to run
+# in-progress edits to this exact script) if the running copy differs
+# from the version on the repo's default branch. Issue #99: merging PR
+# #95 from a branch forked before PR #96 landed silently reran the
+# pre-#96 script and reproduced the false-green bug #96 had just fixed,
+# with no signal from the tool itself that it was stale. Compared by
+# blob hash (git hash-object) rather than diffing text, so it's
+# insensitive to how the file happens to be read.
+warn_if_stale_script() {
+    local default_branch
+    default_branch="$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')" || true
+    default_branch="${default_branch:-main}"
+
+    git fetch --quiet origin "$default_branch" 2>/dev/null || return 0
+
+    local rel_path
+    rel_path="$(git ls-files --full-name -- "${BASH_SOURCE[0]}" 2>/dev/null | head -1)"
+    [ -z "$rel_path" ] && return 0
+
+    local upstream_hash current_hash
+    upstream_hash="$(git rev-parse "origin/$default_branch:$rel_path" 2>/dev/null || echo "")"
+    [ -z "$upstream_hash" ] && return 0
+    current_hash="$(git hash-object "${BASH_SOURCE[0]}" 2>/dev/null || echo "")"
+    [ -z "$current_hash" ] && return 0
+
+    if [ "$upstream_hash" != "$current_hash" ]; then
+        log_error "WARNING: this copy of $rel_path differs from origin/$default_branch's version."
+        log_error "  A stale or locally-modified copy of this script can silently reproduce"
+        log_error "  already-fixed bugs (see issue #99). If this isn't a deliberate test of a"
+        log_error "  local change, switch to $default_branch (or 'git checkout $default_branch --"
+        log_error "  $rel_path') before merging."
+    fi
+}
+
 # Main entrypoint
 main() {
     if [ $# -lt 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
         echo "Usage: $(basename "$0") <pr-number> [gh pr merge options]" >&2
         return 1
     fi
+
+    warn_if_stale_script
 
     local pr_num="$1"
     shift
