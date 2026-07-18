@@ -12,6 +12,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import block_installer as bi  # noqa: E402
@@ -21,11 +22,11 @@ SCHEMA_VERSION = 2
 _V2_LIST_FIELDS = ("managed_blocks", "overwritten_files", "collision_decisions")
 
 
-def _fresh_v2_skeleton() -> dict:
+def _fresh_v2_skeleton() -> dict[str, Any]:
     return {"schema_version": SCHEMA_VERSION, **{k: [] for k in _V2_LIST_FIELDS}}
 
 
-def load_state(path: Path) -> dict:
+def load_state(path: Path) -> dict[str, Any]:
     """Load state, migrating v1 -> v2 in memory (schema migration policy
     tracked as F-12; this only adds the new v2 list fields, never
     rewrites v1 fields). Missing file returns a fresh v2 skeleton with
@@ -33,7 +34,7 @@ def load_state(path: Path) -> dict:
     path = Path(path)
     if not path.exists():
         return _fresh_v2_skeleton()
-    data = json.loads(path.read_text())
+    data: dict[str, Any] = json.loads(path.read_text())
     if data.get("schema_version") == SCHEMA_VERSION:
         return data
     data["schema_version"] = SCHEMA_VERSION
@@ -42,7 +43,7 @@ def load_state(path: Path) -> dict:
     return data
 
 
-def save_state(path: Path, data: dict) -> None:
+def save_state(path: Path, data: dict[str, Any]) -> None:
     path = Path(path)
     path.write_text(json.dumps(data, indent=2) + "\n")
 
@@ -92,7 +93,10 @@ def backup_path_for(target: Path, install_id: str) -> Path:
 
 
 def resolve_backup_path(
-    target: Path, state: dict, install_id: str, base_dir: Path
+    target: Path,
+    state: dict[str, Any],
+    install_id: str,
+    base_dir: Path,
 ) -> Path:
     """Collision-safe backup resolution (spec section 4):
     - reuse a state-owned backup if its recorded hash still matches its
@@ -108,10 +112,11 @@ def resolve_backup_path(
     for entry in state.get("overwritten_files", []):
         if entry["file"] != rel:
             continue
-        existing_backup = base_dir / entry["backup"]
+        backup_path: str = entry.get("backup", "")
+        existing_backup = base_dir / backup_path
         if (
             existing_backup.exists()
-            and sha256_of_file(existing_backup) == entry["written_sha256"]
+            and sha256_of_file(existing_backup) == entry.get("written_sha256")
         ):
             return existing_backup
 
@@ -127,8 +132,8 @@ def resolve_backup_path(
 class Surface:
     path: Path
     is_block_surface: bool
-    block_body: str = ""   # used when is_block_surface=True
-    content: str = ""      # used when is_block_surface=False (whole-file)
+    block_body: str = ""
+    content: str = ""
     block_id: str = "core-instructions"
     block_version: str = "0.0.0"
 
@@ -140,15 +145,15 @@ class PlanItem:
 
 @dataclass
 class Action:
-    kind: str  # "upsert_block" | "create" | "overwrite_with_backup"
+    kind: str
     surface: Surface
 
 
 @dataclass
 class Plan:
     ok: bool
-    actions: list = field(default_factory=list)
-    errors: list = field(default_factory=list)
+    actions: list[Action] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
 
 
 def _rel(path: Path, base_dir: Path) -> str:
@@ -156,20 +161,22 @@ def _rel(path: Path, base_dir: Path) -> str:
 
 
 def _find_decision(
-    state: dict, rel_path: str, target: Path
+    state: dict[str, Any], rel_path: str, target: Path
 ) -> str | None:
     for entry in state.get("collision_decisions", []):
         if entry["item"] != rel_path:
             continue
-        if entry["existing_sha256"] == sha256_of_file(target):
-            return entry["choice"]
+        existing_sha = entry.get("existing_sha256")
+        if existing_sha == sha256_of_file(target):
+            choice: str | None = entry.get("choice")
+            return choice
         return None  # stale — caller must re-decide
     return None
 
 
 def build_plan(
     surfaces: list[Surface],
-    state: dict,
+    state: dict[str, Any],
     install_id: str,
     base_dir: Path,
     decide: Callable[[PlanItem], str],
@@ -213,11 +220,11 @@ def build_plan(
     return Plan(ok=True, actions=actions, errors=[])
 
 
-def journal_status(journal_path: Path) -> dict:
+def journal_status(journal_path: Path) -> dict[str, Any]:
     journal_path = Path(journal_path)
     if not journal_path.exists():
         return {"pending": False, "summary": []}
-    data = json.loads(journal_path.read_text())
+    data: dict[str, Any] = json.loads(journal_path.read_text())
     return {"pending": True, "summary": data.get("plan_summary", [])}
 
 
@@ -232,11 +239,11 @@ def _write_journal(journal_path: Path, plan: Plan, base_dir: Path) -> None:
 
 def apply_plan(
     plan: Plan,
-    state: dict,
+    state: dict[str, Any],
     base_dir: Path,
     journal_path: Path,
     install_id: str,
-) -> dict:
+) -> dict[str, Any]:
     """Apply every action in a validated (plan.ok) plan, journaling
     before mutation and removing the journal only after the caller
     persists state (spec section 6). Returns the updated state dict —
@@ -314,3 +321,27 @@ def apply_plan(
 
     journal_path.unlink(missing_ok=True)
     return state
+
+
+def _cli_journal_status(args: Any) -> None:
+    print(json.dumps(journal_status(Path(args.journal))))
+
+
+def main() -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser(prog="install_transaction.py")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p_journal = sub.add_parser(
+        "journal-status", help="Report a leftover crash journal, if any."
+    )
+    p_journal.add_argument("--journal", required=True)
+    p_journal.set_defaults(func=_cli_journal_status)
+
+    args = parser.parse_args()
+    args.func(args)
+
+
+if __name__ == "__main__":
+    main()

@@ -357,3 +357,23 @@ def test_journal_status_clean_when_no_journal(tmp_path):
         tmp_path / ".agentharness-state.pending.json"
     )
     assert status["pending"] is False
+
+
+def test_cli_journal_status_via_subprocess(tmp_path):
+    import subprocess
+
+    journal_path = tmp_path / ".agentharness-state.pending.json"
+    result = subprocess.run(
+        [
+            "python3",
+            str(MODULE_PATH),
+            "journal-status",
+            "--journal",
+            str(journal_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    payload = json.loads(result.stdout)
+    assert payload["pending"] is False
