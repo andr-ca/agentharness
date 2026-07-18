@@ -1091,6 +1091,20 @@ PYEOF
     grep -q "Installed skills" "$TEST_PROJECT/AGENTS.md"
 }
 
+@test "update --dry-run makes no filesystem or state changes (regression: PR #90 review)" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    local state_before
+    state_before="$(cat "$TEST_PROJECT/.agentharness-state.json")"
+    local agents_before
+    agents_before="$(sha256sum "$TEST_PROJECT/AGENTS.md" | cut -d' ' -f1)"
+
+    run bash "$SCRIPT" update "$TEST_PROJECT" --dry-run
+    [ "$status" -eq 0 ]
+
+    [ "$state_before" = "$(cat "$TEST_PROJECT/.agentharness-state.json")" ]
+    [ "$agents_before" = "$(sha256sum "$TEST_PROJECT/AGENTS.md" | cut -d' ' -f1)" ]
+}
+
 @test "uninstall: removes managed block, preserves surrounding content" {
     echo "# My project" > "$TEST_PROJECT/AGENTS.md"
     echo "custom line" >> "$TEST_PROJECT/AGENTS.md"

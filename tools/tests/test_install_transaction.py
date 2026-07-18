@@ -123,7 +123,8 @@ def test_reuse_existing_state_owned_backup_when_hash_matches(tmp_path):
     state = {"overwritten_files": [
         {"file": "rule.mdc",
          "backup": "rule.mdc.pre-agentharness.deadbeef",
-         "written_sha256": it.sha256_of_file(existing_backup)}
+         "written_sha256": "hash-of-whatever-harness-content-was-written",
+         "backup_sha256": it.sha256_of_file(existing_backup)}
     ]}
     result = it.resolve_backup_path(
         target, state, install_id="newid", base_dir=tmp_path
@@ -275,7 +276,12 @@ def test_build_plan_stale_decision_recalls_decide(tmp_path):
     assert len(called) == 1
 
 
-def test_apply_plan_writes_journal_then_removes_it_on_success(tmp_path):
+def test_apply_plan_writes_journal_and_leaves_it_for_the_caller(tmp_path):
+    # apply_plan() itself must NOT delete the journal — only the caller,
+    # after save_state() has actually persisted the updated state,
+    # should do that (spec section 6's crash-consistency guarantee: a
+    # crash between apply_plan() returning and save_state() completing
+    # must still leave the journal behind for 'doctor' to find).
     target = tmp_path / "AGENTS.md"
     surfaces = [it.Surface(
         path=target, is_block_surface=True, block_body="rendered\n"
@@ -291,7 +297,32 @@ def test_apply_plan_writes_journal_then_removes_it_on_success(tmp_path):
         install_id="x"
     )
     assert target.read_text().count("agentharness:begin") == 1
+    assert journal_path.exists()
+
+
+def test_cli_apply_removes_journal_only_after_save_state(tmp_path):
+    import subprocess
+
+    target = tmp_path / "AGENTS.md"
+    surfaces_spec = tmp_path / "surfaces.json"
+    surfaces_spec.write_text(json.dumps([
+        {"path": str(target), "is_block_surface": True,
+         "block_body": "rendered\n", "block_id": "core-instructions",
+         "block_version": "0.2.1"}
+    ]))
+    journal_path = tmp_path / ".agentharness-state.pending.json"
+    subprocess.run(
+        [
+            "python3", str(MODULE_PATH), "apply",
+            "--surfaces", str(surfaces_spec),
+            "--state", str(tmp_path / ".agentharness-state.json"),
+            "--base-dir", str(tmp_path), "--install-id", "abc",
+            "--journal", str(journal_path),
+        ],
+        capture_output=True, text=True, check=True,
+    )
     assert not journal_path.exists()
+    assert (tmp_path / ".agentharness-state.json").exists()
 
 
 def test_apply_plan_records_managed_block_in_state(tmp_path):
@@ -339,6 +370,119 @@ def test_apply_plan_overwrite_with_backup_records_backup_and_decision(
     assert backup.read_text() == "consumer content\n"
     assert len(updated["overwritten_files"]) == 1
     assert len(updated["collision_decisions"]) == 1
+    decision = updated["collision_decisions"][0]
+    assert decision["choice"] == "overwrite"
+    # Regression: existing_sha256 must reflect the PRE-EXISTING consumer
+    # content that caused the collision, not the harness content that
+    # just got written — otherwise staleness checks and auditability
+    # are meaningless.
+    assert decision["existing_sha256"] == it.bi.sha256_bytes(
+        b"consumer content\n"
+    )
+
+
+def test_apply_plan_repeated_overwrite_reuses_same_backup_not_a_new_one(
+    tmp_path
+):
+    # Regression: resolve_backup_path() previously compared a backup
+    # candidate's hash against written_sha256 (the harness-written
+    # TARGET content's hash), which can never match a backup file (which
+    # holds the original CONSUMER content) — so every repeated overwrite
+    # minted a fresh .pre-agentharness.<id>-N file instead of reusing the
+    # one already on disk.
+    target = tmp_path / ".cursor" / "rules" / "testing.mdc"
+    target.parent.mkdir(parents=True)
+    target.write_text("consumer content\n")
+    state = it.load_state(tmp_path / ".agentharness-state.json")
+
+    surfaces = [it.Surface(
+        path=target, is_block_surface=False, content="harness content v1\n"
+    )]
+    plan = it.build_plan(
+        surfaces, state=state, install_id="abc123", base_dir=tmp_path,
+        decide=lambda i: "overwrite"
+    )
+    state = it.apply_plan(
+        plan, state=state, base_dir=tmp_path,
+        journal_path=tmp_path / ".agentharness-state.pending.json",
+        install_id="abc123"
+    )
+    it.save_state(tmp_path / ".agentharness-state.json", state)
+    first_backup = (
+        tmp_path / ".cursor" / "rules" / "testing.mdc.pre-agentharness.abc123"
+    )
+    assert first_backup.read_text() == "consumer content\n"
+
+    # Re-run with a different install_id (a later `update`/`init` call
+    # gets a fresh install_id every time) and different harness content —
+    # since target still isn't a persisted collision decision (this
+    # state's collision_decisions won't match target's now-changed
+    # content), the collision path runs again.
+    surfaces2 = [it.Surface(
+        path=target, is_block_surface=False, content="harness content v2\n"
+    )]
+    plan2 = it.build_plan(
+        surfaces2, state=state, install_id="def456", base_dir=tmp_path,
+        decide=lambda i: "overwrite"
+    )
+    state = it.apply_plan(
+        plan2, state=state, base_dir=tmp_path,
+        journal_path=tmp_path / ".agentharness-state.pending.json",
+        install_id="def456"
+    )
+
+    # The ORIGINAL backup (still holding the true pre-harness consumer
+    # content) must be reused — no second .pre-agentharness.* file.
+    all_backups = list(
+        (tmp_path / ".cursor" / "rules").glob("testing.mdc.pre-agentharness.*")
+    )
+    assert all_backups == [first_backup]
+    assert first_backup.read_text() == "consumer content\n"
+    assert target.read_text() == "harness content v2\n"
+
+
+def test_build_plan_persists_keep_existing_decision_too(tmp_path):
+    # Regression: build_plan()/apply_plan() previously only persisted a
+    # collision_decisions entry for "overwrite" choices (inside
+    # apply_plan's overwrite_with_backup branch) — "keep-existing" never
+    # got recorded anywhere, so 'update' would re-prompt for the same
+    # unchanged file every single run instead of honoring the earlier
+    # answer.
+    target = tmp_path / ".cursor" / "rules" / "testing.mdc"
+    target.parent.mkdir(parents=True)
+    target.write_text("consumer content\n")
+    surfaces = [it.Surface(
+        path=target, is_block_surface=False, content="harness content\n"
+    )]
+    state = it.load_state(tmp_path / ".agentharness-state.json")
+    plan = it.build_plan(
+        surfaces, state=state, install_id="x", base_dir=tmp_path,
+        decide=lambda i: "keep-existing"
+    )
+    assert plan.actions == []
+    assert len(plan.collision_decisions) == 1
+    assert plan.collision_decisions[0]["choice"] == "keep-existing"
+    assert plan.collision_decisions[0]["existing_sha256"] == it.bi.sha256_bytes(
+        b"consumer content\n"
+    )
+
+    state = it.apply_plan(
+        plan, state=state, base_dir=tmp_path,
+        journal_path=tmp_path / ".agentharness-state.pending.json",
+        install_id="x"
+    )
+    assert len(state["collision_decisions"]) == 1
+    assert target.read_text() == "consumer content\n"  # untouched
+
+    # A second run must now reuse the persisted decision without
+    # re-invoking decide().
+    called = []
+    plan2 = it.build_plan(
+        surfaces, state=state, install_id="y", base_dir=tmp_path,
+        decide=lambda i: called.append(i) or "overwrite"
+    )
+    assert called == []
+    assert plan2.actions == []
 
 
 def test_journal_status_reports_leftover_journal(tmp_path):

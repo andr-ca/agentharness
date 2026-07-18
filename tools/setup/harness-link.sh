@@ -539,15 +539,31 @@ for c in collisions:
     print(c)
 " 2>/dev/null)"
 
-    # If there are collisions, resolve them
-    if [ -n "$collisions" ]; then
-        if [ "$dry_run" = true ]; then
-            # In dry-run mode, just report collisions
+    # --dry-run must never call 'apply' — regardless of whether there
+    # are any collisions. This check used to live only inside the
+    # collisions branch below, which meant the common case (a plan with
+    # zero whole-file collisions, e.g. just the four block-managed
+    # instructions files) fell through to the unconditional "no
+    # collisions, just apply" branch further down and silently mutated
+    # the target even under --dry-run.
+    if [ "$dry_run" = true ]; then
+        if [ -n "$collisions" ]; then
             echo "  File collisions (would prompt for resolution in normal mode):"
             echo "$collisions" | sed 's/^/    - /'
-            return 0
         fi
+        echo "$plan_result" | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+for a in d["actions"]:
+    kind = a["kind"]
+    path = a["path"]
+    print(f"  {kind}: {path}")
+'
+        return 0
+    fi
 
+    # If there are collisions, resolve them
+    if [ -n "$collisions" ]; then
         # Build the decisions map based on user preferences
         local decisions_json="{}"
         local collision_count=0
@@ -1932,6 +1948,32 @@ cmd_update() {
     [ "${#to_add[@]}" -gt 0 ] && printf '  + add: %s\n' "${to_add[@]}"
     [ "${#to_remove[@]}" -gt 0 ] && printf '  - remove: %s\n' "${to_remove[@]}"
     [ "${#to_refresh[@]}" -gt 0 ] && printf '  ~ content changed upstream: %s\n' "${to_refresh[@]}"
+
+    if [ "$dry_run" = true ]; then
+        # --dry-run must never mutate: skip skill sync, .gitignore merge,
+        # and state_write entirely, and pass dry_run through to the
+        # managed-block/collision flow too (parity with 'init --dry-run').
+        # source_revision/new_skills_csv aren't computed yet at this point
+        # in the function (that happens later, only on the real-apply
+        # path) — compute local equivalents from what's already available
+        # ($source_path, $current) instead of reusing those names early.
+        local dry_run_source_revision dry_run_skills_csv
+        dry_run_source_revision="$(source_revision_for "$source_path" "$mode")"
+        dry_run_skills_csv="$(IFS=,; echo "${current[*]}")"
+
+        acquire_install_lock "$target" || exit 1
+        local surfaces_json rendered_block install_id
+        install_id="$(python3 -c 'import uuid; print(uuid.uuid4().hex[:8])')"
+        rendered_block="$(render_core_instructions_block "$target" "$dry_run_skills_csv")"
+        surfaces_json="$(build_surfaces_spec "$target" "$rendered_block" "$dry_run_source_revision")"
+        resolve_collisions_and_apply "$target" "$surfaces_json" "$install_id" "$force" "$dry_run" "$keep_existing" || {
+            release_install_lock "$target"
+            exit 1
+        }
+        release_install_lock "$target"
+        echo "(dry run — nothing was changed)"
+        return 0
+    fi
 
     if [ "${#to_add[@]}" -eq 0 ] && [ "${#to_remove[@]}" -eq 0 ] && [ "${#to_refresh[@]}" -eq 0 ]; then
         # Preserve the original "(nothing to do)" wording several existing

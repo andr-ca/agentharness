@@ -114,9 +114,14 @@ def resolve_backup_path(
             continue
         backup_path: str = entry.get("backup", "")
         existing_backup = base_dir / backup_path
+        # Compare against backup_sha256 (the hash of what the backup
+        # itself holds — the pre-existing consumer content that was
+        # copied into it), not written_sha256 (the hash of the harness
+        # content written to the TARGET) — those are hashes of two
+        # different files and would essentially never match.
         if (
             existing_backup.exists()
-            and sha256_of_file(existing_backup) == entry.get("written_sha256")
+            and sha256_of_file(existing_backup) == entry.get("backup_sha256")
         ):
             return existing_backup
 
@@ -154,6 +159,7 @@ class Plan:
     ok: bool
     actions: list[Action] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+    collision_decisions: list[dict[str, Any]] = field(default_factory=list)
 
 
 def _rel(path: Path, base_dir: Path) -> str:
@@ -187,6 +193,7 @@ def build_plan(
     classification, per spec section 6's zero-mutation guarantee."""
     errors: list[str] = []
     actions: list[Action] = []
+    collision_decisions: list[dict[str, Any]] = []
 
     for surface in surfaces:
         classification = classify_path(
@@ -207,18 +214,48 @@ def build_plan(
             actions.append(Action(kind="create", surface=surface))
         elif classification is Classification.WHOLE_FILE_COLLISION:
             rel_path = _rel(surface.path, base_dir)
-            choice = _find_decision(state, rel_path, surface.path)
-            if choice is None:
+            persisted_choice = _find_decision(state, rel_path, surface.path)
+            if persisted_choice is not None:
+                choice = persisted_choice
+                # Already recorded and still valid (hash matched) — no
+                # new collision_decisions entry needed.
+            else:
+                # Capture the hash of what's on disk RIGHT NOW, before
+                # any mutation — this is the pre-existing consumer
+                # content that caused the collision, which is what a
+                # later run's staleness check must compare against.
+                # Capturing it here (at plan time) rather than in
+                # apply_plan means it's correct for BOTH "overwrite"
+                # (where apply_plan is about to replace the file with
+                # harness content) and "keep-existing" (where nothing
+                # ever gets written, so there'd be nothing to capture
+                # later).
+                pre_existing_hash = sha256_of_file(surface.path)
                 choice = decide(PlanItem(path=surface.path))
+                collision_decisions.append({
+                    "item": rel_path,
+                    "kind": "whole-file",
+                    "choice": choice,
+                    "existing_sha256": pre_existing_hash,
+                    "decided_at": datetime.datetime.now(
+                        datetime.UTC
+                    ).isoformat(),
+                })
             if choice == "overwrite":
                 actions.append(
                     Action(kind="overwrite_with_backup", surface=surface)
                 )
-            # "keep-existing" -> no action
+            # "keep-existing" -> no action, but the decision above is
+            # still persisted so a later run doesn't re-ask.
 
     if errors:
         return Plan(ok=False, actions=[], errors=errors)
-    return Plan(ok=True, actions=actions, errors=[])
+    return Plan(
+        ok=True,
+        actions=actions,
+        errors=[],
+        collision_decisions=collision_decisions,
+    )
 
 
 def journal_status(journal_path: Path) -> dict[str, Any]:
@@ -246,15 +283,18 @@ def apply_plan(
     install_id: str,
 ) -> dict[str, Any]:
     """Apply every action in a validated (plan.ok) plan, journaling
-    before mutation and removing the journal only after the caller
-    persists state (spec section 6). Returns the updated state dict —
-    the caller is responsible for calling save_state() with it, which
-    is also what allows the journal to be safely deleted."""
+    before mutation. Returns the updated state dict — the caller is
+    responsible for calling save_state() with it, and ONLY THEN
+    deleting journal_path (this function deliberately does not delete
+    it — see spec section 6's crash-consistency requirement: the
+    journal must survive a crash between this returning and the
+    caller's save_state() call, so a leftover journal always means
+    "state may not reflect what's on disk," never "state is fine, some
+    other unrelated file happened to still exist.")."""
     if not plan.ok:
         raise ValueError("cannot apply a plan with ok=False")
 
     _write_journal(Path(journal_path), plan, base_dir)
-    now = datetime.datetime.now(datetime.UTC).isoformat()
 
     for action in plan.actions:
         surface = action.surface
@@ -301,6 +341,7 @@ def apply_plan(
             )
             if not backup.exists():
                 backup.write_bytes(surface.path.read_bytes())
+            backup_hash = sha256_of_file(backup)
             bi.atomic_write(surface.path, surface.content)
             written_hash = bi.sha256_bytes(surface.content.encode())
             state["overwritten_files"] = [
@@ -309,19 +350,19 @@ def apply_plan(
                 "file": rel_path,
                 "backup": _rel(backup, base_dir),
                 "written_sha256": written_hash,
-            }]
-            state["collision_decisions"] = [
-                d for d in state["collision_decisions"]
-                if d["item"] != rel_path
-            ] + [{
-                "item": rel_path,
-                "kind": "whole-file",
-                "choice": "overwrite",
-                "existing_sha256": written_hash,
-                "decided_at": now,
+                "backup_sha256": backup_hash,
             }]
 
-    journal_path.unlink(missing_ok=True)
+    # Collision decisions (both "overwrite" and "keep-existing") were
+    # already captured at plan time in plan.collision_decisions, using
+    # the pre-existing file's hash — merge them in here rather than
+    # recomputing anything from post-mutation state.
+    for decision in plan.collision_decisions:
+        item = decision["item"]
+        state["collision_decisions"] = [
+            d for d in state["collision_decisions"] if d["item"] != item
+        ] + [decision]
+
     return state
 
 
@@ -448,14 +489,19 @@ def _cli_apply(args: Any) -> None:
         print(json.dumps({"ok": False, "errors": plan.errors}))
         raise SystemExit(1)
 
+    journal_path = Path(args.journal)
     updated_state = apply_plan(
         plan,
         state=state,
         base_dir=base_dir,
-        journal_path=Path(args.journal),
+        journal_path=journal_path,
         install_id=args.install_id,
     )
     save_state(Path(args.state), updated_state)
+    # Only delete the journal after state has actually been persisted —
+    # if the process crashes between apply_plan() returning and this
+    # line, the journal must still be here for 'doctor' to find.
+    journal_path.unlink(missing_ok=True)
     print(json.dumps({"ok": True, "applied": len(plan.actions)}))
 
 
