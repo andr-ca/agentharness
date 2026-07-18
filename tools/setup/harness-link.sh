@@ -729,7 +729,6 @@ cmd_init() {
         fi
         [ -n "$profile" ] && echo "  Profile: write $PROFILE_FILE_NAME = $profile"
         echo "  Managed blocks: update CLAUDE.md, AGENTS.md, GEMINI.md, .github/copilot-instructions.md"
-        echo "  Generated surfaces: .cursor/rules/testing.mdc"
         echo "  State: write $target/$STATE_FILE_NAME"
         echo "(dry run — nothing was changed)"
         return 0

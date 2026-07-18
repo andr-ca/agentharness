@@ -1039,6 +1039,20 @@ PYEOF
     grep -q "my own rule" "$TEST_PROJECT/.cursor/rules/test-surface.txt"
 }
 
+@test "resolve_collisions_and_apply returns 1 on stdin EOF without --force/--keep-existing (safety: unattended runs must not auto-overwrite)" {
+    # Regression test: when stdin closes (EOF) without user response and no --force/--keep-existing,
+    # the function must report the error and fail, not silently overwrite the consumer's file.
+    # This safety behavior was violated in Task 13 and must not regress.
+    mkdir -p "$TEST_PROJECT/.cursor/rules"
+    echo "existing consumer content" > "$TEST_PROJECT/.cursor/rules/test.txt"
+
+    run bash -c "bash '$SCRIPT' __test_resolve_collisions_and_apply '$TEST_PROJECT' '[{\"path\": \"$TEST_PROJECT/.cursor/rules/test.txt\", \"is_block_surface\": false, \"content\": \"harness content\"}]' id false false false < /dev/null"
+    [ "$status" -ne 0 ]
+    [[ "$output" =~ "stdin closed" ]]
+    # Verify the file was NOT overwritten
+    grep -q "existing consumer content" "$TEST_PROJECT/.cursor/rules/test.txt"
+}
+
 @test "update: re-renders drifted managed block back to current content" {
     bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
     sed -i 's/Installed skills/DRIFTED TEXT/' "$TEST_PROJECT/AGENTS.md" 2>/dev/null || \
