@@ -141,7 +141,11 @@ def test_upsert_block_is_idempotent():
 
 def test_upsert_block_preserves_content_outside_markers_byte_for_byte():
     prefix = "# Title\n\nCustom stuff: emoji \U0001F600, trailing spaces   \n"
-    content = prefix + "\n<!-- agentharness:begin id=core-instructions version=0.1.0 -->\nold\n<!-- agentharness:end id=core-instructions -->\n"
+    content = prefix + "\n" + (
+        "<!-- agentharness:begin id=core-instructions version=0.1.0 -->\n"
+        "old\n"
+        "<!-- agentharness:end id=core-instructions -->\n"
+    )
     result = bi.upsert_block(content, "core-instructions", "0.2.1", "new\n")
     assert result.startswith(prefix)
 
