@@ -205,7 +205,7 @@ if Path(path).exists():
         for field in ("managed_blocks", "collision_decisions", "overwritten_files"):
             if field in existing:
                 v2_fields[field] = existing[field]
-    except:
+    except (OSError, json.JSONDecodeError):
         pass
 
 data = {
@@ -507,15 +507,11 @@ build_surfaces_spec() {
 import json, sys
 target, body, version = sys.argv[1], sys.argv[2], sys.argv[3]
 block_files = ['CLAUDE.md', 'AGENTS.md', 'GEMINI.md', '.github/copilot-instructions.md']
-whole_files = [
-    {'path': f'{target}/.cursor/rules/testing.mdc', 'is_block_surface': False,
-     'content': body}
-]
 print(json.dumps([
     {'path': f'{target}/{f}', 'is_block_surface': True, 'block_body': body,
      'block_id': 'core-instructions', 'block_version': version}
     for f in block_files
-] + whole_files))
+]))
 " "$target" "$block_body" "$block_version"
 }
 
@@ -555,6 +551,7 @@ for c in collisions:
         # Build the decisions map based on user preferences
         local decisions_json="{}"
         local collision_count=0
+        local report_only_paths=()
 
         # Set up fd 3 for reading prompts (stdin in the main shell context)
         exec 3<&0
@@ -572,28 +569,28 @@ for c in collisions:
             else
                 # Interactive prompt via fd 3
                 local reply
-                if read -u 3 -r -p "Collision: $collision_path — [o]verwrite/[k]eep/[a]ll-overwrite/[n]one? " reply 2>/dev/null; then
-                    case "$reply" in
-                        o|overwrite) decision="overwrite" ;;
-                        k|keep) decision="keep-existing" ;;
-                        a|all)
-                            decision="overwrite"
-                            force=true  # Switch to --force mode for remaining collisions
-                            ;;
-                        n|none)
-                            decision="keep-existing"
-                            keep_existing=true  # Switch to --keep-existing mode
-                            ;;
-                        *)
-                            echo "Invalid choice. Using default (keep-existing)."
-                            decision="keep-existing"
-                            ;;
-                    esac
-                else
-                    # EOF on stdin in non-interactive mode - auto-overwrite for idempotence
-                    # (surfaces that already exist should be re-applied to maintain state)
-                    decision="overwrite"
+                if ! read -u 3 -r -p "Collision: $collision_path — [o]verwrite/[k]eep/[a]ll-overwrite/[n]one? " reply 2>/dev/null; then
+                    # EOF on stdin in non-interactive mode without --force/--keep-existing:
+                    # collect the path and report error after loop
+                    report_only_paths+=("$collision_path")
+                    continue
                 fi
+                case "$reply" in
+                    o|overwrite) decision="overwrite" ;;
+                    k|keep) decision="keep-existing" ;;
+                    a|all)
+                        decision="overwrite"
+                        force=true  # Switch to --force mode for remaining collisions
+                        ;;
+                    n|none)
+                        decision="keep-existing"
+                        keep_existing=true  # Switch to --keep-existing mode
+                        ;;
+                    *)
+                        echo "Invalid choice. Using default (keep-existing)."
+                        decision="keep-existing"
+                        ;;
+                esac
             fi
 
             # Add the decision to the JSON map
@@ -607,6 +604,13 @@ print(json.dumps(data))
 
         # Close fd 3
         exec 3<&-
+
+        # If there are unresolved collisions from EOF, report and fail
+        if [ "${#report_only_paths[@]}" -gt 0 ]; then
+            echo "Error: stdin closed without resolving collisions. Use --force, --keep-existing, or provide responses interactively:" >&2
+            printf '  - %s\n' "${report_only_paths[@]}" >&2
+            return 1
+        fi
 
         if [ "$collision_count" -gt 0 ]; then
             echo "  Resolved $collision_count collision(s)"
@@ -1929,18 +1933,12 @@ cmd_update() {
     new_skills_csv="$(IFS=,; echo "${current[*]}")"
 
     # Existing-surface integration: same as cmd_init
-    # When there are no skill changes, default to --force for whole-file surfaces (re-apply them)
-    local managed_block_force="$force"
-    if [ "${#to_add[@]}" -eq 0 ] && [ "${#to_remove[@]}" -eq 0 ] && [ "${#to_refresh[@]}" -eq 0 ]; then
-        managed_block_force=true
-    fi
-
     acquire_install_lock "$target" || exit 1
     local surfaces_json rendered_block install_id
     install_id="$(python3 -c 'import uuid; print(uuid.uuid4().hex[:8])')"
     rendered_block="$(render_core_instructions_block "$target" "$new_skills_csv")"
     surfaces_json="$(build_surfaces_spec "$target" "$rendered_block" "$source_revision")"
-    resolve_collisions_and_apply "$target" "$surfaces_json" "$install_id" "$managed_block_force" "$dry_run" "$keep_existing" || {
+    resolve_collisions_and_apply "$target" "$surfaces_json" "$install_id" "$force" "$dry_run" "$keep_existing" || {
         release_install_lock "$target"
         exit 1
     }
@@ -2253,6 +2251,9 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
             ;;
         __test_release_install_lock)
             shift; release_install_lock "$1"; exit $?
+            ;;
+        __test_resolve_collisions_and_apply)
+            shift; resolve_collisions_and_apply "$@"; exit $?
             ;;
         init|plan|status|doctor|audit|audit-prs|enforce-profile|generate-clients|update|uninstall)
             cmd="$1"; shift

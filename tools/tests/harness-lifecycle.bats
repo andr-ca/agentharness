@@ -1000,29 +1000,43 @@ PYEOF
     ! grep -q "agentharness:begin" "$TEST_PROJECT/AGENTS.md"
 }
 
-@test "init: whole-file collision on generated cursor rule prompts and honors 'keep' via stdin" {
+@test "init does NOT create any .cursor/rules files (no fabricated whole-file surfaces)" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    [ ! -e "$TEST_PROJECT/.cursor" ]
+    [ ! -e "$TEST_PROJECT/.cursor/rules" ]
+    [ ! -e "$TEST_PROJECT/.cursor/rules/testing.mdc" ]
+}
+
+@test "init: whole-file collision prompts and honors 'keep' via stdin" {
+    # Test __test_resolve_collisions_and_apply with a synthetic whole-file surface
     mkdir -p "$TEST_PROJECT/.cursor/rules"
-    echo "my own rule" > "$TEST_PROJECT/.cursor/rules/testing.mdc"
-    run bash -c "printf 'k\n' | bash '$SCRIPT' init '$TEST_PROJECT' --mode copy --skills committing"
+    echo "my own rule" > "$TEST_PROJECT/.cursor/rules/test-surface.txt"
+
+    run bash -c "printf 'k\n' | bash '$SCRIPT' __test_resolve_collisions_and_apply '$TEST_PROJECT' '[{\"path\": \"$TEST_PROJECT/.cursor/rules/test-surface.txt\", \"is_block_surface\": false, \"content\": \"harness content\"}]' testid false false false"
     [ "$status" -eq 0 ]
-    grep -q "my own rule" "$TEST_PROJECT/.cursor/rules/testing.mdc"
+    grep -q "my own rule" "$TEST_PROJECT/.cursor/rules/test-surface.txt"
 }
 
 @test "init --force overwrites whole-file collision with backup" {
+    # Test __test_resolve_collisions_and_apply with --force flag
     mkdir -p "$TEST_PROJECT/.cursor/rules"
-    echo "my own rule" > "$TEST_PROJECT/.cursor/rules/testing.mdc"
-    run bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --force
+    echo "my own rule" > "$TEST_PROJECT/.cursor/rules/test-surface.txt"
+
+    run bash "$SCRIPT" __test_resolve_collisions_and_apply "$TEST_PROJECT" '[{"path": "'$TEST_PROJECT'/.cursor/rules/test-surface.txt", "is_block_surface": false, "content": "harness content"}]' testid true false false
     [ "$status" -eq 0 ]
-    ! grep -q "my own rule" "$TEST_PROJECT/.cursor/rules/testing.mdc"
-    compgen -G "$TEST_PROJECT/.cursor/rules/testing.mdc.pre-agentharness.*" >/dev/null
+    ! grep -q "my own rule" "$TEST_PROJECT/.cursor/rules/test-surface.txt"
+    grep -q "harness content" "$TEST_PROJECT/.cursor/rules/test-surface.txt"
+    compgen -G "$TEST_PROJECT/.cursor/rules/test-surface.txt.pre-agentharness.*" >/dev/null
 }
 
 @test "init --keep-existing skips all collisions without prompting" {
+    # Test __test_resolve_collisions_and_apply with --keep-existing flag
     mkdir -p "$TEST_PROJECT/.cursor/rules"
-    echo "my own rule" > "$TEST_PROJECT/.cursor/rules/testing.mdc"
-    run bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --keep-existing
+    echo "my own rule" > "$TEST_PROJECT/.cursor/rules/test-surface.txt"
+
+    run bash "$SCRIPT" __test_resolve_collisions_and_apply "$TEST_PROJECT" '[{"path": "'$TEST_PROJECT'/.cursor/rules/test-surface.txt", "is_block_surface": false, "content": "harness content"}]' testid false false true
     [ "$status" -eq 0 ]
-    grep -q "my own rule" "$TEST_PROJECT/.cursor/rules/testing.mdc"
+    grep -q "my own rule" "$TEST_PROJECT/.cursor/rules/test-surface.txt"
 }
 
 @test "update: re-renders drifted managed block back to current content" {
