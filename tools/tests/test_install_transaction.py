@@ -102,3 +102,50 @@ def test_classify_path_malformed_markers_is_hard_fail(tmp_path):
     target.write_text(content)
     result = it.classify_path(target, is_block_surface=True)
     assert result == it.Classification.HARD_FAIL
+
+
+def test_backup_path_for_creates_unique_suffix(tmp_path):
+    target = tmp_path / ".cursor" / "rules" / "testing.mdc"
+    target.parent.mkdir(parents=True)
+    target.write_text("x\n")
+    backup = it.backup_path_for(target, install_id="a1b2c3")
+    assert backup.name == "testing.mdc.pre-agentharness.a1b2c3"
+
+
+def test_reuse_existing_state_owned_backup_when_hash_matches(tmp_path):
+    target = tmp_path / "rule.mdc"
+    target.write_text("original\n")
+    existing_backup = tmp_path / "rule.mdc.pre-agentharness.deadbeef"
+    existing_backup.write_text("original\n")
+    state = {"overwritten_files": [
+        {"file": "rule.mdc",
+         "backup": "rule.mdc.pre-agentharness.deadbeef",
+         "written_sha256": it.sha256_of_file(existing_backup)}
+    ]}
+    result = it.resolve_backup_path(
+        target, state, install_id="newid", base_dir=tmp_path
+    )
+    assert result == existing_backup
+
+
+def test_new_unique_backup_when_no_state_owned_backup_exists(tmp_path):
+    target = tmp_path / "rule.mdc"
+    target.write_text("x\n")
+    state = {"overwritten_files": []}
+    result = it.resolve_backup_path(
+        target, state, install_id="newid", base_dir=tmp_path
+    )
+    assert result.name == "rule.mdc.pre-agentharness.newid"
+
+
+def test_never_overwrites_existing_backup_file(tmp_path):
+    target = tmp_path / "rule.mdc"
+    target.write_text("x\n")
+    collide = tmp_path / "rule.mdc.pre-agentharness.newid"
+    collide.write_text("someone else's file\n")
+    state = {"overwritten_files": []}
+    result = it.resolve_backup_path(
+        target, state, install_id="newid", base_dir=tmp_path
+    )
+    assert result != collide
+    assert not result.exists()

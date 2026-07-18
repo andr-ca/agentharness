@@ -78,3 +78,43 @@ def classify_path(path: Path, *, is_block_surface: bool) -> Classification:
         return Classification.BLOCK_MANAGED
 
     return Classification.WHOLE_FILE_COLLISION
+
+
+def sha256_of_file(path: Path) -> str:
+    return bi.sha256_bytes(Path(path).read_bytes())
+
+
+def backup_path_for(target: Path, install_id: str) -> Path:
+    return target.with_name(f"{target.name}.pre-agentharness.{install_id}")
+
+
+def resolve_backup_path(
+    target: Path, state: dict, install_id: str, base_dir: Path
+) -> Path:
+    """Collision-safe backup resolution (spec section 4):
+    - reuse a state-owned backup if its recorded hash still matches its
+      own on-disk content (it already holds true pre-harness bytes);
+    - otherwise mint a new unique '<name>.pre-agentharness.<install_id>'
+      path, generating a fresh suffix if that exact path is already
+      occupied by something this state doesn't own — never overwritten.
+    """
+    rel = (
+        str(target.relative_to(base_dir)) if target.is_absolute()
+        else str(target)
+    )
+    for entry in state.get("overwritten_files", []):
+        if entry["file"] != rel:
+            continue
+        existing_backup = base_dir / entry["backup"]
+        if (
+            existing_backup.exists()
+            and sha256_of_file(existing_backup) == entry["written_sha256"]
+        ):
+            return existing_backup
+
+    candidate = backup_path_for(target, install_id)
+    suffix = 0
+    while candidate.exists():
+        suffix += 1
+        candidate = backup_path_for(target, f"{install_id}-{suffix}")
+    return candidate
