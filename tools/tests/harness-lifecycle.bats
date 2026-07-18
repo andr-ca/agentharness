@@ -431,6 +431,25 @@ print(d['hooks_path'])
     [[ "$output" =~ "both pre-commit and pre-merge-commit hooks present" ]]
 }
 
+@test "doctor: reports a leftover crash journal" {
+    echo "# My project" > "$TEST_PROJECT/AGENTS.md"
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    echo '{"plan_summary": ["AGENTS.md: upsert_block"]}' > "$TEST_PROJECT/.agentharness-state.pending.json"
+    run bash "$SCRIPT" doctor "$TEST_PROJECT"
+    [ "$status" -ne 0 ]
+    [[ "$output" =~ "pending" ]] || [[ "$output" =~ "journal" ]] || [[ "$output" =~ "interrupted" ]]
+    rm -f "$TEST_PROJECT/.agentharness-state.pending.json"
+}
+
+@test "doctor: flags a managed block that has drifted from current render" {
+    echo "# My project" > "$TEST_PROJECT/AGENTS.md"
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    sed -i 's/version=[^ ]* -->/version=0.0.1 -->/' "$TEST_PROJECT/AGENTS.md" 2>/dev/null || \
+        sed -i '' 's/version=[^ ]* -->/version=0.0.1 -->/' "$TEST_PROJECT/AGENTS.md"
+    run bash "$SCRIPT" doctor "$TEST_PROJECT"
+    [[ "$output" =~ "drift" ]]
+}
+
 @test "lifecycle: uninstall declines without confirmation" {
     bash "$SCRIPT" init "$TEST_PROJECT" --skills committing
 

@@ -1209,6 +1209,63 @@ cmd_doctor() {
         fi
     fi
 
+    # Existing-surface integration: leftover crash journal
+    local journal_status
+    journal_status="$(python3 "$HARNESS_DIR/tools/setup/install_transaction.py" journal-status \
+        --journal "$target/.agentharness-state.pending.json")"
+    local journal_pending
+    journal_pending="$(echo "$journal_status" | python3 -c 'import json,sys; print(json.load(sys.stdin)["pending"])')"
+    if [ "$journal_pending" = "True" ]; then
+        echo "  ✗ an install/update was interrupted mid-apply (pending journal found)." >&2
+        echo "$journal_status" | python3 -c '
+import json, sys
+for s in json.load(sys.stdin)["summary"]:
+    print("    " + s)
+'
+        echo "    Recovery: re-run '\''init'\''/'\''update'\'' to complete the interrupted apply, or" >&2
+        echo "    inspect .agentharness-state.pending.json and remove it if safe." >&2
+        failed=1
+    fi
+
+    # Managed-block drift: does the block currently on disk still match
+    # what was recorded (by hash) when it was last installed/updated?
+    python3 -c "
+import hashlib
+import sys
+sys.path.insert(0, '$HARNESS_DIR/tools/setup')
+import install_transaction as it
+import block_installer as bi
+
+state = it.load_state('$(state_path "$target")')
+any_drift = False
+for entry in state.get('managed_blocks', []):
+    path = '$target/' + entry['file']
+    try:
+        content = open(path, encoding='utf-8').read()
+    except FileNotFoundError:
+        print(f'  WARN: {entry[\"file\"]}: recorded as managed but file is missing')
+        continue
+    try:
+        matches = bi.find_blocks(content, entry['block_id'])
+    except bi.MarkerError:
+        print(f'  WARN: {entry[\"file\"]}: malformed markers, cannot verify drift')
+        any_drift = True
+        continue
+    if len(matches) != 1:
+        print(f'  WARN: {entry[\"file\"]}: expected one managed block, found {len(matches)}')
+        any_drift = True
+        continue
+    m = matches[0]
+    current_block_text = content[m.start:m.end]
+    current_hash = bi.sha256_bytes(current_block_text.encode('utf-8'))
+    if current_hash != entry.get('rendered_sha256'):
+        print(f'  drift: {entry[\"file\"]}: on-disk managed block does not match last-recorded render (hand-edited, or a version bump is pending — re-run update)')
+        any_drift = True
+    else:
+        print(f'  OK: {entry[\"file\"]}: managed block matches last-recorded render')
+sys.exit(1 if any_drift else 0)
+" || failed=1
+
     if [ "$failed" -ne 0 ]; then
         echo "doctor: FAILED — see ✗ items above."
         return 1
