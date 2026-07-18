@@ -9,7 +9,11 @@ disturbing its other content, and `uninstall` removes exactly that block
 and nothing else. `.cursor/rules/testing.mdc` isn't one of the four
 block-managed instructions files and isn't touched by `init`/`update` at
 all — it's included here to verify the harness never reaches into files
-outside its own managed set. See `../sample-project/README.md` for the
+outside its own managed set. It triggers no collision because Cursor-rule
+generation (`generate-cursor-rules.sh`) is a separate, manual step from
+`init`/`update`, not something the collision-handling flow currently
+touches — see the Cursor section of `../../docs/INTEGRATION.md`. See
+`../sample-project/README.md` for the
 blank/generic fixture and the full method-by-method walkthrough; this one
 only adds what's different for a project with pre-existing agent
 instructions.
