@@ -158,9 +158,11 @@ automated issue-analysis feature hit this three times in a row across
 PRs #111, #113, and #118: static checks passed every time, and each
 time only an actual live run (filing a throwaway test issue, watching a
 real webhook fire) surfaced a real bug — a duplicate-run race, an
-indefinite hang, a retry gap — that no unit test could have caught. When a change adds or
-modifies something that only truly runs via such an external trigger:
-either (a) exercise it for real before presenting the work as done —
+indefinite hang, a retry gap — that no unit test could have caught.
+
+When a change adds or modifies something that only truly runs via such
+an external trigger: either (a) exercise it for real before presenting
+the work as done —
 e.g., file a throwaway test issue/PR/tag and watch the triggered run to
 completion — or (b) say explicitly in the PR body that live verification
 wasn't done this round and why. An honest "not live-tested" disclosure
