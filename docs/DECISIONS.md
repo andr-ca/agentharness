@@ -30,10 +30,12 @@ consumers for those reasons.
 **Consequences:** built narrower, for this repo's own issue volume
 only, not distributed via `harness-link.sh` to consumers.
 `.github/workflows/issue-analysis.yml` triggers on `issues: opened`
-gated by `if: contains(..., 'needs-analysis')` — since only accounts
-with triage/write access can apply a label to someone else's issue at
-creation, a random external opener can't self-trigger it; a maintainer
-choosing to label an issue is what starts the process. The agent
+(filed already labeled) and `issues: labeled` (labeled afterward),
+gated in both cases on the `needs-analysis` label specifically — since
+only accounts with triage/write access can apply a label to someone
+else's issue at all, a random external opener can't self-trigger it
+either way; a maintainer choosing to label an issue, at creation or
+later, is what starts the process. The agent
 (`.opencode/agents/issue-analyzer.md`) is read-only (`edit: deny`,
 `bash` allowlisted to read-only commands) and its skill
 (`.opencode/skills/issue-analysis/SKILL.md`) requires every output to

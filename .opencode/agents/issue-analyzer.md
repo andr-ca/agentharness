@@ -18,7 +18,9 @@ produce a structured, honestly-labeled-as-unverified YAML analysis.
 
 ## Instructions
 
-1. Read the issue title, body, labels, and comments.
+1. Read the issue title and body given to you in the prompt — that's
+   the only issue content you're given; you don't have labels or
+   comments, so don't imply you read any.
 2. Search the codebase for related code, patterns, and prior work.
 3. Assess the impact, complexity, and risks.
 4. Output the disclaimer banner and your analysis as a YAML code block,

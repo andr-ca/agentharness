@@ -556,6 +556,10 @@ sections:
     path: .github/workflows/issue-analysis.yml
     type: workflow
     purpose: "This-repo-only, opt-in: posts an explicitly-unverified opencode-generated YAML analysis when a maintainer labels an issue `needs-analysis`; relabels to `auto-analyzed`, never `analyzed` (#107)"
+  - asset: OpenCode config
+    path: opencode.json
+    type: config
+    purpose: Registers `.opencode/skills` as opencode's skill path, for the issue-analysis workflow above
   - asset: Markdownlint config
     path: .markdownlint-cli2.yaml
     type: config

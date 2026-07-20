@@ -3,18 +3,18 @@ name: Issue Analysis
 # Automated, opt-in issue triage for this repo only (issue #107, narrowed
 # per docs/DECISIONS.md "Label-gated, unverified-by-default automated
 # issue analysis"). Does NOT trigger on every issue: it only runs when
-# an issue is filed already carrying the `needs-analysis` label, which
-# by default only accounts with triage/write access to this repo can
-# apply at creation time — so a random external opener cannot self-
-# trigger it. The agent is read-only (no edit, no arbitrary bash) and
-# its own skill instructs it to post a visible "unverified automated
-# analysis" disclaimer; the workflow deliberately does NOT relabel to
-# an "analyzed" state that would imply human review — see
-# `auto-analyzed` below.
+# an issue carries the `needs-analysis` label — either at creation, or
+# applied afterward by a maintainer — and by default only accounts with
+# triage/write access to this repo can apply a label at all, so a
+# random external opener cannot self-trigger it either way. The agent
+# is read-only (no edit, no arbitrary bash) and its own skill instructs
+# it to post a visible "unverified automated analysis" disclaimer; the
+# workflow deliberately does NOT relabel to an "analyzed" state that
+# would imply human review — see `auto-analyzed` below.
 
 on:
   issues:
-    types: [opened]
+    types: [opened, labeled]
 
 permissions:
   contents: read
@@ -22,7 +22,13 @@ permissions:
 
 jobs:
   analyze:
-    if: contains(github.event.issue.labels.*.name, 'needs-analysis')
+    # Opened-with-label covers "filed already labeled"; labeled-with-
+    # matching-label covers "maintainer labels an existing issue" —
+    # without the second branch, applying needs-analysis after creation
+    # would silently do nothing.
+    if: |
+      (github.event.action == 'opened' && contains(github.event.issue.labels.*.name, 'needs-analysis')) ||
+      (github.event.action == 'labeled' && github.event.label.name == 'needs-analysis')
     runs-on: ubuntu-latest
     steps:
       - name: Check account age (spam/abuse filter)

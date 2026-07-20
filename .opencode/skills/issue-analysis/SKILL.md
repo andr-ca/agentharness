@@ -75,12 +75,14 @@ confidence: 0.0
 
 ## Analysis Process
 
-1. **Read the issue** — parse the title, body, labels, and any comments
-   for full context.
+1. **Read the issue** — parse the title and body given to you in the
+   prompt. That's the only issue content you're given; you do not have
+   labels or comments, so don't imply you read any.
 2. **Search the codebase** — use grep, glob, and file reads to find
    related code, existing logic, tests, and documentation.
-3. **Search for related issues** — note duplicate or related discussion
-   in the issue body/comments; do not fabricate links you haven't seen.
+3. **Note related work you actually find** — if the codebase search
+   above surfaces genuinely related code/docs, note it; do not fabricate
+   links to other issues or discussions you have no way to have seen.
 4. **Assess impact** — which components are affected, and how deeply.
 5. **Evaluate options** — consider multiple implementation approaches
    with trade-offs, the same way `.claude/skills/github-issue-triage`
