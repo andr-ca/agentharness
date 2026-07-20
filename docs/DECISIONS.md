@@ -51,6 +51,17 @@ not configurable) — `tools/verify-content-quality.py`'s
 `check_opencode_agents_sync()` explicitly ignores it rather than
 flagging it as drift.
 
+**2026-07-20 update (live-caught race, issue #112):** filing an issue
+already carrying `needs-analysis` in one API/CLI call fired both an
+`opened` event and a separate `labeled` event as distinct webhook
+deliveries, racing two concurrent runs — two duplicate comments got
+posted, and the second run's `removeLabel` call 404'd. Fixed with a
+`concurrency: group: issue-analysis-${{ github.event.issue.number }}`
+block to serialize runs per issue, plus a dedupe gate that re-fetches
+the issue's current labels and no-ops if `needs-analysis` was already
+consumed by an earlier run in the same group, instead of trusting the
+triggering event's label snapshot.
+
 ## Copy as the default install mode, reversing symlink-as-default
 
 **Status:** Settled — reverses "Symlink as the default install mode, not
