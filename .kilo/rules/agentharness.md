@@ -144,6 +144,29 @@ commits to one, and merging into `main`.
    merge doesn't guarantee the post-merge run on `main` will, and only
    the post-merge run reflects what's actually deployed/tagged from.
 
+**"Merged" and "confirmed working" are different claims for anything an
+externally fired trigger runs, not just for CI.** The completion gate
+(lint/types/tests/coverage) and the CI-verification rules above are
+thorough about code-level and merge-level checks, but neither exercises
+a GitHub Actions trigger other than `workflow_dispatch` (an `issues:`,
+`schedule:`, `pull_request_target`, or webhook trigger), a cron job, or
+anything else `pytest`/`bats` structurally cannot simulate. Building the
+automated issue-analysis feature hit this three times in a row across
+PRs #111, #113, and #118: static checks passed every time, and each
+time only an actual live run (filing a throwaway test issue, watching a
+real webhook fire) surfaced a real bug — a duplicate-run race, an
+indefinite hang, a retry gap — that no unit test could have caught.
+
+When a change adds or modifies something that only truly runs via such
+an external trigger: either (a) exercise it for real before presenting
+the work as done —
+e.g., file a throwaway test issue/PR/tag and watch the triggered run to
+completion — or (b) say explicitly in the PR body that live verification
+wasn't done this round and why. An honest "not live-tested" disclosure
+is not a substitute for the check — it's an open TODO the agent is
+expected to close out at the next opportunity, the same way an
+undisclosed CI failure would be, not a satisfied requirement.
+
 #### Publish authority
 
 `touch .agentharness-publish-mode` at this repo's root grants standing
