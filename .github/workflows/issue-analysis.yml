@@ -11,6 +11,16 @@ name: Issue Analysis
 # it to post a visible "unverified automated analysis" disclaimer; the
 # workflow deliberately does NOT relabel to an "analyzed" state that
 # would imply human review — see `auto-analyzed` below.
+#
+# Dedup note (live-caught 2026-07-20, issue #112): filing an issue
+# already carrying `needs-analysis` in one API/CLI call can still fire
+# both an `opened` event (issue created) and a separate `labeled` event
+# (label attached) as two distinct webhook deliveries, which raced two
+# concurrent runs, posted two duplicate comments, and 404'd the second
+# run's removeLabel call. The concurrency group below serializes runs
+# per issue instead of letting them race, and the gate step re-checks
+# the label is still actually present (not already consumed by an
+# earlier run in the same group) before doing any real work.
 
 on:
   issues:
@@ -19,6 +29,10 @@ on:
 permissions:
   contents: read
   issues: write
+
+concurrency:
+  group: issue-analysis-${{ github.event.issue.number }}
+  cancel-in-progress: false
 
 jobs:
   analyze:
@@ -31,17 +45,35 @@ jobs:
       (github.event.action == 'labeled' && github.event.label.name == 'needs-analysis')
     runs-on: ubuntu-latest
     steps:
-      - name: Check account age (spam/abuse filter)
+      - name: Check account age and dedupe gate
         id: check
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           script: |
+            // Re-fetch current labels rather than trusting the event
+            // payload: if an earlier run in this issue's concurrency
+            // group already consumed needs-analysis (see the dedup
+            // note above), this run should no-op instead of duplicating
+            // the analysis and racing the relabel step.
+            const issue = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+            const stillPending = issue.data.labels.some(
+              l => (typeof l === 'string' ? l : l.name) === 'needs-analysis'
+            );
+            if (!stillPending) {
+              core.info('needs-analysis no longer present — already handled by an earlier run, skipping.');
+              return 'false';
+            }
+
             const user = await github.rest.users.getByUsername({
               username: context.payload.issue.user.login
             });
             const created = new Date(user.data.created_at);
             const days = (Date.now() - created) / (1000 * 60 * 60 * 24);
-            return days >= 30;
+            return days >= 30 ? 'true' : 'false';
           result-encoding: string
 
       - name: Checkout repository
