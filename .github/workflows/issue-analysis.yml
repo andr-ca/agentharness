@@ -21,6 +21,15 @@ name: Issue Analysis
 # per issue instead of letting them race, and the gate step re-checks
 # the label is still actually present (not already consumed by an
 # earlier run in the same group) before doing any real work.
+#
+# Timeout note (live-caught 2026-07-20, issue #115): the third-party
+# anomalyco/opencode/github action itself hung indefinitely on a live
+# test run (>1h45m with no progress, no error) — GitHub Actions' own
+# default 6h job timeout doesn't help anyone waiting on this, and
+# because it's serialized per issue, a hang here also blocks every
+# later needs-analysis run on the SAME issue behind it in the queue
+# (not other issues — the concurrency group is per-issue-number).
+# job-level timeout-minutes below fails it fast instead.
 
 on:
   issues:
@@ -44,6 +53,7 @@ jobs:
       (github.event.action == 'opened' && contains(github.event.issue.labels.*.name, 'needs-analysis')) ||
       (github.event.action == 'labeled' && github.event.label.name == 'needs-analysis')
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Check account age and dedupe gate
         id: check

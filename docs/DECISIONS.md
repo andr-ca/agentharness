@@ -62,6 +62,19 @@ the issue's current labels and no-ops if `needs-analysis` was already
 consumed by an earlier run in the same group, instead of trusting the
 triggering event's label snapshot.
 
+**2026-07-20 update (live-caught hang, issue #115):** re-testing the
+dedupe fix above surfaced a second, unrelated problem — the third-party
+`anomalyco/opencode/github` action itself hung for over 1h45m with no
+progress or error on one live run, and because runs are now serialized
+per issue, that also blocked the queued second run behind it. Root
+cause unconfirmed (no step-log visibility into a still-running action;
+cancelling it to unblock testing lost the evidence) — flagged as an
+open question in #115 in case it recurs and points at the free-tier
+model backend's reliability. Mitigated with a job-level
+`timeout-minutes: 15`, generous against the one successful run's actual
+~1-minute runtime, so a future hang fails fast instead of running for
+hours.
+
 ## Copy as the default install mode, reversing symlink-as-default
 
 **Status:** Settled — reverses "Symlink as the default install mode, not
