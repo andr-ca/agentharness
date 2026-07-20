@@ -33,8 +33,13 @@ jobs:
       github.event.workflow_run.run_attempt < 3
     runs-on: ubuntu-latest
     steps:
-      - name: Rerun failed jobs
+      - name: Rerun the run
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh run rerun "${{ github.event.workflow_run.id }}" --failed --repo "${{ github.repository }}"
+          # --failed only reruns jobs with conclusion 'failure', not
+          # 'timed_out'/'cancelled' -- exactly the case this exists for
+          # (Copilot review, PR #118). issue-analysis.yml has a single
+          # job, so rerunning the whole run is equivalent on success and
+          # correct for every failure mode, not just plain failures.
+          gh run rerun "${{ github.event.workflow_run.id }}" --repo "${{ github.repository }}"
