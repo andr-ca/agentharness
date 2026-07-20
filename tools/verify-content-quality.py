@@ -455,7 +455,9 @@ def check_kilo_rules_sync() -> list[str]:
     return []
 
 
-def _diff_generated_subdir(tmp_root: Path, subdir_rel: str, regen_hint: str) -> list[str]:
+def _diff_generated_subdir(
+    tmp_root: Path, subdir_rel: str, regen_hint: str, ignore: set[str] | None = None
+) -> list[str]:
     # Shared by check_copilot_instructions_sync and check_cursor_rules_sync:
     # both own an entire directory of generated files (a variable set —
     # one per language or per skill — not a single fixed path), so drift
@@ -463,14 +465,25 @@ def _diff_generated_subdir(tmp_root: Path, subdir_rel: str, regen_hint: str) -> 
     # the generator produces that isn't committed (drift), and a
     # committed file the generator no longer produces (a stale leftover
     # from a removed language/skill).
+    #
+    # `ignore` exists for the one case where the output directory isn't
+    # exclusively generator output: .opencode/agents/ is also opencode's
+    # own fixed (non-configurable) custom-agent location, so
+    # issue-analyzer.md lives there hand-authored, not ported from
+    # .claude/agents/ — see check_opencode_agents_sync().
     generated_root = tmp_root / subdir_rel
     committed_root = REPO_ROOT / subdir_rel
+    ignore_paths = {Path(p) for p in (ignore or set())}
     generated_files = (
         {p.relative_to(generated_root) for p in generated_root.rglob("*") if p.is_file()}
         if generated_root.is_dir() else set()
     )
     committed_files = (
-        {p.relative_to(committed_root) for p in committed_root.rglob("*") if p.is_file()}
+        {
+            p.relative_to(committed_root)
+            for p in committed_root.rglob("*")
+            if p.is_file()
+        } - ignore_paths
         if committed_root.is_dir() else set()
     )
     errors = []
@@ -533,7 +546,7 @@ def check_cursor_rules_sync() -> list[str]:
 
 
 def _check_agent_generator_sync(
-    generator_rel: str, output_subdir_rel: str
+    generator_rel: str, output_subdir_rel: str, ignore: set[str] | None = None
 ) -> list[str]:
     # Shared by the six custom-agent-porting generators
     # (Codex/OpenCode/Cursor/Kilo/Copilot/Gemini) below — each owns a whole directory
@@ -552,7 +565,7 @@ def _check_agent_generator_sync(
         )
         if result.returncode != 0:
             return [f"{generator_rel}: failed to run — {result.stderr.strip()}"]
-        return _diff_generated_subdir(tmp_path, output_subdir_rel, regen_hint)
+        return _diff_generated_subdir(tmp_path, output_subdir_rel, regen_hint, ignore)
 
 
 def check_codex_agents_sync() -> list[str]:
@@ -562,8 +575,14 @@ def check_codex_agents_sync() -> list[str]:
 
 
 def check_opencode_agents_sync() -> list[str]:
+    # .opencode/agents/ is opencode's own fixed, non-configurable
+    # custom-agent location — issue-analyzer.md lives there hand-authored
+    # for .github/workflows/issue-analysis.yml (issue #107), not ported
+    # from .claude/agents/, so it's excluded from the generator diff.
     return _check_agent_generator_sync(
-        "tools/generate-opencode-agents.sh", ".opencode/agents"
+        "tools/generate-opencode-agents.sh",
+        ".opencode/agents",
+        ignore={"issue-analyzer.md"},
     )
 
 

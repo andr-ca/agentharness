@@ -552,6 +552,10 @@ sections:
     path: .github/workflows/release.yml
     type: workflow
     purpose: Runs `npm publish` on a `v*` tag push; inert until `NPM_TOKEN` secret exists (P2-03)
+  - asset: Automated issue analysis
+    path: .github/workflows/issue-analysis.yml
+    type: workflow
+    purpose: "This-repo-only, opt-in: posts an explicitly-unverified opencode-generated YAML analysis when a maintainer labels an issue `needs-analysis`; relabels to `auto-analyzed`, never `analyzed` (#107)"
   - asset: Markdownlint config
     path: .markdownlint-cli2.yaml
     type: config

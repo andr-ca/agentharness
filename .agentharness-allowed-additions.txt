@@ -21,3 +21,4 @@ examples/existing-surface-project/verify.sh
 examples/existing-surface-project/README.md
 src/agentharness_locks/__init__.py
 tests/unit/test_agentharness_locks.py
+opencode.json
