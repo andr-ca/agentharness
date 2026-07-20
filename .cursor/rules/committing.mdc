@@ -76,6 +76,20 @@ commit template). This skill is the actionable summary.
    Publish authority is also granted when the user explicitly
    authorizes it in the current session.
    - `git push -u origin <branch>` (first push) or `git push` (subsequent).
+     **If this fails with an SSH key error** (`Permission denied
+     (publickey)`) even though `gh auth status` shows a valid session:
+     the remote is an SSH URL (`git@github.com:...`) but no SSH key is
+     configured in this environment — a real, seen-in-practice mismatch
+     (issue #117), not a sign the push itself is wrong. Don't
+     permanently reconfigure the remote to work around a one-off
+     environment gap. Instead, push to an explicit HTTPS URL for this
+     one invocation, using `gh`'s own credentials:
+     `git push "https://github.com/$(gh repo view --json nameWithOwner -q .nameWithOwner).git" <branch>`.
+     If pushing will be a recurring need in this environment, `gh auth
+     setup-git` is the durable fix (configures git's credential helper
+     to use `gh`'s token for HTTPS) — but that's a persistent
+     environment change, so confirm with the user before running it,
+     the same as any other durable configuration change.
    - `gh pr create` with a real title, body, and test/verification notes.
    - Work is not "done" until the PR exists, CI is green, and review
      comments have been addressed.
