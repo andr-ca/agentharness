@@ -519,9 +519,10 @@ it was installed.
 
 **Git conventions** (from the \`branching\`/\`committing\` skills above —
 stated here directly so they hold even if a skill is unreadable): never
-commit directly to a trunk branch (\`main\`/\`master\`/\`release/*\`);
-create a feature branch first (\`git checkout -b <type>/<short-description>\`);
-open a PR for review before merging into the trunk branch.
+commit directly to a trunk branch (\`main\`/\`master\`/\`trunk\`/\`develop\`/
+\`release/*\`); create a feature branch first (\`git checkout -b
+<type>/<short-description>\`); open a PR for review before merging into
+the trunk branch.
 
 **PR merge checklist:** never merge on green CI alone. Wait for
 automated review (e.g. GitHub Copilot) to post *or* its check-run to

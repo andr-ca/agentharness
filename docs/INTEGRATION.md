@@ -84,8 +84,9 @@ checkout):
 
 ```bash
 cd ~/my-project
-mkdir -p .claude
+mkdir -p .claude .agents
 cp -rL ~/agentharness/.claude/skills .claude/skills
+cp -rL ~/agentharness/.claude/skills .agents/skills  # Codex's on-demand discovery path
 
 # Record what you copied and from where, so future-you can diff and update
 harness_rev="$(git -C ~/agentharness rev-parse --short HEAD)"
@@ -119,9 +120,10 @@ harness's, and you can pick a subset):
 
 ```bash
 cd ~/my-project
-mkdir -p .claude/skills
+mkdir -p .claude/skills .agents/skills
 for skill in ~/agentharness/.claude/skills/*/; do
   ln -s "$skill" ".claude/skills/$(basename "$skill")"
+  ln -s "$skill" ".agents/skills/$(basename "$skill")"  # Codex's on-demand discovery path
 done
 ```
 

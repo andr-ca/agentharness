@@ -20,6 +20,7 @@ STATUS=0
 
 [ -d ".claude/skills" ] && echo "✅ .claude/skills exists" || { echo "❌ .claude/skills missing"; STATUS=1; }
 [ -f ".claude/skills/committing/SKILL.md" ] && echo "✅ Committing skill present" || { echo "❌ Committing skill not present"; STATUS=1; }
+[ -f ".agents/skills/committing/SKILL.md" ] && echo "✅ Committing skill mirrored into .agents/skills (Codex discovery)" || { echo "❌ Committing skill not present under .agents/skills"; STATUS=1; }
 
 if [ -d ".git" ]; then
     HOOKS_PATH=$(git config core.hooksPath || true)
