@@ -722,7 +722,13 @@ with open('$TEST_PROJECT/.agentharness-state.json') as f: print(json.load(f)['so
 
     [ -d "$TEST_PROJECT/.agentharness-pkg" ]
     [ ! -e "$TEST_PROJECT/.agentharness-pkg/.git" ]
-    target="$(readlink "$TEST_PROJECT/.claude/skills/agentic-loops")"
+    # npm mode's symlink is relative (issue #109 — an absolute symlink
+    # here would still break after committing and cloning elsewhere,
+    # even though the durable copy itself already travels with the
+    # clone), so resolve it before checking where it actually points.
+    # python3's os.path.realpath, not `readlink -f` (a GNU extension not
+    # supported by BSD/macOS readlink — Copilot review, PR #125).
+    target="$(python3 -c "import os, sys; print(os.path.realpath(sys.argv[1]))" "$TEST_PROJECT/.claude/skills/agentic-loops")"
     [[ "$target" == "$TEST_PROJECT/.agentharness-pkg"* ]]
 
     run python3 -c "
@@ -841,7 +847,9 @@ with open(path, 'w') as f:
     [ "$status" -eq 0 ]
     [[ "$output" =~ "+ add: committing" ]]
     [ -L "$TEST_PROJECT/.claude/skills/committing" ]
-    [ "$(readlink "$TEST_PROJECT/.claude/skills/committing")" = "$TEST_PROJECT/.agentharness-pkg/.claude/skills/committing" ]
+    # Relative symlink (issue #109) -- resolve before comparing. python3's
+    # os.path.realpath, not `readlink -f` (GNU-only, not macOS/BSD).
+    [ "$(python3 -c "import os, sys; print(os.path.realpath(sys.argv[1]))" "$TEST_PROJECT/.claude/skills/committing")" = "$TEST_PROJECT/.agentharness-pkg/.claude/skills/committing" ]
 }
 
 @test "lifecycle: --mode npm uninstall removes the durable source copy" {
