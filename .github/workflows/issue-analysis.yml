@@ -1,0 +1,94 @@
+name: Issue Analysis
+#
+# Automated, opt-in issue triage for this repo only (issue #107, narrowed
+# per docs/DECISIONS.md "Label-gated, unverified-by-default automated
+# issue analysis"). Does NOT trigger on every issue: it only runs when
+# an issue carries the `needs-analysis` label — either at creation, or
+# applied afterward by a maintainer — and by default only accounts with
+# triage/write access to this repo can apply a label at all, so a
+# random external opener cannot self-trigger it either way. The agent
+# is read-only (no edit, no arbitrary bash) and its own skill instructs
+# it to post a visible "unverified automated analysis" disclaimer; the
+# workflow deliberately does NOT relabel to an "analyzed" state that
+# would imply human review — see `auto-analyzed` below.
+
+on:
+  issues:
+    types: [opened, labeled]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  analyze:
+    # Opened-with-label covers "filed already labeled"; labeled-with-
+    # matching-label covers "maintainer labels an existing issue" —
+    # without the second branch, applying needs-analysis after creation
+    # would silently do nothing.
+    if: |
+      (github.event.action == 'opened' && contains(github.event.issue.labels.*.name, 'needs-analysis')) ||
+      (github.event.action == 'labeled' && github.event.label.name == 'needs-analysis')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check account age (spam/abuse filter)
+        id: check
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            const user = await github.rest.users.getByUsername({
+              username: context.payload.issue.user.login
+            });
+            const created = new Date(user.data.created_at);
+            const days = (Date.now() - created) / (1000 * 60 * 60 * 24);
+            return days >= 30;
+          result-encoding: string
+
+      - name: Checkout repository
+        if: steps.check.outputs.result == 'true'
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Run OpenCode analysis
+        if: steps.check.outputs.result == 'true'
+        uses: anomalyco/opencode/github@a3b97d9090ccf4aa9ac32268486283e3131e36b4 # github-v1.2.25
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          model: opencode/big-pickle
+          agent: issue-analyzer
+          use_github_token: true
+          prompt: |
+            Analyze this GitHub issue using the issue-analysis skill.
+
+            Issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}
+
+            ${{ github.event.issue.body }}
+
+            Search the codebase for related code and produce the disclaimer
+            banner plus a YAML analysis following the issue-analysis skill
+            format exactly. Post the result as a comment on this issue.
+
+      - name: Update labels (no auto-vetting implied)
+        if: steps.check.outputs.result == 'true'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            // Deliberately swaps to 'auto-analyzed', not 'analyzed' — this
+            // workflow's own output is unverified by design (see the SKILL's
+            // disclaimer banner). 'analyzed' is reserved for a human maintainer
+            // to apply once they've actually read and vetted the analysis;
+            // auto-applying it here would let the bot vouch for itself.
+            await github.rest.issues.removeLabel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              name: 'needs-analysis'
+            });
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ['auto-analyzed']
+            });

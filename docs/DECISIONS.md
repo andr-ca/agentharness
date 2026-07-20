@@ -8,6 +8,49 @@ go at the top.
 
 Format: **Decision** / **Status** / **Context** / **Consequences**.
 
+## Label-gated, unverified-by-default automated issue analysis
+
+**Status:** Settled — narrowed scope, this repo only, not a harness
+feature for consumers.
+
+**Context:** [#107](https://github.com/andr-ca/agentharness/issues/107)
+proposed a general-purpose harness feature: a GitHub Actions workflow
+that auto-triages every opened issue via an unattended opencode agent.
+This repo already ships `github-issue-triage`, an on-demand skill doing
+the same verify-claims-and-recommend analysis with a human reviewing
+before anything gets posted; the workflow's only real gain over that is
+not having to invoke the skill by hand. Weighed against that small
+convenience: this repo has never run an LLM agent unattended in CI
+before, `issues: opened` is attacker-controlled content from untrusted
+external accounts, and granting an agent `issues: write` to post public
+comments off that content under the repo's identity is a new trust
+surface, not a scoped fix. Declined as a general harness feature for
+consumers for those reasons.
+
+**Consequences:** built narrower, for this repo's own issue volume
+only, not distributed via `harness-link.sh` to consumers.
+`.github/workflows/issue-analysis.yml` triggers on `issues: opened`
+(filed already labeled) and `issues: labeled` (labeled afterward),
+gated in both cases on the `needs-analysis` label specifically — since
+only accounts with triage/write access can apply a label to someone
+else's issue at all, a random external opener can't self-trigger it
+either way; a maintainer choosing to label an issue, at creation or
+later, is what starts the process. The agent
+(`.opencode/agents/issue-analyzer.md`) is read-only (`edit: deny`,
+`bash` allowlisted to read-only commands) and its skill
+(`.opencode/skills/issue-analysis/SKILL.md`) requires every output to
+open with a disclaimer banner stating the analysis is unverified and
+not authorized to be auto-implemented. The workflow relabels to
+`auto-analyzed`, never `analyzed` — `analyzed` is reserved for a human
+maintainer to apply after actually reading the output, so the bot never
+gets to vouch for its own work. `.opencode/agents/` is otherwise this
+repo's generated Claude-agent-porting output
+(`tools/generate-opencode-agents.sh`); `issue-analyzer.md` is a hand-
+authored exception there (opencode's custom-agent location is fixed,
+not configurable) — `tools/verify-content-quality.py`'s
+`check_opencode_agents_sync()` explicitly ignores it rather than
+flagging it as drift.
+
 ## Copy as the default install mode, reversing symlink-as-default
 
 **Status:** Settled — reverses "Symlink as the default install mode, not
