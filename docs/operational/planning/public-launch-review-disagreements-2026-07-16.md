@@ -1,6 +1,6 @@
 ---
 date: 2026-07-16
-status: archived
+status: completed
 topic: planning
 purpose: Archival record of the Fable-vs-GPT-5.6 disagreements from the initial public-launch plan review round, with Fable's feedback and recommendation per item
 related-harness: docs/operational/planning/public-launch-readiness-2026-07-16-status.md
