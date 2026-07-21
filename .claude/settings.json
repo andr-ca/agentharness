@@ -19,6 +19,15 @@
             "command": "bash .github/hooks/claude-push-lock-guard.sh"
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .github/hooks/claude-outside-repo-write-guard.sh"
+          }
+        ]
       }
     ],
     "Stop": [
