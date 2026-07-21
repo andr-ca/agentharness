@@ -55,7 +55,14 @@ case "$resolved" in
     "$tmp_root"/*|"$tmp_root") exit 0 ;;
 esac
 
+# Walk up to the nearest existing ancestor: `git -C` needs a directory
+# it can chdir into, but a Write/Edit target's parent dirs may not
+# exist yet (e.g. creating repo/newdir/file.txt for the first time).
 target_dir="$(dirname "$resolved")"
+while [ ! -d "$target_dir" ] && [ "$target_dir" != "/" ]; do
+    target_dir="$(dirname "$target_dir")"
+done
+
 if git -C "$target_dir" rev-parse --show-toplevel >/dev/null 2>&1; then
     exit 0
 fi

@@ -39,11 +39,17 @@ _run_guard() {
 
 @test "guard: blocks Write outside any repo and outside temp" {
     # The hook only inspects the payload's path; it never touches the
-    # filesystem itself, so it's safe to point at a real (but
-    # never-created) path under HOME without side effects.
-    run _run_guard "{\"tool_name\":\"Write\",\"tool_input\":{\"file_path\":\"$HOME/.claude-outside-repo-write-guard-test/.bashrc\"}}"
+    # filesystem, so a fixed absolute path is safe with no side effects
+    # and no dependence on $HOME (which could itself be under temp or
+    # inside a repo in some environments).
+    run _run_guard '{"tool_name":"Write","tool_input":{"file_path":"/guard-test-outside-repo-and-temp/.bashrc"}}'
     [ "$status" -eq 2 ]
     [[ "$output" == *"resolves outside any git repository"* ]]
+}
+
+@test "guard: allows Write inside a repo under a not-yet-created subdirectory" {
+    run _run_guard "{\"tool_name\":\"Write\",\"tool_input\":{\"file_path\":\"$TEST_ROOT/newdir/nested/file.txt\"}}"
+    [ "$status" -eq 0 ]
 }
 
 @test "guard: no-ops for tools other than Write/Edit" {
