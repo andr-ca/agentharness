@@ -226,6 +226,16 @@ multi-step task should be `export`-ed inline for the current shell
 only, never persisted to a dotfile, unless the user has explicitly
 asked for a durable environment change.
 
+For Claude Code sessions, a `PreToolUse` hook
+(`.github/hooks/claude-outside-repo-write-guard.sh`, wired in
+`.claude/settings.json`) enforces the mechanical half of this
+automatically: it blocks `Write`/`Edit` calls whose target path
+resolves outside every git repository and outside the system temp
+directory. It only covers structured file writes — a `Bash` command
+redirecting output (`>>`) is not something this hook can reliably
+generalize-block without a high false-positive rate against legitimate
+commands, so that half stays a documented rule, not a technical gate.
+
 ### 🔍 Agent Recommendation Assessment
 
 **When an agent is asked to address/review/look into recommendations:**
