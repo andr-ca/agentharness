@@ -302,6 +302,23 @@ else:
 PYEOF
 }
 
+# resolved_source_path TARGET MODE RECORDED_PATH
+# For submodule/npm modes, the source lives at a fixed subdirectory of
+# TARGET (SUBMODULE_PATH/NPM_DURABLE_PATH) -- recompute it fresh instead
+# of trusting RECORDED_PATH, which was an absolute path baked in at
+# install time and goes stale the moment the whole project (submodule
+# and all) is moved or cloned elsewhere (issue #124). link/copy modes
+# have no such fixed relationship to TARGET, so RECORDED_PATH is the
+# only source of truth there and is returned unchanged.
+resolved_source_path() {
+    local target="$1" mode="$2" recorded_path="$3"
+    case "$mode" in
+        submodule) echo "$target/$SUBMODULE_PATH" ;;
+        npm) echo "$target/$NPM_DURABLE_PATH" ;;
+        *) echo "$recorded_path" ;;
+    esac
+}
+
 require_state() {
     local target="$1"
     if [ ! -f "$(state_path "$target")" ]; then
@@ -1203,8 +1220,9 @@ cmd_status() {
     echo "  installed_at:  $(state_field "$target" installed_at)"
     echo "  updated_at:    $(state_field "$target" updated_at)"
 
-    local source_path source_rev current_rev
-    source_path="$(state_field "$target" source.path)"
+    local mode source_path source_rev current_rev
+    mode="$(state_field "$target" mode)"
+    source_path="$(resolved_source_path "$target" "$mode" "$(state_field "$target" source.path)")"
     source_rev="$(state_field "$target" source.revision)"
     if [ -d "$source_path" ]; then
         current_rev="$(git -C "$source_path" rev-parse HEAD 2>/dev/null || echo unknown)"
@@ -1433,8 +1451,9 @@ cmd_audit() {
     [ -d "$target" ] && target="$(cd "$target" && pwd)"
     require_state "$target"
 
-    local source_path
-    source_path="$(state_field "$target" source.path)"
+    local mode source_path
+    mode="$(state_field "$target" mode)"
+    source_path="$(resolved_source_path "$target" "$mode" "$(state_field "$target" source.path)")"
     if [ ! -d "$source_path" ]; then
         echo "Error: recorded source path no longer exists: $source_path" >&2
         exit 1
@@ -2004,7 +2023,7 @@ cmd_update() {
 
     local mode source_path skills_filter with_hook profile hooks_path coverage_hook
     mode="$(state_field "$target" mode)"
-    source_path="$(state_field "$target" source.path)"
+    source_path="$(resolved_source_path "$target" "$mode" "$(state_field "$target" source.path)")"
     skills_filter="$(state_field "$target" skills_filter 2>/dev/null || echo "")"
     [ "$skills_filter" = "None" ] && skills_filter=""
     with_hook="$(state_field "$target" with_hook)"
