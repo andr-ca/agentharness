@@ -597,28 +597,42 @@ agentharness authority --json --target-dir /path/to/repo
 agentharness authority check --operation push [--target branch-name] /path/to/repo
 ```
 
-**Optional hard-block enforcement:** By default, the contract is advisory —
-the harness's own pre-push hook does not enforce it. If you want to block
-pushes that violate the contract, add this snippet to your project's
-`.github/hooks/pre-push` (or create it if missing):
+**Optional hard-block enforcement:** the contract is advisory unless a
+pre-push hook enforces it. agentharness dogfoods this in its own
+`.github/hooks/pre-push`: a scoped-authority gate that engages **only when
+`.agentharness-authority.json` is present**, refuses a push whose branch
+the contract doesn't grant `push` for, and **fails open** if the CLI can't
+run (missing tooling never blocks a push — only a definite "not granted"
+decision does). Repos with no contract keep normal push behavior, and the
+bare `.agentharness-publish-mode` flag alone never triggers the gate.
+
+To enforce in your own project, add a per-branch check to your
+`.github/hooks/pre-push` (git streams the pushed refs on stdin):
 
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Optional: hard-block enforcement of scoped authority
-if command -v agentharness &>/dev/null; then
-  harness_root="$(git rev-parse --show-toplevel)"
-  if ! agentharness authority check --operation push "$harness_root"; then
-    echo "Push denied by authority contract (see .agentharness-authority.json)"
-    exit 1
-  fi
+repo_root="$(git rev-parse --show-toplevel)"
+# Engage only when a scoped contract is present; fail open otherwise.
+if [ -f "$repo_root/.agentharness-authority.json" ] && command -v agentharness &>/dev/null; then
+  while read -r _ _ remote_ref _; do
+    [ -n "$remote_ref" ] || continue
+    branch="${remote_ref#refs/heads/}"
+    [ "$branch" != "$remote_ref" ] || continue  # skip non-branch refs (tags, notes)
+    if ! agentharness authority check --operation push --target "$branch" "$repo_root"; then
+      echo "Push denied: authority contract does not grant push on '$branch'."
+      exit 1
+    fi
+  done
 fi
 ```
 
 Make sure the script is executable (`chmod +x .github/hooks/pre-push`) and
 that `core.hooksPath` is configured to point to `.github/hooks/` (or
-wherever you placed it).
+wherever you placed it). See agentharness's own `.github/hooks/pre-push`
+for the reference implementation (it also captures stdin once so the gate
+coexists with the multi-agent branch-lock gate).
 
 ### Publish Authority (Binary Flag)
 

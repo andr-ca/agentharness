@@ -101,6 +101,11 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 NC='\033[0m'
 
+# Capture the pushed ref list once. Git streams the ref updates on stdin and
+# they are consumed on first read, so both the branch-lock gate and the
+# scoped-authority gate below iterate this captured copy rather than stdin.
+PUSH_REF_LINES="$(cat)"
+
 # ----------------------------------------------------------------------------
 # Branch-lock gate (multi-agent mutex)
 # ----------------------------------------------------------------------------
@@ -124,8 +129,42 @@ if [ "${AGENTHARNESS_LOCK_BYPASS:-0}" != "1" ] && [ -x "$REPO_ROOT/tools/agent-l
             echo "  Coordinate or wait; AGENTHARNESS_LOCK_BYPASS=1 overrides in an emergency."
             exit 1
         fi
-    done
+    done <<< "$PUSH_REF_LINES"
     unset _local_ref _local_sha _remote_ref _remote_sha _lock_branch
+fi
+
+# ----------------------------------------------------------------------------
+# Scoped authority gate (opt-in hard block — evolution of the publish flag)
+# ----------------------------------------------------------------------------
+# Engages ONLY when a scoped authority contract (.agentharness-authority.json)
+# is present in the repo being pushed. When it is, a push is refused unless the
+# contract grants the `push` operation for that branch. The bare
+# .agentharness-publish-mode flag alone (no contract) does NOT trigger this
+# gate — it already grants every operation — and repos with no contract keep
+# normal push behavior. The check runs from this checkout's own source (no
+# install required) and fails OPEN if the CLI cannot run at all, so missing
+# tooling never blocks a push; only a definite "not granted" decision does.
+# See docs/INTEGRATION.md's "Scoped Authority" section.
+if [ -f "$REPO_ROOT/.agentharness-authority.json" ] &&
+    command -v python3 >/dev/null 2>&1 &&
+    PYTHONPATH="$REPO_ROOT/src" python3 -m agentharness authority --json \
+        --target-dir "$REPO_ROOT" >/dev/null 2>&1; then
+    while read -r _auth_local_ref _auth_local_sha _remote_ref _auth_remote_sha; do
+        [ -n "$_remote_ref" ] || continue
+        _auth_branch="${_remote_ref#refs/heads/}"
+        # Skip non-branch refs (tags, notes) — authority targets branches.
+        [ "$_auth_branch" != "$_remote_ref" ] || continue
+        if ! _auth_reason="$(PYTHONPATH="$REPO_ROOT/src" python3 -m agentharness \
+                authority check --operation push --target "$_auth_branch" \
+                "$REPO_ROOT" 2>&1)"; then
+            echo -e "${RED}✗ Push blocked: authority contract does not grant 'push' on '$_auth_branch'.${NC}"
+            echo "  ${_auth_reason}"
+            echo "  Grant it in .agentharness-authority.json, or remove that file to disable this gate."
+            exit 1
+        fi
+    done <<< "$PUSH_REF_LINES"
+    unset _auth_local_ref _auth_local_sha _remote_ref _auth_remote_sha \
+        _auth_branch _auth_reason
 fi
 
 COVERAGE_MIN=80

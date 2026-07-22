@@ -204,3 +204,88 @@ JSON
     [[ "$output" =~ "Push blocked" ]]
     [[ "$output" != *"pytest:"* ]]
 }
+
+@test "pre-push: blocks a push whose branch a scoped authority contract does not grant" {
+    # The scoped-authority gate fires before any test suite runs, so this is
+    # fast. A contract present at the repo root opts the gate in; a push to a
+    # branch it does not grant must exit 1 with the block message. python3 is
+    # stubbed so this exercises the hook's wiring, not the (separately
+    # unit-tested) decision logic: the `--json` guard succeeds and any
+    # `authority check` invocation reports "not granted" and exits non-zero.
+    primary_repo="$(mktemp -d)"
+    stub_dir="$(mktemp -d)"
+    git -C "$primary_repo" init --quiet
+    git -C "$primary_repo" config user.email "test@example.com"
+    git -C "$primary_repo" config user.name "Test"
+    git -C "$primary_repo" commit --quiet --allow-empty -m "initial"
+    mkdir -p "$primary_repo/.github/hooks"
+    cp "$HOOK" "$primary_repo/.github/hooks/pre-push"
+    # Opt into the gate: the contract file must be present for it to engage.
+    printf '%s\n' '{"schema_version":1,"grants":[{"operations":["push"],"target":"fix/*"}],"revoked":[]}' \
+        > "$primary_repo/.agentharness-authority.json"
+
+    cat > "$stub_dir/python3" <<'STUB'
+#!/bin/bash
+for arg in "$@"; do
+    if [ "$arg" = "check" ]; then
+        echo "error: Operation 'push' is not authorized: not granted" >&2
+        exit 1
+    fi
+done
+exit 0
+STUB
+    chmod +x "$stub_dir/python3"
+
+    primary_git_dir="$(git -C "$primary_repo" rev-parse --absolute-git-dir)"
+    run env GIT_DIR="$primary_git_dir" GIT_WORK_TREE="$primary_repo" \
+        PATH="$stub_dir:$PATH" \
+        bash -c "cd '$primary_repo' && printf '%s\n' 'refs/heads/main 111 refs/heads/main 222' | bash '$primary_repo/.github/hooks/pre-push'"
+
+    rm -rf "$primary_repo" "$stub_dir"
+    [ "$status" -eq 1 ]
+    [[ "$output" =~ "does not grant 'push' on 'main'" ]]
+    [[ "$output" != *"pytest:"* ]]
+}
+
+@test "pre-push: scoped-authority gate stays dormant when no contract is present" {
+    # Without .agentharness-authority.json the gate must not engage at all —
+    # a repo with only the publish-mode flag (or nothing) keeps normal push
+    # behavior. Stub the downstream suites so the hook reaches its clean exit
+    # without the authority gate ever blocking.
+    primary_repo="$(mktemp -d)"
+    stub_dir="$(mktemp -d)"
+    git -C "$primary_repo" init --quiet
+    git -C "$primary_repo" config user.email "test@example.com"
+    git -C "$primary_repo" config user.name "Test"
+    git -C "$primary_repo" commit --quiet --allow-empty -m "initial"
+    mkdir -p "$primary_repo/.github/hooks" "$primary_repo/patterns/logging"
+    cp "$HOOK" "$primary_repo/.github/hooks/pre-push"
+    touch "$primary_repo/patterns/logging/test_config_loader.py"
+    # No .agentharness-authority.json — the gate must be dormant.
+
+    printf '#!/bin/bash\nexit 0\n' > "$stub_dir/bats"
+    # A python3 that would DENY if the gate ran — proving dormancy: if the
+    # gate engaged, this push would be blocked; it must not be.
+    cat > "$stub_dir/python3" <<'STUB'
+#!/bin/bash
+for arg in "$@"; do
+    if [ "$arg" = "check" ]; then exit 1; fi
+done
+exit 0
+STUB
+    chmod +x "$stub_dir/bats" "$stub_dir/python3"
+
+    primary_git_dir="$(git -C "$primary_repo" rev-parse --absolute-git-dir)"
+    run env GIT_DIR="$primary_git_dir" GIT_WORK_TREE="$primary_repo" \
+        PATH="$stub_dir:$PATH" \
+        bash -c "cd '$primary_repo' && printf '%s\n' 'refs/heads/main 111 refs/heads/main 222' | bash '$primary_repo/.github/hooks/pre-push'"
+
+    rm -rf "$primary_repo" "$stub_dir"
+    # The dormant gate must not block...
+    [[ "$output" != *"does not grant"* ]]
+    # ...and the hook must actually progress past the (skipped) gate into the
+    # checks section — proving it reached a clean run rather than passing this
+    # test by exiting early for some unrelated reason.
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Running pre-push checks" ]]
+}
