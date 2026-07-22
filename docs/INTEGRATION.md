@@ -619,6 +619,7 @@ if [ -f "$repo_root/.agentharness-authority.json" ] && command -v agentharness &
   while read -r _ _ remote_ref _; do
     [ -n "$remote_ref" ] || continue
     branch="${remote_ref#refs/heads/}"
+    [ "$branch" != "$remote_ref" ] || continue  # skip non-branch refs (tags, notes)
     if ! agentharness authority check --operation push --target "$branch" "$repo_root"; then
       echo "Push denied: authority contract does not grant push on '$branch'."
       exit 1

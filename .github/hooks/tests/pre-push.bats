@@ -281,5 +281,11 @@ STUB
         bash -c "cd '$primary_repo' && printf '%s\n' 'refs/heads/main 111 refs/heads/main 222' | bash '$primary_repo/.github/hooks/pre-push'"
 
     rm -rf "$primary_repo" "$stub_dir"
+    # The dormant gate must not block...
     [[ "$output" != *"does not grant"* ]]
+    # ...and the hook must actually progress past the (skipped) gate into the
+    # checks section — proving it reached a clean run rather than passing this
+    # test by exiting early for some unrelated reason.
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Running pre-push checks" ]]
 }
