@@ -185,3 +185,34 @@ environment change.
 system's file-change notification and removed it in the same turn
 before it could affect a future session. Logged upstream as
 [#122](https://github.com/andr-ca/agentharness/issues/122).
+
+## 2026-07-22 – Hypothesis deadlines make the clean completion gate flaky under coverage
+
+**What happened:** A clean worktree at `origin/main` (`fd0079e`) failed
+`bash tools/check-completion.sh` before and after a documentation-only
+change. The pytest-coverage gate showed five failures. A direct fail-fast
+rerun exposed `hypothesis.errors.DeadlineExceeded`: a semantic profile
+property test took 205.35 ms against Hypothesis's default 200 ms deadline.
+The same test passed when run alone.
+
+**Root cause:** The five profile property tests inherited Hypothesis's
+environment-sensitive default per-example deadline even though they assert
+semantic invariants, not performance budgets. Full-suite coverage
+instrumentation and ordinary host load can push an example just over the
+deadline.
+
+**Impact:** The mandatory completion gate can fail on an unchanged clean
+checkout, block unrelated documentation work, and encourage retry-until-green
+behavior instead of deterministic verification. The gate's 20-line diagnostic
+rerun also initially hid the root-cause line.
+
+**What agentharness should change:** Disable Hypothesis deadlines explicitly
+for these semantic property tests while preserving their generated examples
+and assertions. Keep performance expectations in dedicated benchmarks or
+explicit time-budget tests. Consider improving failure-output selection as a
+separate change.
+
+**Corrective action taken:** Added explicit `settings(deadline=None)` to all
+five profile property tests and retained the existing assertions and example
+counts. Logged upstream as
+[#144](https://github.com/andr-ca/agentharness/issues/144).
