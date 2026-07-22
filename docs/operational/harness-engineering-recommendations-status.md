@@ -20,6 +20,9 @@ expanding product boundaries is justified.
 **Implementation status:** Recommendations filed only; no feature
 implementation was authorized or performed.
 
+**Lifecycle:** Retain while issues #137–#143 are open. Archive after they are
+closed or their accepted scope is incorporated into `ROADMAP.md`.
+
 ## Outcome
 
 Seven consolidated feature recommendations were filed. The strongest source
