@@ -23,6 +23,12 @@ Items currently under development:
 
 Documents ready to be promoted to harness or archived:
 
+- `harness-engineering-recommendations-status.md` — completed product-fit
+  assessment of `lopopolo/harness-engineering`; seven feature recommendations
+  filed as issues #137–#143 with current MVPs, future stages, and boundary
+  decisions. Retain while those issues are open, then archive after they are
+  closed or incorporated into `ROADMAP.md`.
+
 See [`reviews/README.md`](reviews/README.md) for the full cycle-by-cycle
 index of all review documents. Summary below for quick navigation:
 

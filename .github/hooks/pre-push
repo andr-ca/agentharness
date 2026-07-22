@@ -35,7 +35,19 @@
 set -euo pipefail
 
 HOOKS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$HOOKS_DIR/../.." && pwd)"
+HOOK_REPO_ROOT="$(cd "$HOOKS_DIR/../.." && pwd)"
+
+git_common_dir() {
+    local repo_root="$1"
+    local common_dir
+    [ -n "$repo_root" ] || return 0
+    common_dir="$(git -C "$repo_root" rev-parse --git-common-dir 2>/dev/null || true)"
+    [ -n "$common_dir" ] || return 0
+    if [[ "$common_dir" != /* ]]; then
+        common_dir="$repo_root/$common_dir"
+    fi
+    (cd "$common_dir" 2>/dev/null && pwd -P) || true
+}
 
 # Is the repo actually being pushed (current working directory) this repo,
 # or some consumer project that merely points core.hooksPath here?
@@ -55,26 +67,36 @@ if [ -z "$PUSHED_REPO_ROOT" ]; then
         fi
     fi
 fi
-if [ "$PUSHED_REPO_ROOT" != "$REPO_ROOT" ]; then
+
+# Identify the repository being pushed while Git's hook environment is still
+# available. Then strip repository-local variables before inspecting the
+# checkout that owns this hook: GIT_DIR / GIT_WORK_TREE override even `git -C`
+# and would otherwise make a consumer repository appear to own this hook.
+PUSHED_COMMON_DIR="$(git_common_dir "$PUSHED_REPO_ROOT")"
+while IFS= read -r _gitvar; do
+    unset "$_gitvar" 2>/dev/null || true
+done < <(git rev-parse --local-env-vars 2>/dev/null || true)
+unset _gitvar
+
+# A linked worktree has a different top-level path from the primary checkout
+# that owns this hook, but both point at the same common Git directory. Compare
+# repository identity rather than only working-tree paths so worktree pushes
+# retain the test and lock gates while unrelated consumers still no-op.
+HOOK_COMMON_DIR="$(git_common_dir "$HOOK_REPO_ROOT")"
+if [ "$PUSHED_REPO_ROOT" != "$HOOK_REPO_ROOT" ] && {
+    [ -z "$HOOK_COMMON_DIR" ] ||
+        [ -z "$PUSHED_COMMON_DIR" ] ||
+        [ "$PUSHED_COMMON_DIR" != "$HOOK_COMMON_DIR" ]
+}; then
     echo "pre-push: this push is not to agentharness itself (core.hooksPath"
     echo "is just borrowed from it) — skipping agentharness's own test suite."
     exit 0
 fi
 
+# Run checks against the branch being pushed. For the primary checkout this is
+# the hook repository root; for a linked worktree it is that worktree's root.
+REPO_ROOT="$PUSHED_REPO_ROOT"
 cd "$REPO_ROOT"
-
-# Strip repository-local Git environment variables so that tools invoked
-# by this hook (bats, python3, pytest) behave as if launched from a plain
-# shell rather than from inside an ongoing git operation. Without this, a
-# caller that sets GIT_DIR / GIT_WORK_TREE / etc. (e.g. git itself when
-# running hooks) would cause those vars to leak into subprocesses and
-# confuse any git operations they start (wrong repo, wrong index, etc.).
-# Use git rev-parse --local-env-vars for the authoritative list rather than
-# a hard-coded set that would drift as Git adds new repo-local variables.
-while IFS= read -r _gitvar; do
-    unset "$_gitvar" 2>/dev/null || true
-done < <(git rev-parse --local-env-vars 2>/dev/null || true)
-unset _gitvar
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 NC='\033[0m'

@@ -40,13 +40,57 @@ setup() {
     # for the original reproduction of this as a live bug.
     consumer_repo="$(mktemp -d)"
     git -C "$consumer_repo" init --quiet
+    consumer_git_dir="$(git -C "$consumer_repo" rev-parse --absolute-git-dir)"
 
-    run bash -c "cd '$consumer_repo' && bash '$HOOK'"
+    run env GIT_DIR="$consumer_git_dir" GIT_WORK_TREE="$consumer_repo" \
+        bash -c "cd '$consumer_repo' && bash '$HOOK'"
     [ "$status" -eq 0 ]
     [[ "$output" =~ "not to agentharness itself" ]]
     [[ "$output" != *"pytest:"* ]]
 
     rm -rf "$consumer_repo"
+}
+
+@test "pre-push: treats a linked worktree as the agentharness repository" {
+    primary_repo="$(mktemp -d)"
+    linked_worktree="$(mktemp -d)"
+    stub_dir="$(mktemp -d)"
+    rmdir "$linked_worktree"
+
+    git -C "$primary_repo" init --quiet
+    git -C "$primary_repo" config user.email "test@example.com"
+    git -C "$primary_repo" config user.name "Test"
+    git -C "$primary_repo" commit --quiet --allow-empty -m "initial"
+    mkdir -p "$primary_repo/.github/hooks"
+    cp "$HOOK" "$primary_repo/.github/hooks/pre-push"
+    git -C "$primary_repo" worktree add --quiet -b feature/worktree "$linked_worktree"
+    linked_git_dir="$(git -C "$linked_worktree" rev-parse --absolute-git-dir)"
+    mkdir -p "$linked_worktree/patterns/logging"
+    touch "$linked_worktree/patterns/logging/test_config_loader.py"
+
+    cat > "$stub_dir/bats" <<'STUB'
+#!/bin/bash
+exit 0
+STUB
+    cat > "$stub_dir/python3" <<'STUB'
+#!/bin/bash
+if [ "$PWD" = "$EXPECTED_WORKTREE/patterns/logging" ]; then
+    echo "checked-pushed-worktree"
+fi
+exit 0
+STUB
+    chmod +x "$stub_dir/bats" "$stub_dir/python3"
+
+    run env GIT_DIR="$linked_git_dir" GIT_WORK_TREE="$linked_worktree" \
+        EXPECTED_WORKTREE="$linked_worktree" PATH="$stub_dir:$PATH" \
+        bash -c "cd '$linked_worktree' && bash '$primary_repo/.github/hooks/pre-push'"
+
+    git -C "$primary_repo" worktree remove --force "$linked_worktree"
+    rm -rf "$primary_repo" "$stub_dir"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "All pre-push checks passed" ]]
+    [[ "$output" =~ "checked-pushed-worktree" ]]
+    [[ "$output" != *"not to agentharness itself"* ]]
 }
 
 @test "pre-push: strips repository-local Git environment before fixture suites" {

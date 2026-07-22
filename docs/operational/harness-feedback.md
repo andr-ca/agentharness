@@ -185,3 +185,97 @@ environment change.
 system's file-change notification and removed it in the same turn
 before it could affect a future session. Logged upstream as
 [#122](https://github.com/andr-ca/agentharness/issues/122).
+
+## 2026-07-22 – Hypothesis deadlines make the clean completion gate flaky under coverage
+
+**What happened:** A clean worktree at `origin/main` (`fd0079e`) failed
+`bash tools/check-completion.sh` before and after a documentation-only
+change. The pytest-coverage gate showed five failures. A direct fail-fast
+rerun exposed `hypothesis.errors.DeadlineExceeded`: a semantic profile
+property test took 205.35 ms against Hypothesis's default 200 ms deadline.
+The same test passed when run alone.
+
+**Root cause:** The five profile property tests inherited Hypothesis's
+environment-sensitive default per-example deadline even though they assert
+semantic invariants, not performance budgets. Full-suite coverage
+instrumentation and ordinary host load can push an example just over the
+deadline.
+
+**Impact:** The mandatory completion gate can fail on an unchanged clean
+checkout, block unrelated documentation work, and encourage retry-until-green
+behavior instead of deterministic verification. The gate's 20-line diagnostic
+rerun also initially hid the root-cause line.
+
+**What agentharness should change:** Disable Hypothesis deadlines explicitly
+for these semantic property tests while preserving their generated examples
+and assertions. Keep performance expectations in dedicated benchmarks or
+explicit time-budget tests. Consider improving failure-output selection as a
+separate change.
+
+**Corrective action taken:** Added explicit `settings(deadline=None)` to all
+five profile property tests and retained the existing assertions and example
+counts. Logged upstream as
+[#144](https://github.com/andr-ca/agentharness/issues/144).
+
+## 2026-07-22 – Pre-push misclassifies agentharness worktrees as consumers
+
+**What happened:** Pushing the verified
+`docs/harness-engineering-roadmap-recommendations` branch from its linked
+worktree caused the shared pre-push hook to report that the push was not to
+agentharness and skip the repository's test suite. The pushed worktree and the
+primary checkout are two worktrees of the same repository.
+
+**Root cause:** The hook compared the hook-owning primary checkout's top-level
+path with `git rev-parse --show-toplevel` from the pushed worktree. Linked
+worktrees necessarily have different top-level paths even though they share
+the same Git common directory. The hook also retained the primary checkout as
+its execution root, which would test the wrong branch if only the path guard
+were relaxed.
+
+**Impact:** Agentharness pushes made through the repository's recommended
+worktree workflow silently skipped both test/coverage enforcement and the
+branch-lock gate. The output incorrectly described the worktree as an external
+consumer. This push remained safe because the complete gate had already been
+run manually.
+
+**What agentharness should change:** Compare canonical Git common-directory
+identity so linked worktrees are recognized as the same repository, retain the
+no-op for unrelated consumers, and run checks from the pushed worktree rather
+than the hook-owning checkout.
+
+**Corrective action taken:** Updated the hook to compare common Git directories
+and select the pushed worktree as its execution root. Added a Bats regression
+using a real linked worktree while retaining the consumer no-op case. Logged
+upstream as [#145](https://github.com/andr-ca/agentharness/issues/145).
+
+## 2026-07-22 – Agent lock expires between stateless CLI tool calls
+
+**What happened:** The feature lock acquired for
+`harness-engineering-roadmap-recommendations` was gone when the session tried
+to release it. `agent-lock.sh release` returned `NOT FOUND`, and
+`agent-lock.sh list` reported no active locks even though the logical agent
+session had remained active throughout the work.
+
+**Root cause:** `agent-lock.sh acquire` records the acquisition shell's parent
+PID by default. A client that runs each tool call in a separate process does
+not have one long-lived shell parent, so that PID can exit while the logical
+session continues. The cleanup paths treat PID death as authoritative;
+`check-branch` removes a stale-PID lock before considering a matching exported
+`AGENTHARNESS_AGENT_ID`.
+
+**Impact:** Another agent can see the feature and branch as unlocked and begin
+overlapping work while the original session is active. The documented session
+identity does not preserve ownership for stateless command runners.
+
+**What agentharness should change:** Define lock liveness for both long-lived
+shells and stateless clients, likely through a renewable lease/heartbeat, an
+explicit stable owner process, or session-token expiry semantics. Apply one
+consistent rule to `check`, `check-branch`, `list`, and `clean`, with tests for
+an exited acquisition process, the continuing owner, foreign sessions, and
+abandoned-lock recovery.
+
+**Corrective action taken:** Filed the design/correctness gap upstream as
+[#148](https://github.com/andr-ca/agentharness/issues/148). Reacquired the lock
+with an explicit stable PID for the short remainder of this session; no
+concurrent work was observed. A production fix was deferred because changing
+stale-owner semantics requires an explicit lease and recovery contract.
