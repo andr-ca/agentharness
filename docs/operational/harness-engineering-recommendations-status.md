@@ -162,6 +162,8 @@ clear about when human intervention is required.
 ## Publication record
 
 The issues were created through the authenticated GitHub CLI with the
-`enhancement` label. No pull request implements them; each remains a roadmap
-recommendation requiring its own scoping decision under the repository's
-recommendation-assessment policy.
+`enhancement` label. [PR #147](https://github.com/andr-ca/agentharness/pull/147)
+publishes this assessment record and the harness-friction fixes found while
+producing it. No pull request implements the seven recommendations; each
+remains a roadmap recommendation requiring its own scoping decision under the
+repository's recommendation-assessment policy.
