@@ -1751,23 +1751,26 @@ PYEOF
     echo "Selected profile: $selected_profile"
     echo "Publish-authority flag active: $publish_mode_active"
 
-    # Try to show authority summary (graceful degradation if unavailable)
+    # Try to show authority summary (graceful degradation if unavailable).
+    # The target path is passed via argv, never interpolated into the code
+    # string, so a path with quotes/spaces/backslashes can't break or inject.
     if command -v python3 >/dev/null 2>&1; then
-        authority_summary=$(python3 -c "
+        authority_summary=$(python3 -c '
 import subprocess, json, sys
 try:
     result = subprocess.run(
-        ['python3', '-m', 'agentharness', 'authority', '--json', '--target-dir', '$target'],
+        ["python3", "-m", "agentharness", "authority", "--json",
+         "--target-dir", sys.argv[1]],
         capture_output=True,
         text=True,
         timeout=5,
     )
     if result.returncode == 0:
         auth = json.loads(result.stdout)
-        print('Authority source: ' + auth['details']['source'])
-except:
+        print("Authority source: " + auth["details"]["source"])
+except (subprocess.SubprocessError, json.JSONDecodeError, OSError, KeyError):
     pass
-" 2>/dev/null || true)
+' "$target" 2>/dev/null || true)
         [ -n "$authority_summary" ] && echo "$authority_summary"
     fi
 

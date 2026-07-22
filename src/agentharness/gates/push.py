@@ -39,9 +39,10 @@ def check_authority(
     """
     try:
         contract = load_effective_authority(repo_root)
-    except ValueError:
-        # If authority contract is malformed, deny push
-        return False, "Failed to load authority contract"
+    except ValueError as error:
+        # If the authority contract is malformed, deny the push and surface
+        # the underlying error so an operator can fix the contract quickly.
+        return False, f"Failed to load authority contract: {error}"
 
     # Check each ref being pushed
     for local_ref, _, _ in context.ref_updates:

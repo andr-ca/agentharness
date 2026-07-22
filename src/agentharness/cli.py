@@ -118,7 +118,10 @@ def create_parser() -> argparse.ArgumentParser:
     auth_check.add_argument(
         "--target", default=None, help="Optional target (e.g., branch pattern)"
     )
-    auth_check.add_argument("target_dir", nargs="?", default=".", type=Path)
+    # Positional repo root for `check`. Named distinctly from the parent
+    # parser's --target-dir (same dest would make the CLI ambiguous); the
+    # dispatcher prefers this when supplied, else falls back to --target-dir.
+    auth_check.add_argument("repo_root", nargs="?", default=None, type=Path)
 
     return parser
 
@@ -814,8 +817,15 @@ def _dispatch_profile(arguments: argparse.Namespace) -> CommandResult:
 def _dispatch_authority(arguments: argparse.Namespace) -> CommandResult:
     """Route authority sub-commands."""
     if arguments.authority_command == "check":
+        # Prefer the check-local positional repo root; fall back to the
+        # parent parser's --target-dir.
+        target_dir = (
+            arguments.repo_root
+            if arguments.repo_root is not None
+            else arguments.target_dir
+        )
         return execute_authority_check(
-            arguments.operation, arguments.target, arguments.target_dir
+            arguments.operation, arguments.target, target_dir
         )
     # Default: show authority info
     target_dir = arguments.target_dir

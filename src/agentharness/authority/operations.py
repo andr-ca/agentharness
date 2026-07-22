@@ -24,7 +24,9 @@ def decide(
 
     Returns:
         Decision with allowed=True if granted, False otherwise.
-        On refusal, reason explains why (not_granted, expired, revoked).
+        On refusal, ``reason`` is a human-readable string: ``"not granted"``,
+        ``"revoked"``, ``"grant expired at <timestamp>"``, or
+        ``"grant has invalid expiry format: <value>"``.
     """
     if now is None:
         now = datetime.now(UTC)
