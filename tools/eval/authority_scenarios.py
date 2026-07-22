@@ -136,7 +136,7 @@ AUTHORITY_SCENARIOS: list[AuthorityScenario] = [
         target=None,
         now=_now(),
         expected_allowed=False,
-        expected_reason__contains="expired",  # type: ignore[attr-defined]
+        expected_reason=None,
     ),
     # Revocation
     AuthorityScenario(

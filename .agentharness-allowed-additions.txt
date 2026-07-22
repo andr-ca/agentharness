@@ -31,3 +31,4 @@ tests/unit/authority/__init__.py
 tests/unit/authority/test_operations.py
 tests/unit/authority/test_loader.py
 tools/eval/authority_scenarios.py
+tools/eval/tests/test_authority_scenarios.py

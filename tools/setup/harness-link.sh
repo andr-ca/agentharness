@@ -1685,7 +1685,7 @@ import subprocess
 authority = None
 try:
     result = subprocess.run(
-        ["python3", "-m", "agentharness", "authority", "--json", target],
+        ["python3", "-m", "agentharness", "authority", "--json", "--target-dir", target],
         capture_output=True,
         text=True,
         timeout=5,
@@ -1757,7 +1757,7 @@ PYEOF
 import subprocess, json, sys
 try:
     result = subprocess.run(
-        ['python3', '-m', 'agentharness', 'authority', '--json', '$target'],
+        ['python3', '-m', 'agentharness', 'authority', '--json', '--target-dir', '$target'],
         capture_output=True,
         text=True,
         timeout=5,

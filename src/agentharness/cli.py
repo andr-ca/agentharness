@@ -601,7 +601,8 @@ def execute_authority_info(as_json: bool, target_dir: Path) -> CommandResult:
         source = "none"
 
     # Build operations list with details
-    operations_granted: list[dict[str, object]] = []
+    operations_granted: list[JsonValue] = []
+    op_lines: list[str] = []
     now = datetime.now(UTC)
 
     for grant in contract.grants:
@@ -635,20 +636,47 @@ def execute_authority_info(as_json: bool, target_dir: Path) -> CommandResult:
                     "reason": reason,
                 }
             )
+            op_lines.append(
+                f"  - {op.value}  (target={grant.target or 'any'}, "
+                f"expires={grant.expires or 'no expiry'})  [{status}]"
+            )
 
-    details = {
-        "source": source,
-        "schema_version": contract.schema_version,
-        "operations_granted": operations_granted,
-        "revoked": list(contract.revoked),
-    }
+    # Human-readable session preflight (render_human shows summary + Next line).
+    if source == "none":
+        summary = (
+            "Authority source: none — no operations granted "
+            "(verify-and-stage default)."
+        )
+    else:
+        if source == "flag":
+            header = (
+                "Authority source: flag (.agentharness-publish-mode) — full "
+                "grant of all operations."
+            )
+        else:
+            header = "Authority source: contract (.agentharness-authority.json)."
+        revoked = list(contract.revoked)
+        revoked_line = f"\nRevoked: {', '.join(revoked)}" if revoked else ""
+        summary = (
+            f"{header}\nGranted operations:\n" + "\n".join(op_lines) + revoked_line
+        )
+    remediation = (
+        "Enforcement is advisory unless a hook invokes "
+        "`agentharness authority check <op>` (see docs/INTEGRATION.md); "
+        "this client does not auto-enforce."
+    )
 
     return CommandResult(
         code=ResultCode.STATUS_AVAILABLE,
         outcome=Outcome.SUCCESS,
-        summary=f"Authority source: {source}",
-        remediation="",
-        details=details,
+        summary=summary,
+        remediation=remediation,
+        details={
+            "source": source,
+            "schema_version": contract.schema_version,
+            "operations_granted": operations_granted,
+            "revoked": list(contract.revoked),
+        },
     )
 
 
