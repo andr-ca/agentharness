@@ -168,7 +168,7 @@ never surface.
 
 **Ecosystem notes:**
 
-- **Python:** `pip-audit --strict` reports CVEs; separate check: examine `setup.py` for install-time scripts. Use `--no-binary` to force source builds and expose permissions (e.g., `PyYAML` with `--no-binary` surfaces its `setup.py` at install time).
+- **Python:** `pip-audit --strict` reports CVEs; separately, a source build runs the package's `setup.py` at install time (install-time code execution). A wheel doesn't, but a `--no-binary` pin forces a source build — e.g. `PyYAML` is pinned `--no-binary` in `requirements-runtime.lock` for reproducibility, which means its `setup.py` runs on install and is worth reviewing.
 - **Node/TS:** `npm audit` covers CVEs; separately verify GitHub Actions pinned by commit SHA (never tag/branch).
 - **Go:** `govulncheck ./...` reports reachable CVEs; `go.sum` provides provenance baseline.
 - **GitHub Actions:** Third-party Actions run in CI with repo/CI context access. Pin by full commit SHA; verify code before use. Treat as agent-executed tier.
