@@ -247,3 +247,35 @@ than the hook-owning checkout.
 and select the pushed worktree as its execution root. Added a Bats regression
 using a real linked worktree while retaining the consumer no-op case. Logged
 upstream as [#145](https://github.com/andr-ca/agentharness/issues/145).
+
+## 2026-07-22 – Agent lock expires between stateless CLI tool calls
+
+**What happened:** The feature lock acquired for
+`harness-engineering-roadmap-recommendations` was gone when the session tried
+to release it. `agent-lock.sh release` returned `NOT FOUND`, and
+`agent-lock.sh list` reported no active locks even though the logical agent
+session had remained active throughout the work.
+
+**Root cause:** `agent-lock.sh acquire` records the acquisition shell's parent
+PID by default. A client that runs each tool call in a separate process does
+not have one long-lived shell parent, so that PID can exit while the logical
+session continues. The cleanup paths treat PID death as authoritative;
+`check-branch` removes a stale-PID lock before considering a matching exported
+`AGENTHARNESS_AGENT_ID`.
+
+**Impact:** Another agent can see the feature and branch as unlocked and begin
+overlapping work while the original session is active. The documented session
+identity does not preserve ownership for stateless command runners.
+
+**What agentharness should change:** Define lock liveness for both long-lived
+shells and stateless clients, likely through a renewable lease/heartbeat, an
+explicit stable owner process, or session-token expiry semantics. Apply one
+consistent rule to `check`, `check-branch`, `list`, and `clean`, with tests for
+an exited acquisition process, the continuing owner, foreign sessions, and
+abandoned-lock recovery.
+
+**Corrective action taken:** Filed the design/correctness gap upstream as
+[#148](https://github.com/andr-ca/agentharness/issues/148). Reacquired the lock
+with an explicit stable PID for the short remainder of this session; no
+concurrent work was observed. A production fix was deferred because changing
+stale-owner semantics requires an explicit lease and recovery contract.
