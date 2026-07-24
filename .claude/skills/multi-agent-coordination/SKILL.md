@@ -18,7 +18,7 @@ not currently installed into consumer projects by `harness-link.sh`.**
 If this skill file is symlinked/copied into a consumer repo (the
 normal case for every install mode) and `tools/agent-lock.sh` doesn't
 exist there, every command below will fail with "No such file or
-directory". Check `[ -f tools/agent-lock.sh ]` before
+directory". Check `[ -x tools/agent-lock.sh ]` before
 relying on this skill's commands; if it's missing, this protocol
 doesn't apply to this repo yet — fall back to plain git branch
 discipline (check `git branch -a` / `git log` for other in-progress
@@ -124,7 +124,12 @@ automatically when you run `agentharness init`.
 
 ## Enforcement — locks are checked at push time
 
-This protocol is no longer purely advisory:
+**This section describes agentharness's own repo, where `tools/agent-lock.sh`
+genuinely exists.** In a consumer project, per the caveat near the top of this
+file, none of the below is real unless you've installed the tool yourself —
+check `[ -x tools/agent-lock.sh ]` before trusting any of it.
+
+Where the tool is present, this protocol is no longer purely advisory:
 
 - Acquire a lock **before your first commit on any branch** (CLAUDE.md
   mandate) and `export AGENTHARNESS_AGENT_ID=<the printed id>`.

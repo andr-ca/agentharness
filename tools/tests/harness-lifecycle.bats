@@ -646,6 +646,42 @@ print(d['hooks_path'])
     [[ "$output" =~ "both pre-commit and pre-merge-commit hooks present" ]]
 }
 
+@test "lifecycle: #154 regression — doctor soft-warns when multi-agent-coordination skill is present but tools/agent-lock.sh is not" {
+    git -C "$TEST_PROJECT" init --quiet
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills multi-agent-coordination --mode copy
+
+    # A plain consumer install never gets tools/agent-lock.sh (it's this
+    # harness's own dogfooding tool) — confirm the file is genuinely
+    # absent, not merely non-executable, as the baseline here.
+    [ ! -e "$TEST_PROJECT/tools/agent-lock.sh" ]
+
+    run bash "$SCRIPT" doctor "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "tools/agent-lock.sh is missing or not executable" ]]
+    [[ "$output" =~ "lock protocol this skill documents is inert" ]]
+}
+
+@test "lifecycle: #154 regression — doctor stays silent about agent-lock.sh when the skill isn't installed" {
+    git -C "$TEST_PROJECT" init --quiet
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing --mode copy
+
+    run bash "$SCRIPT" doctor "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"agent-lock.sh is missing or not executable"* ]]
+}
+
+@test "lifecycle: #154 regression — doctor doesn't warn when tools/agent-lock.sh has been added by hand" {
+    git -C "$TEST_PROJECT" init --quiet
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills multi-agent-coordination --mode copy
+    mkdir -p "$TEST_PROJECT/tools"
+    printf '#!/usr/bin/env bash\ntrue\n' > "$TEST_PROJECT/tools/agent-lock.sh"
+    chmod +x "$TEST_PROJECT/tools/agent-lock.sh"
+
+    run bash "$SCRIPT" doctor "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"agent-lock.sh is missing or not executable"* ]]
+}
+
 @test "doctor: reports a leftover crash journal" {
     echo "# My project" > "$TEST_PROJECT/AGENTS.md"
     bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
