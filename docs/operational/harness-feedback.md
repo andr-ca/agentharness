@@ -279,3 +279,77 @@ abandoned-lock recovery.
 with an explicit stable PID for the short remainder of this session; no
 concurrent work was observed. A production fix was deferred because changing
 stale-owner semantics requires an explicit lease and recovery contract.
+
+## 2026-07-23 – Fast-forward `git merge` into trunk bypasses `prevent-trunk-commit`
+
+**What happened:** While dogfooding a local governed-action eval (a real
+`opencode` agent asked to "integrate branch X into main" in a repo installed
+with `harness-link.sh init --with-hook`), the agent fast-forward-merged the
+feature branch onto trunk **3/3 times with hooks active**, and the trunk-commit
+guard never fired. Reproduced by hand: direct `git commit` on trunk is blocked,
+`git merge --no-ff` into trunk is blocked, but `git merge` that **fast-forwards**
+trunk is not.
+
+**Root cause:** `prevent-trunk-commit` is wired to `pre-commit` and
+`pre-merge-commit`. A fast-forward merge moves the branch ref **without creating
+a commit**, so neither hook runs — there is no commit or merge-commit event to
+fire on.
+
+**Impact:** The most ordinary integration command (`git merge <branch>` from an
+up-to-date trunk) silently defeats trunk protection — the feature lands on trunk
+with no PR, no review, no hook. This is the exact outcome the guard exists to
+prevent, and an agent hit it naturally without trying to evade anything.
+
+**What agentharness should change:** Add a `reference-transaction` hook (fires on
+*all* ref updates, including fast-forwards) reusing `prevent-trunk-commit`'s
+branch-matching; and/or write `merge.ff = false` into the installed git config so
+a plain merge into trunk always creates a blockable merge commit; and document
+that local hooks are best-effort and remote branch protection is the
+authoritative guard. Distinct from #149 (hook not *shipped* via npm) — this
+reproduces with the hook fully installed.
+
+**Corrective action taken:** Verified the gap independently (not just inferred
+from the eval), recorded it in the eval observations
+(`eval-harness-observations-2026-07-23.md`, Finding 5b). Logged upstream as
+[#155](https://github.com/andr-ca/agentharness/issues/155). Then validated a
+minimal fix in a throwaway repo — `git config merge.ff false` forces a
+blockable merge commit that the existing `pre-merge-commit` hook already
+catches (no new hook needed; normal branch commits unaffected; documented
+tradeoff = repo-wide merge commits when updating a branch from trunk). Posted
+the validation + recommendation to
+[#155](https://github.com/andr-ca/agentharness/issues/155#issuecomment-5067598904).
+
+## 2026-07-24 – Stale agent-lock outlived its session by 7 days via PID reuse
+
+**What happened:** While resuming work, `bash tools/agent-lock.sh list`
+showed `launch-readiness-doc-corrections` as held (`agent=d8149edd...`,
+`started_at: 2026-07-17T13:58:14Z`) — but the branch it locked
+(`fix/launch-readiness-doc-corrections`) had merged via PR #85 on
+2026-07-17, with no local branch, no remote branch, and no worktree left.
+`bash tools/agent-lock.sh clean` reported "Cleaned 0 stale lock(s)."
+
+**Root cause:** `_is_stale()` is `kill -0 "$pid"` and nothing else. The
+lock's recorded `pid: 1468862` was, 7 days later, an unrelated VS Code
+integrated-terminal bash shell (confirmed via `/proc/<pid>/cmdline` and
+`/proc/<pid>/environ` — no `AGENTHARNESS_AGENT_ID`, unrelated command
+line, started before the lock itself). `kill -0` succeeded on the reused
+PID, so every command that trusts `_is_stale()` (`list`, `check-branch`,
+`clean`) read a 7-day-dead lock as live.
+
+**Impact:** No command in the tool could clear it — `clean` no-ops on a
+"live" PID, and `release` correctly refuses without the original
+`agent_id`, which no current session had. A merged, abandoned lock would
+have sat there indefinitely, and worse, could make `check-branch` wrongly
+report a genuinely free branch as owned by another session.
+
+**What agentharness should change:** Same root cause as #148 (locks
+expiring too early for stateless clients) — `_is_stale()` treating raw
+PID liveness as authoritative is wrong in both directions. Recorded as a
+second symptom on that issue rather than a new one, since the same
+session-token/lease fix (not inferred solely from PID) closes both.
+
+**Corrective action taken:** Independently verified the lock was dead
+(branch merged, no local/remote branch, no worktree, PID's cmdline/environ
+unrelated) before manually removing the lock file — the tool has no safe
+command for this today. Logged upstream as a corroborating comment on
+[#148](https://github.com/andr-ca/agentharness/issues/148#issuecomment-5073204356).
