@@ -129,16 +129,16 @@ outside Claude Code — every generated file says so, and
 `docs/CLIENT_COMPATIBILITY.md` is the full per-platform matrix with
 sources and caveats.
 
-| Platform | Always-on file | Skill/rule mechanism | Status |
-|---|---|---|---|
-| Claude Code | `CLAUDE.md` | `.claude/skills/*/SKILL.md` | ✅ built + dogfooded |
-| Codex CLI | `AGENTS.md` | `.agents/skills/*/SKILL.md` | ✅ built, not live-tested |
-| OpenCode | `AGENTS.md` | `.agents/skills/*/SKILL.md` | ⚠️ passively covered |
-| Zed | `AGENTS.md` | `.agents/skills/*/SKILL.md` | ⚠️ passively covered |
-| Gemini CLI / Antigravity | `GEMINI.md` | `.agents/skills/*/SKILL.md` | ✅ built, not live-tested |
-| GitHub Copilot | `.github/copilot-instructions.md` | `.github/instructions/*.instructions.md` (`applyTo` glob) + `.agents/skills/` | ✅ built, not live-tested |
-| Kilo Code | `.kilo/rules/agentharness.md` | `.agents/skills/*/SKILL.md` | ✅ built, not live-tested |
-| Cursor | `.cursor/rules/agentharness-router.mdc` (`alwaysApply: true`) | `.cursor/rules/<skill>.mdc` (full body, no Agent Skills support) | ✅ built, not live-tested |
+| Platform                 | Always-on file                                                | Skill/rule mechanism                                                          | Status                   |
+| ------------------------ | ------------------------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------ |
+| Claude Code              | `CLAUDE.md`                                                   | `.claude/skills/*/SKILL.md`                                                   | ✅ built + dogfooded      |
+| Codex CLI                | `AGENTS.md`                                                   | `.agents/skills/*/SKILL.md`                                                   | ✅ built, not live-tested |
+| OpenCode                 | `AGENTS.md`                                                   | `.agents/skills/*/SKILL.md`                                                   | ⚠️ passively covered      |
+| Zed                      | `AGENTS.md`                                                   | `.agents/skills/*/SKILL.md`                                                   | ⚠️ passively covered      |
+| Gemini CLI / Antigravity | `GEMINI.md`                                                   | `.agents/skills/*/SKILL.md`                                                   | ✅ built, not live-tested |
+| GitHub Copilot           | `.github/copilot-instructions.md`                             | `.github/instructions/*.instructions.md` (`applyTo` glob) + `.agents/skills/` | ✅ built, not live-tested |
+| Kilo Code                | `.kilo/rules/agentharness.md`                                 | `.agents/skills/*/SKILL.md`                                                   | ✅ built, not live-tested |
+| Cursor                   | `.cursor/rules/agentharness-router.mdc` (`alwaysApply: true`) | `.cursor/rules/<skill>.mdc` (full body, no Agent Skills support)              | ✅ built, not live-tested |
 
 Each generator is a manual-regeneration script
 (`tools/generate-*.sh --output[-dir] ...`), not auto-wired into
@@ -153,14 +153,14 @@ subagent, `.claude/agents/coding-guidelines-reviewer.md` (a read-only
 reviewer scoped to `.github/CODING_GUIDELINES.md`'s rigor tiers), and
 ports it to every tool that supports genuine delegation:
 
-| Target | Generator | Produces |
-|---|---|---|
-| Codex CLI | `tools/generate-codex-agents.sh` | `.codex/agents/*.toml` |
-| OpenCode | `tools/generate-opencode-agents.sh` | `.opencode/agents/*.md` |
-| Cursor | `tools/generate-cursor-agents.sh` | `.cursor/agents/*.md` (distinct from `.cursor/rules/*.mdc` above — a different Cursor feature) |
-| Kilo Code | `tools/generate-kilo-agents.sh` | `.kilo/agents/*.md` |
-| GitHub Copilot | `tools/generate-copilot-agents.sh` | `.github/agents/*.agent.md` (distinct from `.github/copilot-instructions.md`/`.github/instructions/` above — genuine isolated-context sub-agent delegation, not the routing/skill mechanism) |
-| Gemini CLI | `tools/generate-gemini-agents.sh` | `.gemini/agents/*.md` |
+| Target         | Generator                           | Produces                                                                                                                                                                                     |
+| -------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Codex CLI      | `tools/generate-codex-agents.sh`    | `.codex/agents/*.toml`                                                                                                                                                                       |
+| OpenCode       | `tools/generate-opencode-agents.sh` | `.opencode/agents/*.md`                                                                                                                                                                      |
+| Cursor         | `tools/generate-cursor-agents.sh`   | `.cursor/agents/*.md` (distinct from `.cursor/rules/*.mdc` above — a different Cursor feature)                                                                                               |
+| Kilo Code      | `tools/generate-kilo-agents.sh`     | `.kilo/agents/*.md`                                                                                                                                                                          |
+| GitHub Copilot | `tools/generate-copilot-agents.sh`  | `.github/agents/*.agent.md` (distinct from `.github/copilot-instructions.md`/`.github/instructions/` above — genuine isolated-context sub-agent delegation, not the routing/skill mechanism) |
+| Gemini CLI     | `tools/generate-gemini-agents.sh`   | `.gemini/agents/*.md`                                                                                                                                                                        |
 
 Zed likely has real subagent delegation architecturally too, but no
 confirmed user-facing named-config-file format was found to port

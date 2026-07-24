@@ -6,12 +6,12 @@ Quick reference for active documents and their status.
 
 Currently being researched, developed, or planned:
 
-| Document | Status | Purpose | Location |
-|----------|--------|---------|----------|
-| Dogfooding plan | Not started | Executable plan + tracking template to get real-world evidence (P2-05/P2-02) | `planning/DOGFOODING.md` |
-| Skill recommendations | Analysis complete | Survey of up to 15 optional skills to add; analysis and prioritized recommendations only, no implementation yet | `skill-recommendations-2026-07-14.md` |
-| Harness ideation disposition | Analysis complete | Filtered assessment of an external intent-first-harness ideation note; 6 items added to ROADMAP.md (I-01…I-06), heavy machinery rejected with rationale | `reviews/harness-ideation-2026-07-15-status.md` |
-| Public-launch readiness plan | In progress | Sequenced pre-attention checklist verified against HEAD 2026-07-16: close open P0s (F-02–F-05), repo front-door polish, doc-accuracy sweep, dogfood evidence | `planning/public-launch-readiness-2026-07-16.md` |
+| Document                     | Status            | Purpose                                                                                                                                                      | Location                                         |
+| ---------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------ |
+| Dogfooding plan              | Not started       | Executable plan + tracking template to get real-world evidence (P2-05/P2-02)                                                                                 | `planning/DOGFOODING.md`                         |
+| Skill recommendations        | Analysis complete | Survey of up to 15 optional skills to add; analysis and prioritized recommendations only, no implementation yet                                              | `skill-recommendations-2026-07-14.md`            |
+| Harness ideation disposition | Analysis complete | Filtered assessment of an external intent-first-harness ideation note; 6 items added to ROADMAP.md (I-01…I-06), heavy machinery rejected with rationale      | `reviews/harness-ideation-2026-07-15-status.md`  |
+| Public-launch readiness plan | In progress       | Sequenced pre-attention checklist verified against HEAD 2026-07-16: close open P0s (F-02–F-05), repo front-door polish, doc-accuracy sweep, dogfood evidence | `planning/public-launch-readiness-2026-07-16.md` |
 
 ## 🔄 In-Progress Work
 
@@ -22,12 +22,6 @@ Items currently under development:
 ## ✅ Completed & Ready
 
 Documents ready to be promoted to harness or archived:
-
-- `harness-engineering-recommendations-status.md` — completed product-fit
-  assessment of `lopopolo/harness-engineering`; seven feature recommendations
-  filed as issues #137–#143 with current MVPs, future stages, and boundary
-  decisions. Retain while those issues are open, then archive after they are
-  closed or incorporated into `ROADMAP.md`.
 
 See [`reviews/README.md`](reviews/README.md) for the full cycle-by-cycle
 index of all review documents. Summary below for quick navigation:
@@ -110,7 +104,7 @@ index of all review documents. Summary below for quick navigation:
 
 Historical documents kept for reference:
 
-- **Launch-review disagreement register** — Fable-vs-GPT-5.6 disagreements (D1–D7) from the initial 2026-07-16 public-launch plan review round, with feedback and recommendations per item. Recovered from an abandoned branch and never a live companion to the current plan, which has since evolved directly on `main` — see `planning/public-launch-readiness-2026-07-16-status.md` for current progress. `planning/public-launch-review-disagreements-2026-07-16.md`
+- (none yet)
 
 ## 📝 Adding to This Index
 
