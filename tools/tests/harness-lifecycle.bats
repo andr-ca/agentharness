@@ -745,10 +745,15 @@ print(d['hooks_path'])
     [ "$status" -ne 0 ]
     [ "$(git -C "$TEST_PROJECT" rev-parse "$trunk")" = "$trunk_rev0" ]
 
-    # The blocked merge commit leaves the merge in progress (staged
+    # A blocked merge commit usually leaves the merge in progress (staged
     # changes, MERGE_HEAD) — abort it before the next scenario, the same
-    # way a real operator would after hitting this block.
-    git -C "$TEST_PROJECT" merge --abort
+    # way a real operator would after hitting this block. Whether git
+    # actually leaves that state for a purely fast-forward-eligible merge
+    # (as opposed to one requiring real content merging) varies by git
+    # version, so only abort if there's actually a merge to abort.
+    if git -C "$TEST_PROJECT" rev-parse -q --verify MERGE_HEAD >/dev/null; then
+        git -C "$TEST_PROJECT" merge --abort
+    fi
 
     # A non-trunk branch is unaffected — merges there still work.
     git -C "$TEST_PROJECT" checkout -b integration --quiet "$trunk"
