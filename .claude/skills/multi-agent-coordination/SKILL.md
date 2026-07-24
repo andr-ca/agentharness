@@ -124,7 +124,12 @@ automatically when you run `agentharness init`.
 
 ## Enforcement — locks are checked at push time
 
-This protocol is no longer purely advisory:
+**This section describes agentharness's own repo, where `tools/agent-lock.sh`
+genuinely exists.** In a consumer project, per the caveat near the top of this
+file, none of the below is real unless you've installed the tool yourself —
+check `[ -f tools/agent-lock.sh ]` before trusting any of it.
+
+Where the tool is present, this protocol is no longer purely advisory:
 
 - Acquire a lock **before your first commit on any branch** (CLAUDE.md
   mandate) and `export AGENTHARNESS_AGENT_ID=<the printed id>`.

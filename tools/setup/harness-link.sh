@@ -1357,6 +1357,17 @@ cmd_doctor() {
                 echo "  (warn) $skill: $dir is untracked by git ($dest_subdir) — invisible to clones, PRs, and CI until committed"
             fi
         done
+
+        # The multi-agent-coordination skill documents a lock protocol
+        # built around tools/agent-lock.sh, but harness-link.sh doesn't
+        # ship or install that tool into any consumer project — the skill
+        # is inert without it (the skill's own "Enforcement" section warns
+        # of this, but a reader who never opens the skill file has no other
+        # signal). Soft-warn here too, not fail: this isn't something init
+        # or update can self-heal, unlike a missing hook file.
+        if [ "$skill" = "multi-agent-coordination" ] && [ ! -x "$target/tools/agent-lock.sh" ]; then
+            echo "  ⚠ multi-agent-coordination: tools/agent-lock.sh is not present in this project — the lock protocol this skill documents is inert (harness-link.sh doesn't install it; see the skill's own caveat)"
+        fi
     done
 
     local with_hook
