@@ -38,3 +38,4 @@ tools/eval/journey_score.py
 tools/eval/journey_run.py
 tools/eval/scenarios
 tools/eval/tests/test_journey_score.py
+docs/operational/eval-harness-observations-2026-07-23.md
