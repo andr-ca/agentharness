@@ -617,6 +617,25 @@ print(d['hooks_path'])
     [[ "$output" =~ "merge commits to trunk branches may bypass protection" ]]
 }
 
+@test "lifecycle: #149 regression — doctor's pre-merge-commit remediation shell-escapes a target path with spaces" {
+    local spaced_project
+    spaced_project="$(mktemp -d)/my project"
+    mkdir -p "$spaced_project"
+    git -C "$spaced_project" init --quiet
+    bash "$SCRIPT" init "$spaced_project" --skills committing --with-hook --mode copy
+    rm "$spaced_project/.github/hooks/pre-merge-commit"
+
+    run bash "$SCRIPT" doctor "$spaced_project"
+    [ "$status" -ne 0 ]
+    # The raw unescaped path must never appear bare in the remediation line
+    # (it would silently split into two args if copy-pasted); the escaped
+    # form (backslash before the space) must.
+    [[ "$output" != *"init $spaced_project --with-hook"* ]]
+    [[ "$output" == *"${spaced_project// /\\ }"* ]]
+
+    rm -rf "$(dirname "$spaced_project")"
+}
+
 @test "lifecycle: #76 regression — doctor passes when both pre-commit and pre-merge-commit hooks exist" {
     git -C "$TEST_PROJECT" init --quiet
     bash "$SCRIPT" init "$TEST_PROJECT" --skills committing --with-hook --mode copy

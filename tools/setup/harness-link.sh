@@ -1388,7 +1388,12 @@ cmd_doctor() {
             local pre_commit_path="$actual_hooks_path/pre-commit"
             local pre_merge_commit_path="$actual_hooks_path/pre-merge-commit"
             if [ -x "$pre_commit_path" ] && [ ! -x "$pre_merge_commit_path" ]; then
+                local escaped_target
+                printf -v escaped_target '%q' "$target"
                 echo "  ✗ pre-commit hook exists but pre-merge-commit is missing — merge commits to trunk branches may bypass protection (see issue #76 for details)" >&2
+                echo "    Fix: re-run 'harness-link.sh init $escaped_target --with-hook' (or, for npm mode," >&2
+                echo "    'npx agentharness-toolkit@latest init $escaped_target --with-hook') — 'update' never" >&2
+                echo "    touches hooks by design, so this file won't appear on its own after upgrading." >&2
                 failed=1
             elif [ -x "$pre_commit_path" ] && [ -x "$pre_merge_commit_path" ]; then
                 echo "  ✓ both pre-commit and pre-merge-commit hooks present"
