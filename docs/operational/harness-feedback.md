@@ -280,7 +280,6 @@ with an explicit stable PID for the short remainder of this session; no
 concurrent work was observed. A production fix was deferred because changing
 stale-owner semantics requires an explicit lease and recovery contract.
 
-
 ## 2026-07-23 – Fast-forward `git merge` into trunk bypasses `prevent-trunk-commit`
 
 **What happened:** While dogfooding a local governed-action eval (a real
