@@ -34,6 +34,7 @@
     "tools/setup/block_installer.py",
     ".github/hooks/prevent-trunk-commit",
     ".github/hooks/pre-commit",
+    ".github/hooks/pre-merge-commit",
     ".github/hooks/pre-push",
     ".github/.gitignore.template",
     "AGENTS.md",
