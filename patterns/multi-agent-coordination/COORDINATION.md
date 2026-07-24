@@ -154,7 +154,7 @@ tools/agent-lock.sh clean
 **This describes agentharness's own repo.** `tools/agent-lock.sh` is not
 installed into consumer projects by `harness-link.sh` — none of the
 enforcement layers below apply to a consumer install unless the tool has
-been added there by hand. Check `[ -f tools/agent-lock.sh ]` first.
+been added there by hand. Check `[ -x tools/agent-lock.sh ]` first.
 
 The protocol above is advisory on its own — and stayed unused when two
 sessions collided on one branch on 2026-07-16 (different feature names,

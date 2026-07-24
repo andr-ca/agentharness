@@ -1366,7 +1366,7 @@ cmd_doctor() {
         # signal). Soft-warn here too, not fail: this isn't something init
         # or update can self-heal, unlike a missing hook file.
         if [ "$skill" = "multi-agent-coordination" ] && [ ! -x "$target/tools/agent-lock.sh" ]; then
-            echo "  ⚠ multi-agent-coordination: tools/agent-lock.sh is not present in this project — the lock protocol this skill documents is inert (harness-link.sh doesn't install it; see the skill's own caveat)"
+            echo "  ⚠ multi-agent-coordination: tools/agent-lock.sh is missing or not executable in this project — the lock protocol this skill documents is inert (harness-link.sh doesn't install it; see the skill's own caveat)"
         fi
     done
 

@@ -632,12 +632,13 @@ print(d['hooks_path'])
     bash "$SCRIPT" init "$TEST_PROJECT" --skills multi-agent-coordination --mode copy
 
     # A plain consumer install never gets tools/agent-lock.sh (it's this
-    # harness's own dogfooding tool) — confirm that's the baseline here.
-    [ ! -x "$TEST_PROJECT/tools/agent-lock.sh" ]
+    # harness's own dogfooding tool) — confirm the file is genuinely
+    # absent, not merely non-executable, as the baseline here.
+    [ ! -e "$TEST_PROJECT/tools/agent-lock.sh" ]
 
     run bash "$SCRIPT" doctor "$TEST_PROJECT"
     [ "$status" -eq 0 ]
-    [[ "$output" =~ "tools/agent-lock.sh is not present" ]]
+    [[ "$output" =~ "tools/agent-lock.sh is missing or not executable" ]]
     [[ "$output" =~ "lock protocol this skill documents is inert" ]]
 }
 
@@ -647,7 +648,7 @@ print(d['hooks_path'])
 
     run bash "$SCRIPT" doctor "$TEST_PROJECT"
     [ "$status" -eq 0 ]
-    [[ "$output" != *"agent-lock.sh is not present"* ]]
+    [[ "$output" != *"agent-lock.sh is missing or not executable"* ]]
 }
 
 @test "lifecycle: #154 regression — doctor doesn't warn when tools/agent-lock.sh has been added by hand" {
@@ -659,7 +660,7 @@ print(d['hooks_path'])
 
     run bash "$SCRIPT" doctor "$TEST_PROJECT"
     [ "$status" -eq 0 ]
-    [[ "$output" != *"agent-lock.sh is not present"* ]]
+    [[ "$output" != *"agent-lock.sh is missing or not executable"* ]]
 }
 
 @test "doctor: reports a leftover crash journal" {
