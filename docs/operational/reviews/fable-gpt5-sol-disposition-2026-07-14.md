@@ -138,11 +138,11 @@ These add value but don't block anything. Prioritize F-08 first.
 
 ## Recommendation Assessment Summary
 
-| Category | Count | Status |
-|----------|-------|--------|
-| P0 (release blockers) | 5 | 1 done (F-01, not merged); 4 not started |
-| P1 (coherence/proof) | 11 | All not started |
-| P2 (useful follow-ups) | 4 | All not started |
+| Category               | Count | Status                                   |
+| ---------------------- | ----- | ---------------------------------------- |
+| P0 (release blockers)  | 5     | 1 done (F-01, not merged); 4 not started |
+| P1 (coherence/proof)   | 11    | All not started                          |
+| P2 (useful follow-ups) | 4     | All not started                          |
 
 **Total:** 20 actionable findings across two reviews.
 
