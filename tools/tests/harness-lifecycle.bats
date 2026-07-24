@@ -682,6 +682,80 @@ print(d['hooks_path'])
     [[ "$output" != *"agent-lock.sh is missing or not executable"* ]]
 }
 
+@test "lifecycle: #155 regression — init --with-hook sets merge.ff=false" {
+    git -C "$TEST_PROJECT" init --quiet
+    run bash "$SCRIPT" init "$TEST_PROJECT" --skills committing --with-hook --mode copy
+    [ "$status" -eq 0 ]
+    [ "$(git -C "$TEST_PROJECT" config --get merge.ff)" = "false" ]
+}
+
+@test "lifecycle: #155 regression — doctor fails when with_hook is true but merge.ff isn't false" {
+    git -C "$TEST_PROJECT" init --quiet
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing --with-hook --mode copy
+    git -C "$TEST_PROJECT" config --unset merge.ff
+
+    run bash "$SCRIPT" doctor "$TEST_PROJECT"
+    [ "$status" -ne 0 ]
+    [[ "$output" =~ "merge.ff is not set to false" ]]
+}
+
+@test "lifecycle: #155 regression — doctor passes when merge.ff=false" {
+    git -C "$TEST_PROJECT" init --quiet
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing --with-hook --mode copy
+
+    run bash "$SCRIPT" doctor "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "merge.ff=false (fast-forward merges into trunk are blocked)" ]]
+}
+
+@test "lifecycle: #155 regression — uninstall unsets merge.ff when still exactly false" {
+    git -C "$TEST_PROJECT" init --quiet
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing --with-hook --mode copy
+    [ "$(git -C "$TEST_PROJECT" config --get merge.ff)" = "false" ]
+
+    echo y | bash "$SCRIPT" uninstall "$TEST_PROJECT"
+    [ -z "$(git -C "$TEST_PROJECT" config --get merge.ff 2>/dev/null)" ]
+}
+
+@test "lifecycle: #155 acceptance test — a real fast-forward git merge into trunk is now blocked, not just direct commits" {
+    # Direct reproduction of the issue #155 scenario: prevent-trunk-commit
+    # blocks 'git commit' and 'git merge --no-ff' onto trunk, but a plain
+    # fast-forward merge moves the ref with no commit for either hook to
+    # fire on — the most ordinary way to "integrate a branch" silently
+    # bypassed trunk protection. Uses real git merge, not a simulated hook.
+    git -C "$TEST_PROJECT" init --quiet
+    git -C "$TEST_PROJECT" -c user.email=t@e.com -c user.name=t commit --quiet --allow-empty -m init
+    local trunk
+    trunk="$(git -C "$TEST_PROJECT" branch --show-current)"
+    local trunk_rev0
+    trunk_rev0="$(git -C "$TEST_PROJECT" rev-parse "$trunk")"
+
+    git -C "$TEST_PROJECT" checkout -b feature/x --quiet
+    echo "x" > "$TEST_PROJECT/x.txt"
+    git -C "$TEST_PROJECT" add x.txt
+    git -C "$TEST_PROJECT" -c user.email=t@e.com -c user.name=t commit --quiet -m "add x"
+    git -C "$TEST_PROJECT" checkout "$trunk" --quiet
+
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing --with-hook --mode copy
+
+    # Before the fix this succeeded (fast-forward, no commit created, no
+    # hook fired). With merge.ff=false it must now create a merge commit,
+    # which pre-merge-commit blocks.
+    run git -C "$TEST_PROJECT" merge feature/x
+    [ "$status" -ne 0 ]
+    [ "$(git -C "$TEST_PROJECT" rev-parse "$trunk")" = "$trunk_rev0" ]
+
+    # The blocked merge commit leaves the merge in progress (staged
+    # changes, MERGE_HEAD) — abort it before the next scenario, the same
+    # way a real operator would after hitting this block.
+    git -C "$TEST_PROJECT" merge --abort
+
+    # A non-trunk branch is unaffected — merges there still work.
+    git -C "$TEST_PROJECT" checkout -b integration --quiet "$trunk"
+    run git -C "$TEST_PROJECT" merge feature/x
+    [ "$status" -eq 0 ]
+}
+
 @test "doctor: reports a leftover crash journal" {
     echo "# My project" > "$TEST_PROJECT/AGENTS.md"
     bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing

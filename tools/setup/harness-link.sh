@@ -1173,6 +1173,18 @@ cmd_init() {
                         echo "  Installed trunk-protection hook (core.hooksPath) — not coverage, see --with-coverage-hook"
                     fi
                 fi
+                # A fast-forward `git merge` into trunk moves the branch ref
+                # without creating a commit, so neither pre-commit nor
+                # pre-merge-commit ever fires — the exact outcome trunk
+                # protection exists to prevent, reachable with the most
+                # ordinary integration command (issue #155). merge.ff=false
+                # forces every merge to create a real (blockable) merge
+                # commit; validated this closes the gap without a new hook,
+                # reusing pre-merge-commit. Tradeoff, documented in
+                # INTEGRATION.md: updating a feature branch from trunk also
+                # gets a merge commit instead of fast-forwarding.
+                git -C "$target" config merge.ff false
+                echo "  Set merge.ff=false (forces merge commits, closes the fast-forward trunk-protection bypass — issue #155)"
                 installed_hooks_path="$hooks_path"
             fi
         fi
@@ -1391,6 +1403,21 @@ cmd_doctor() {
             failed=1
         else
             echo "  ✓ core.hooksPath set ($actual_hooks_path)"
+
+            # merge.ff=false is what makes a fast-forward `git merge` into
+            # trunk create a (blockable) merge commit instead of silently
+            # moving the ref with no commit for pre-commit/pre-merge-commit
+            # to fire on (issue #155) — without it, trunk protection has a
+            # hole reachable by the most ordinary integration command.
+            local actual_merge_ff
+            actual_merge_ff="$(git -C "$target" config --get merge.ff 2>/dev/null || true)"
+            if [ "$actual_merge_ff" != "false" ]; then
+                echo "  ✗ merge.ff is not set to false — a fast-forward merge into a trunk branch bypasses trunk protection entirely (see issue #155 for details)" >&2
+                echo "    Fix: re-run the init command with --with-hook, or 'git -C $target config merge.ff false' directly." >&2
+                failed=1
+            else
+                echo "  ✓ merge.ff=false (fast-forward merges into trunk are blocked)"
+            fi
 
             # Check that both pre-commit and pre-merge-commit hook files exist.
             # Git only falls back to pre-commit for merge commits under certain
@@ -2523,6 +2550,16 @@ cmd_uninstall() {
             fi
         else
             echo "  core.hooksPath has changed since install (recorded: $recorded_hooks_path, actual: $actual_hooks_path) — leaving it untouched" >&2
+        fi
+
+        # Only unset merge.ff if it's still exactly "false" — same
+        # ownership principle as core.hooksPath above, without needing a
+        # "previous value" restore slot: merge.ff has no meaningful prior
+        # state to preserve (unset just means git's own fast-forward
+        # default, same as before this install ever set it).
+        if [ "$(git -C "$target" config --get merge.ff 2>/dev/null || true)" = "false" ]; then
+            git -C "$target" config --unset merge.ff 2>/dev/null || true
+            echo "  Unset merge.ff"
         fi
     fi
 
