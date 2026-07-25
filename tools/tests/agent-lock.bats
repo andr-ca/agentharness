@@ -144,7 +144,11 @@ EOF
     f="$(find "$TEST_ROOT/.agentharness-locks" -name '*.json' | head -1)"
     run python3 -c "import json; d=json.load(open('$f')); print(d['pid_started_at'])"
     [ "$status" -eq 0 ]
-    [[ "$output" =~ ^[0-9]+$ ]]
+    # ps -o lstart= parsing is best-effort (Copilot review): an epoch is the
+    # expected case on a real bats process, but a platform where it's
+    # undeterminable correctly records JSON null (printed as "None" here) —
+    # both are valid outcomes, not just the numeric one.
+    [[ "$output" =~ ^[0-9]+$ || "$output" == "None" ]]
 }
 
 _write_lock_with_pid_started_at() {

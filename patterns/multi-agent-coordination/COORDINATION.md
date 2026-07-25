@@ -37,7 +37,7 @@ feature reads the lock, detects the conflict, and either:
   "worktree":       ".worktrees/feat-user-auth",
   "started_at":     "2026-07-14T10:00:00Z",
   "pid":            12345,
-  "pid_started_at": 1752487200
+  "pid_started_at": 1784023200
 }
 ```
 
