@@ -769,6 +769,11 @@ print(d['hooks_path'])
 
     bash "$SCRIPT" init "$project2" --skills committing --with-hook --mode copy
 
+    # This merge is real (not blocked) and, with merge.ff=false, creates an
+    # actual merge commit — unlike the -c-scoped commits above, git needs a
+    # repo-level identity for that, which a CI runner may not have globally.
+    git -C "$project2" config user.email t@e.com
+    git -C "$project2" config user.name t
     run git -C "$project2" merge feature/x
     [ "$status" -eq 0 ]
     rm -rf "$project2"
