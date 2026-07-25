@@ -31,12 +31,13 @@ feature reads the lock, detects the conflict, and either:
 
 ```json
 {
-  "agent_id":   "3f2a1c8d-...",
-  "feature":    "add-user-auth",
-  "branch":     "feat/user-auth",
-  "worktree":   ".worktrees/feat-user-auth",
-  "started_at": "2026-07-14T10:00:00Z",
-  "pid":        12345
+  "agent_id":       "3f2a1c8d-...",
+  "feature":        "add-user-auth",
+  "branch":         "feat/user-auth",
+  "worktree":       ".worktrees/feat-user-auth",
+  "started_at":     "2026-07-14T10:00:00Z",
+  "pid":            12345,
+  "pid_started_at": 1784023200
 }
 ```
 
@@ -46,18 +47,30 @@ feature reads the lock, detects the conflict, and either:
 | `feature` | Human-readable description (becomes the lock file name slug) |
 | `branch` | The branch this agent is using |
 | `worktree` | Path to the worktree, or `null` if using the main checkout |
-| `started_at` | ISO 8601 UTC timestamp |
+| `started_at` | ISO 8601 UTC timestamp the lock was acquired |
 | `pid` | OS process ID — used for stale-lock detection |
+| `pid_started_at` | Epoch seconds `pid` itself started, captured at acquire time — used to detect pid reuse (see below); `null`/absent on locks written before this field existed or when undeterminable, in which case detection falls back to `pid` liveness alone |
 
 ---
 
 ## Stale lock detection
 
-A lock is **stale** if `pid` no longer refers to a running process:
+A lock is stale if `pid` no longer refers to a running process:
 
 ```bash
 kill -0 "$pid" 2>/dev/null && echo "alive" || echo "stale"
 ```
+
+`kill -0` alone is not sufficient, though: a `pid` can answer `kill -0`
+while belonging to a completely different, unrelated process — the OS
+reused the number after the original owner exited. Observed in practice
+([issue #148](https://github.com/andr-ca/agentharness/issues/148)): a
+lock for a branch merged a week earlier still read as "live" because its
+recorded `pid` had since been reassigned to an unrelated long-running
+shell. A lock is only genuinely alive if, in addition to `kill -0`
+succeeding, that pid's *current* process-start time still matches
+`pid_started_at` — a mismatch means the pid was reused and the lock is
+stale regardless of `kill -0`'s answer.
 
 When a stale lock is detected, it must be deleted before a new one is
 created — do not skip detection and overwrite silently.

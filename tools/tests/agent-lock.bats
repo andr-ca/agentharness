@@ -131,6 +131,109 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
+# pid reuse (#148): kill -0 alone can't tell a still-running owner from an
+# unrelated process that has since reused the recorded pid number. Every
+# lock written by 'acquire' now also records the pid's own process-start
+# time (pid_started_at); staleness checks compare it against that pid's
+# CURRENT start time, not just whether the pid answers kill -0.
+# ---------------------------------------------------------------------------
+
+@test "acquire: records pid_started_at for the recorded pid" {
+    (cd "$TEST_ROOT" && bash "$LOCK_SCRIPT" acquire "pid-start-feature" "feat/pid-start")
+    local f
+    f="$(find "$TEST_ROOT/.agentharness-locks" -name '*.json' | head -1)"
+    run python3 -c "import json; d=json.load(open('$f')); print(d['pid_started_at'])"
+    [ "$status" -eq 0 ]
+    # ps -o lstart= parsing is best-effort (Copilot review): an epoch is the
+    # expected case on a real bats process, but a platform where it's
+    # undeterminable correctly records JSON null (printed as "None" here) —
+    # both are valid outcomes, not just the numeric one.
+    [[ "$output" =~ ^[0-9]+$ || "$output" == "None" ]]
+}
+
+_write_lock_with_pid_started_at() {
+    # A lock recorded as owned by $$ (alive throughout this test, matching
+    # the file's AGENT_LOCK_PID=$$ convention) but with a caller-supplied
+    # pid_started_at, so tests can simulate either a correct match (still
+    # the real owner) or a mismatch (pid reused by someone else). Written
+    # to the exact slugged path `check` expects (matching _lock_path), not
+    # a hand-picked filename — `check` looks up that exact path directly,
+    # unlike check-branch/list/clean, which glob every *.json in the dir.
+    local name="$1" branch="$2" pid_started_at="$3"
+    local path
+    path="$( (source "$LOCK_SCRIPT"; _lock_path "$name") )"
+    cat > "$path" <<JSON
+{
+  "agent_id": "reuse-test-agent",
+  "feature": "$name",
+  "branch": "$branch",
+  "worktree": null,
+  "started_at": "2026-01-01T00:00:00Z",
+  "pid": $$,
+  "pid_started_at": $pid_started_at
+}
+JSON
+}
+
+@test "pid reuse: a lock whose pid_started_at doesn't match the live pid's actual start is treated as stale, not alive" {
+    # $$ is genuinely alive (this bats process), so a bare kill -0 check
+    # would call this lock live indefinitely — exactly the #148 failure
+    # mode (a merged, week-old lock read as "live" because kill -0 happened
+    # to match an unrelated process that later reused the recorded pid).
+    _write_lock_with_pid_started_at "reused-pid" "feat/reused" "1"
+    run bash "$LOCK_SCRIPT" check "reused-pid"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "FREE" ]]
+    [ ! -f "$TEST_ROOT/.agentharness-locks/reused-pid.json" ]
+}
+
+@test "pid reuse: clean removes a lock whose pid_started_at doesn't match, even though the pid answers kill -0" {
+    _write_lock_with_pid_started_at "reused-pid-clean" "feat/reused-clean" "1"
+    (cd "$TEST_ROOT" && bash "$LOCK_SCRIPT" clean)
+    [ ! -f "$TEST_ROOT/.agentharness-locks/reused-pid-clean.json" ]
+}
+
+@test "pid reuse: check-branch treats a pid_started_at mismatch as stale and reports the branch FREE" {
+    _write_lock_with_pid_started_at "reused-pid-branch" "feat/reused-branch" "1"
+    run bash "$LOCK_SCRIPT" check-branch "feat/reused-branch"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "FREE" ]]
+}
+
+@test "pid reuse: no false positive — a live pid whose pid_started_at genuinely matches is not treated as stale" {
+    local real_started_at
+    real_started_at="$(python3 -c "
+import subprocess
+out = subprocess.run(['ps', '-o', 'lstart=', '-p', '$$'], capture_output=True, text=True).stdout
+from datetime import datetime
+raw = ' '.join(out.split())
+print(int(datetime.strptime(raw, '%a %b %d %H:%M:%S %Y').timestamp()))
+")"
+    _write_lock_with_pid_started_at "same-pid" "feat/same" "$real_started_at"
+    run bash "$LOCK_SCRIPT" check "same-pid"
+    [ "$status" -eq 1 ]
+    [[ "$output" =~ "LOCKED" ]]
+}
+
+@test "pid reuse: backward compat — a lock with no pid_started_at field falls back to kill-0-only (pre-#148 lock files)" {
+    local path
+    path="$( (source "$LOCK_SCRIPT"; _lock_path "old-format") )"
+    cat > "$path" <<JSON
+{
+  "agent_id": "old-format-agent",
+  "feature": "old-format",
+  "branch": "feat/old-format",
+  "worktree": null,
+  "started_at": "2026-01-01T00:00:00Z",
+  "pid": $$
+}
+JSON
+    run bash "$LOCK_SCRIPT" check "old-format"
+    [ "$status" -eq 1 ]
+    [[ "$output" =~ "LOCKED" ]]
+}
+
+# ---------------------------------------------------------------------------
 # check-branch (branch is the unit of exclusion for pushes)
 # ---------------------------------------------------------------------------
 

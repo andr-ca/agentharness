@@ -102,7 +102,10 @@ Locks are auto-cleaned on `acquire` and `check`. To manually clean all:
 tools/agent-lock.sh clean
 ```
 
-A lock is stale when its `pid` is no longer a running process.
+A lock is stale when its `pid` is no longer a running process, or when
+that `pid` is alive but belongs to a different process than the one that
+acquired the lock (detected via a recorded process-start time — see
+COORDINATION.md's "Stale lock detection").
 
 ---
 
