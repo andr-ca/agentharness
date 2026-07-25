@@ -717,6 +717,38 @@ print(d['hooks_path'])
     [ -z "$(git -C "$TEST_PROJECT" config --get merge.ff 2>/dev/null)" ]
 }
 
+state_previous_merge_ff() {
+    python3 -c "
+import json
+with open('$1/.agentharness-state.json') as f:
+    print(json.load(f).get('previous_merge_ff'))
+"
+}
+
+@test "lifecycle: #155 regression — uninstall restores an operator's pre-existing merge.ff instead of just unsetting it (Copilot review)" {
+    git -C "$TEST_PROJECT" init --quiet
+    git -C "$TEST_PROJECT" config merge.ff only
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing --with-hook --mode copy
+    [ "$(git -C "$TEST_PROJECT" config --get merge.ff)" = "false" ]
+    [ "$(state_previous_merge_ff "$TEST_PROJECT")" = "only" ]
+
+    echo y | bash "$SCRIPT" uninstall "$TEST_PROJECT"
+    [ "$(git -C "$TEST_PROJECT" config --get merge.ff)" = "only" ]
+}
+
+@test "lifecycle: #155 regression — update carries previous_merge_ff forward instead of dropping it" {
+    git -C "$TEST_PROJECT" init --quiet
+    git -C "$TEST_PROJECT" config merge.ff only
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing --with-hook --mode copy
+    [ "$(state_previous_merge_ff "$TEST_PROJECT")" = "only" ]
+
+    echo y | bash "$SCRIPT" update "$TEST_PROJECT"
+    [ "$(state_previous_merge_ff "$TEST_PROJECT")" = "only" ]
+
+    echo y | bash "$SCRIPT" uninstall "$TEST_PROJECT"
+    [ "$(git -C "$TEST_PROJECT" config --get merge.ff)" = "only" ]
+}
+
 @test "lifecycle: #155 acceptance test — a real fast-forward git merge into trunk is now blocked, not just direct commits" {
     # Direct reproduction of the issue #155 scenario: prevent-trunk-commit
     # blocks 'git commit' and 'git merge --no-ff' onto trunk, but a plain

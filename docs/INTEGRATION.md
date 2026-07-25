@@ -57,11 +57,14 @@ blockable) merge commit.
 *feature* branch from trunk (`git merge main` while on the branch) also
 gets a merge commit instead of fast-forwarding. Teams that prefer a
 linear feature-branch history will notice this. `doctor` verifies
-`merge.ff=false` whenever `with_hook` is recorded true, and `uninstall`
-unsets it (only if it's still exactly what this install set — the same
-ownership check `core.hooksPath` gets). As with all local hooks, this is
-best-effort: remote branch protection (a GitHub ruleset rejecting
-non-fast-forward pushes, or equivalent) remains the authoritative guard.
+`merge.ff=false` whenever `with_hook` is recorded true. `uninstall` only
+touches `merge.ff` if it's still exactly what this install set (the same
+ownership check `core.hooksPath` gets) — and, like `core.hooksPath`, it
+restores whatever value (e.g. `only`) was there before this install
+overwrote it, or unsets `merge.ff` if there was none. As with all local
+hooks, this is best-effort: remote branch protection (a GitHub ruleset
+rejecting non-fast-forward pushes, or equivalent) remains the
+authoritative guard.
 
 ### Coverage enforcement (`--with-coverage-hook`, P0-03)
 

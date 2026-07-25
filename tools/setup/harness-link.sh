@@ -188,9 +188,12 @@ state_write() {
     #     enforce-profile-calling pre-push script was actually installed)
     # $12=previous_hooks_path(or "" — the core.hooksPath value that existed
     #     before this install; restored on uninstall when present)
+    # $13=previous_merge_ff(or "" — the merge.ff value that existed before
+    #     this install; restored on uninstall when present, issue #155)
     local target="$1" mode="$2" skills_csv="$3" skills_filter="$4" with_hook="$5"
     local profile="$6" source_path="$7" source_revision="$8" source_remote="$9"
     local hooks_path="${10:-}" coverage_hook="${11:-false}" previous_hooks_path="${12:-}"
+    local previous_merge_ff="${13:-}"
     local existing_installed_at=""
     if [ -f "$(state_path "$target")" ]; then
         existing_installed_at="$(state_field "$target" "installed_at" || true)"
@@ -200,6 +203,7 @@ state_write() {
     AH_SOURCE_REVISION="$source_revision" AH_SOURCE_REMOTE="$source_remote" \
     AH_HOOKS_PATH="$hooks_path" AH_COVERAGE_HOOK="$coverage_hook" \
     AH_PREVIOUS_HOOKS_PATH="$previous_hooks_path" \
+    AH_PREVIOUS_MERGE_FF="$previous_merge_ff" \
     AH_EXISTING_INSTALLED_AT="$existing_installed_at" \
     python3 - "$(state_path "$target")" <<'PYEOF'
 import datetime
@@ -237,6 +241,7 @@ data = {
     "with_hook": os.environ.get("AH_WITH_HOOK") == "true",
     "hooks_path": os.environ.get("AH_HOOKS_PATH") or None,
     "previous_hooks_path": os.environ.get("AH_PREVIOUS_HOOKS_PATH") or None,
+    "previous_merge_ff": os.environ.get("AH_PREVIOUS_MERGE_FF") or None,
     "coverage_hook": os.environ.get("AH_COVERAGE_HOOK") == "true",
     "profile": os.environ.get("AH_PROFILE") or None,
     "installed_at": existing_installed_at,
@@ -1090,6 +1095,7 @@ cmd_init() {
     # harness owns a hook path it never touched, and uninstall would
     # unconditionally unset a config value that predates this install.
     local installed_hooks_path=""
+    local existing_merge_ff=""
     if [ "$with_hook" = true ]; then
         if ! git -C "$target" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
             echo "  --with-hook requested but $target is not a git repo — skipping." >&2
@@ -1183,6 +1189,14 @@ cmd_init() {
                 # reusing pre-merge-commit. Tradeoff, documented in
                 # INTEGRATION.md: updating a feature branch from trunk also
                 # gets a merge commit instead of fast-forwarding.
+                #
+                # merge.ff can hold operator-intentional values other than
+                # unset (e.g. "only", to enforce fast-forward-only merges) —
+                # record whatever was there before overwriting it, the same
+                # "previous value, restored on uninstall" pattern as
+                # core.hooksPath above, so this install never permanently
+                # clobbers a pre-existing policy (Copilot review).
+                existing_merge_ff="$(git -C "$target" config --get merge.ff 2>/dev/null || true)"
                 git -C "$target" config merge.ff false
                 echo "  Set merge.ff=false (forces merge commits, closes the fast-forward trunk-protection bypass — issue #155)"
                 installed_hooks_path="$hooks_path"
@@ -1262,7 +1276,7 @@ cmd_init() {
     # Pass the pre-install hooks path so uninstall can restore it (F-05)
     state_write "$target" "$mode" "$skills_csv" "$skills_filter" "$with_hook" \
         "$profile" "$skills_src_root" "$source_revision" "$source_remote" "$installed_hooks_path" "$coverage_hook" \
-        "${existing_hooks_path:-}"
+        "${existing_hooks_path:-}" "${existing_merge_ff:-}"
 
     warn_if_untracked "$target" "$dry_run"
 
@@ -1412,8 +1426,10 @@ cmd_doctor() {
             local actual_merge_ff
             actual_merge_ff="$(git -C "$target" config --get merge.ff 2>/dev/null || true)"
             if [ "$actual_merge_ff" != "false" ]; then
+                local escaped_target_merge_ff
+                printf -v escaped_target_merge_ff '%q' "$target"
                 echo "  ✗ merge.ff is not set to false — a fast-forward merge into a trunk branch bypasses trunk protection entirely (see issue #155 for details)" >&2
-                echo "    Fix: re-run the init command with --with-hook, or 'git -C $target config merge.ff false' directly." >&2
+                echo "    Fix: re-run the init command with --with-hook, or 'git -C $escaped_target_merge_ff config merge.ff false' directly." >&2
                 failed=1
             else
                 echo "  ✓ merge.ff=false (fast-forward merges into trunk are blocked)"
@@ -2251,6 +2267,7 @@ cmd_update() {
     require_state "$target"
 
     local mode source_path skills_filter with_hook profile hooks_path coverage_hook
+    local previous_hooks_path previous_merge_ff
     mode="$(state_field "$target" mode)"
     source_path="$(resolved_source_path "$target" "$mode" "$(state_field "$target" source.path)")"
     skills_filter="$(state_field "$target" skills_filter 2>/dev/null || echo "")"
@@ -2259,9 +2276,15 @@ cmd_update() {
     # update never touches hooks — carry the previously recorded path/flag
     # through unchanged (P0-01/P0-03: this must stay in sync with whatever
     # init/doctor last verified, not silently reset just because update
-    # doesn't ask).
+    # doesn't ask). previous_hooks_path/previous_merge_ff need the same
+    # carry-forward, or uninstall's restore-prior-value logic silently loses
+    # what it would restore to the moment 'update' runs even once.
     hooks_path="$(state_field "$target" hooks_path 2>/dev/null || echo "")"
     [ "$hooks_path" = "None" ] && hooks_path=""
+    previous_hooks_path="$(state_field "$target" previous_hooks_path 2>/dev/null || echo "")"
+    [ "$previous_hooks_path" = "None" ] && previous_hooks_path=""
+    previous_merge_ff="$(state_field "$target" previous_merge_ff 2>/dev/null || echo "")"
+    [ "$previous_merge_ff" = "None" ] && previous_merge_ff=""
     coverage_hook="$(state_field "$target" coverage_hook 2>/dev/null || echo "false")"
     profile="$(state_field "$target" profile 2>/dev/null || echo "")"
     [ "$profile" = "None" ] && profile=""
@@ -2439,7 +2462,8 @@ cmd_update() {
     release_install_lock "$target"
 
     state_write "$target" "$mode" "$new_skills_csv" "$skills_filter" "$with_hook" \
-        "$profile" "$source_path" "$source_revision" "$source_remote" "$hooks_path" "$coverage_hook"
+        "$profile" "$source_path" "$source_revision" "$source_remote" "$hooks_path" "$coverage_hook" \
+        "$previous_hooks_path" "$previous_merge_ff"
 
     warn_if_untracked "$target" false
 
@@ -2552,14 +2576,25 @@ cmd_uninstall() {
             echo "  core.hooksPath has changed since install (recorded: $recorded_hooks_path, actual: $actual_hooks_path) — leaving it untouched" >&2
         fi
 
-        # Only unset merge.ff if it's still exactly "false" — same
-        # ownership principle as core.hooksPath above, without needing a
-        # "previous value" restore slot: merge.ff has no meaningful prior
-        # state to preserve (unset just means git's own fast-forward
-        # default, same as before this install ever set it).
+        # Only touch merge.ff if it's still exactly "false" — same ownership
+        # principle as core.hooksPath above: if it's changed since install,
+        # this install no longer owns it and must leave it alone. If it's
+        # still what this install set, restore whatever operator-set value
+        # (e.g. "only") preceded it, or unset if there was none — same
+        # previous-value restore pattern as core.hooksPath (Copilot review:
+        # this used to always unset unconditionally, silently discarding a
+        # pre-existing merge.ff policy this install had overwritten).
         if [ "$(git -C "$target" config --get merge.ff 2>/dev/null || true)" = "false" ]; then
-            git -C "$target" config --unset merge.ff 2>/dev/null || true
-            echo "  Unset merge.ff"
+            local previous_merge_ff
+            previous_merge_ff="$(state_field "$target" previous_merge_ff 2>/dev/null || echo "")"
+            [ "$previous_merge_ff" = "None" ] && previous_merge_ff=""
+            if [ -n "$previous_merge_ff" ]; then
+                git -C "$target" config merge.ff "$previous_merge_ff" 2>/dev/null || true
+                echo "  Restored merge.ff to previous value: $previous_merge_ff"
+            else
+                git -C "$target" config --unset merge.ff 2>/dev/null || true
+                echo "  Unset merge.ff (no previous value was recorded)"
+            fi
         fi
     fi
 
