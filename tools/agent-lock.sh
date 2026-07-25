@@ -35,12 +35,54 @@ _lock_path() {
     echo "$LOCKS_DIR/$(_slug "$1").json"
 }
 
-_is_stale() {
+_pid_start_epoch() {
+    # Best-effort: the recorded pid's own process-start time, in epoch
+    # seconds, or empty if undeterminable (unsupported ps, permission
+    # denied, process already gone). `ps -o lstart=` is supported by both
+    # GNU (Linux) and BSD (macOS) ps and prints a ctime-style string; the
+    # single-digit-day case pads with an extra space ("Jan  1"), which the
+    # whitespace normalization below collapses before parsing.
     local pid="$1"
-    if kill -0 "$pid" 2>/dev/null; then
-        return 1  # still alive
+    local lstart
+    lstart="$(ps -o lstart= -p "$pid" 2>/dev/null || true)"
+    [[ -n "$lstart" ]] || return 0
+    python3 -c "
+import sys
+from datetime import datetime
+raw = ' '.join(sys.argv[1].split())
+try:
+    print(int(datetime.strptime(raw, '%a %b %d %H:%M:%S %Y').timestamp()))
+except ValueError:
+    pass
+" "$lstart" 2>/dev/null || true
+}
+
+_is_stale() {
+    # A lock is stale if its recorded pid is dead, OR if that pid is alive
+    # but its CURRENT process-start time no longer matches the start time
+    # recorded at acquire time — meaning the OS has since reused the pid
+    # number for an unrelated process (#148: a merged, week-old lock read
+    # as "live" indefinitely because kill -0 happened to match an
+    # unrelated long-running process that now occupies the same pid).
+    #
+    # $2 (recorded_pid_started_at) is optional: pre-existing lock files
+    # written before this field existed, or a pid whose start time
+    # couldn't be determined at acquire time, have no value to compare
+    # against — fall back to the original kill-0-only check rather than
+    # risk a false "stale" from an unverifiable comparison.
+    local pid="$1"
+    local recorded_pid_started_at="${2:-}"
+    if ! kill -0 "$pid" 2>/dev/null; then
+        return 0  # stale: process is dead
     fi
-    return 0  # stale
+    if [[ -n "$recorded_pid_started_at" ]]; then
+        local current_pid_started_at
+        current_pid_started_at="$(_pid_start_epoch "$pid")"
+        if [[ -n "$current_pid_started_at" ]] && [[ "$current_pid_started_at" != "$recorded_pid_started_at" ]]; then
+            return 0  # stale: pid was reused by a different process
+        fi
+    fi
+    return 1  # still alive, same process that acquired the lock
 }
 
 _is_ancestor_pid() {
@@ -104,9 +146,10 @@ cmd_acquire() {
     trap 'rmdir "$mutex_dir" 2>/dev/null' EXIT
 
     if [[ -f "$path" ]]; then
-        local pid
+        local pid pid_started_at
         pid="$(python3 -c "import json,sys; d=json.load(open('$path')); print(d['pid'])" 2>/dev/null || echo "0")"
-        if [[ "$pid" -gt 0 ]] && ! _is_stale "$pid"; then
+        pid_started_at="$(python3 -c "import json,sys; d=json.load(open('$path')); print(d.get('pid_started_at') or '')" 2>/dev/null || echo "")"
+        if [[ "$pid" -gt 0 ]] && ! _is_stale "$pid" "$pid_started_at"; then
             echo "LOCKED: '$feature' is already being worked on." >&2
             python3 -c "
 import json, sys
@@ -131,6 +174,12 @@ print(f\"  2. Create your own branch: git worktree add -b feat/{d['branch']}-2 .
     local started_at
     started_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
     local pid="${AGENT_LOCK_PID:-$PPID}"
+    # Recorded once, at acquire time, so later liveness checks can tell a
+    # still-running owner from an unrelated process that later reused this
+    # exact pid number (#148) — empty/null if undeterminable on this
+    # platform, in which case staleness checks fall back to kill-0 only.
+    local pid_started_at
+    pid_started_at="$(_pid_start_epoch "$pid")"
 
     local worktree_val
     if [[ "$worktree" == "null" ]]; then
@@ -139,16 +188,24 @@ print(f\"  2. Create your own branch: git worktree add -b feat/{d['branch']}-2 .
         worktree_val="'$worktree'"
     fi
 
+    local pid_started_at_val
+    if [[ -n "$pid_started_at" ]]; then
+        pid_started_at_val="$pid_started_at"
+    else
+        pid_started_at_val="None"
+    fi
+
     local content
     content="$(python3 - <<HEREDOC
 import json, sys
 print(json.dumps({
-    "agent_id":   "$agent_id",
-    "feature":    "$feature",
-    "branch":     "$branch",
-    "worktree":   $worktree_val,
-    "started_at": "$started_at",
-    "pid":        $pid,
+    "agent_id":        "$agent_id",
+    "feature":         "$feature",
+    "branch":          "$branch",
+    "worktree":        $worktree_val,
+    "started_at":      "$started_at",
+    "pid":             $pid,
+    "pid_started_at":  $pid_started_at_val,
 }, indent=2, sort_keys=True))
 HEREDOC
 )"
@@ -192,9 +249,10 @@ cmd_check() {
         return 0
     fi
 
-    local pid
+    local pid pid_started_at
     pid="$(python3 -c "import json; d=json.load(open('$path')); print(d['pid'])" 2>/dev/null || echo "0")"
-    if [[ "$pid" -gt 0 ]] && _is_stale "$pid"; then
+    pid_started_at="$(python3 -c "import json; d=json.load(open('$path')); print(d.get('pid_started_at') or '')" 2>/dev/null || echo "")"
+    if [[ "$pid" -gt 0 ]] && _is_stale "$pid" "$pid_started_at"; then
         rm -f "$path"
         echo "FREE: stale lock removed for '$feature'"
         return 0
@@ -245,18 +303,25 @@ except (TypeError, ValueError):
     print(0)
 line(d.get('feature', ''))
 line(d.get('started_at', ''))
+# Command substitution strips trailing newlines, so a genuinely empty
+# last field would silently disappear from $info below and starve the
+# final `read` — print a non-empty sentinel instead of an empty line.
+pid_started_at = d.get('pid_started_at')
+line(pid_started_at if pid_started_at is not None else 'NONE')
 PYEOF
 )" || continue
-        local l_branch l_agent l_pid l_feature l_since
+        local l_branch l_agent l_pid l_feature l_since l_pid_started_at
         {
             read -r l_branch
             read -r l_agent
             read -r l_pid
             read -r l_feature
             read -r l_since
+            read -r l_pid_started_at
         } <<< "$info"
+        [[ "$l_pid_started_at" == "NONE" ]] && l_pid_started_at=""
         [[ "$l_branch" == "$branch" ]] || continue
-        if [[ "$l_pid" -gt 0 ]] && _is_stale "$l_pid"; then
+        if [[ "$l_pid" -gt 0 ]] && _is_stale "$l_pid" "$l_pid_started_at"; then
             rm -f "$f"
             continue
         fi
@@ -288,9 +353,10 @@ cmd_list() {
     local count=0
     for f in "$LOCKS_DIR"/*.json; do
         [[ -f "$f" ]] || continue
-        local pid
+        local pid pid_started_at
         pid="$(python3 -c "import json; d=json.load(open('$f')); print(d['pid'])" 2>/dev/null || echo "0")"
-        if [[ "$pid" -gt 0 ]] && _is_stale "$pid"; then
+        pid_started_at="$(python3 -c "import json; d=json.load(open('$f')); print(d.get('pid_started_at') or '')" 2>/dev/null || echo "")"
+        if [[ "$pid" -gt 0 ]] && _is_stale "$pid" "$pid_started_at"; then
             rm -f "$f"
             continue
         fi
@@ -311,9 +377,10 @@ cmd_clean() {
     local removed=0
     for f in "$LOCKS_DIR"/*.json; do
         [[ -f "$f" ]] || continue
-        local pid
+        local pid pid_started_at
         pid="$(python3 -c "import json; d=json.load(open('$f')); print(d['pid'])" 2>/dev/null || echo "0")"
-        if [[ "$pid" -le 0 ]] || _is_stale "$pid"; then
+        pid_started_at="$(python3 -c "import json; d=json.load(open('$f')); print(d.get('pid_started_at') or '')" 2>/dev/null || echo "")"
+        if [[ "$pid" -le 0 ]] || _is_stale "$pid" "$pid_started_at"; then
             rm -f "$f"
             removed=$((removed + 1))
         fi
