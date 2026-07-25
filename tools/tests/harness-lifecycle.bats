@@ -723,11 +723,17 @@ print(d['hooks_path'])
     # fast-forward merge moves the ref with no commit for either hook to
     # fire on — the most ordinary way to "integrate a branch" silently
     # bypassed trunk protection. Uses real git merge, not a simulated hook.
+    #
+    # Whether a blocked, purely fast-forward-eligible merge leaves
+    # MERGE_HEAD/merge-in-progress state (vs. just aborting cleanly) varies
+    # by git version, so the two scenarios (blocked on trunk, allowed on a
+    # feature branch) each get their own fresh repo instead of sharing one
+    # and trying to clean up in between.
+    local trunk trunk_rev0
+
     git -C "$TEST_PROJECT" init --quiet
     git -C "$TEST_PROJECT" -c user.email=t@e.com -c user.name=t commit --quiet --allow-empty -m init
-    local trunk
     trunk="$(git -C "$TEST_PROJECT" branch --show-current)"
-    local trunk_rev0
     trunk_rev0="$(git -C "$TEST_PROJECT" rev-parse "$trunk")"
 
     git -C "$TEST_PROJECT" checkout -b feature/x --quiet
@@ -745,23 +751,27 @@ print(d['hooks_path'])
     [ "$status" -ne 0 ]
     [ "$(git -C "$TEST_PROJECT" rev-parse "$trunk")" = "$trunk_rev0" ]
 
-    # A blocked merge commit leaves leftover state before the next scenario
-    # — the same way a real operator would need to clean up after hitting
-    # this block. Whether that state includes MERGE_HEAD (making 'git merge
-    # --abort' applicable) or just staged/working-tree changes with no
-    # merge-in-progress marker varies by git version for a purely
-    # fast-forward-eligible merge, so reset unconditionally instead of
-    # relying on 'merge --abort' alone.
-    if git -C "$TEST_PROJECT" rev-parse -q --verify MERGE_HEAD >/dev/null; then
-        git -C "$TEST_PROJECT" merge --abort
-    fi
-    git -C "$TEST_PROJECT" reset --hard "$trunk_rev0" --quiet
-    git -C "$TEST_PROJECT" clean -fd --quiet
+    # A non-trunk branch is unaffected — merges there still work. Uses an
+    # independent second fixture repo (see comment above) rather than
+    # reusing $TEST_PROJECT after the blocked merge.
+    local project2
+    project2=$(mktemp -d)
+    git -C "$project2" init --quiet
+    git -C "$project2" -c user.email=t@e.com -c user.name=t commit --quiet --allow-empty -m init
+    local trunk2
+    trunk2="$(git -C "$project2" branch --show-current)"
 
-    # A non-trunk branch is unaffected — merges there still work.
-    git -C "$TEST_PROJECT" checkout -b integration --quiet "$trunk"
-    run git -C "$TEST_PROJECT" merge feature/x
+    git -C "$project2" checkout -b feature/x --quiet
+    echo "x" > "$project2/x.txt"
+    git -C "$project2" add x.txt
+    git -C "$project2" -c user.email=t@e.com -c user.name=t commit --quiet -m "add x"
+    git -C "$project2" checkout -b integration --quiet "$trunk2"
+
+    bash "$SCRIPT" init "$project2" --skills committing --with-hook --mode copy
+
+    run git -C "$project2" merge feature/x
     [ "$status" -eq 0 ]
+    rm -rf "$project2"
 }
 
 @test "doctor: reports a leftover crash journal" {
