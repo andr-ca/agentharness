@@ -42,6 +42,30 @@ the project, so it gets no wrapper; `audit --json`'s
 soft-warns (not a hard failure) if a non-`copy` install is missing its
 wrapper — run `update` once to generate or regenerate it.
 
+### Trunk protection also covers fast-forward merges (`merge.ff=false`)
+
+`prevent-trunk-commit` blocks a direct `git commit` on a trunk branch
+(`main`/`master`/`trunk`/`develop`/`release/*`) and a `git merge --no-ff`
+onto one, but a **fast-forward** `git merge` moves the branch ref without
+creating any commit — there is nothing for either hook to fire on, so the
+most ordinary way to "integrate a branch" silently bypassed trunk
+protection entirely. `--with-hook` now also sets `git config merge.ff
+false`, which forces every merge to create a real (and therefore
+blockable) merge commit.
+
+**Tradeoff:** `merge.ff` is repo-wide, not trunk-scoped — updating a
+*feature* branch from trunk (`git merge main` while on the branch) also
+gets a merge commit instead of fast-forwarding. Teams that prefer a
+linear feature-branch history will notice this. `doctor` verifies
+`merge.ff=false` whenever `with_hook` is recorded true. `uninstall` only
+touches `merge.ff` if it's still exactly what this install set (the same
+ownership check `core.hooksPath` gets) — and, like `core.hooksPath`, it
+restores whatever value (e.g. `only`) was there before this install
+overwrote it, or unsets `merge.ff` if there was none. As with all local
+hooks, this is best-effort: remote branch protection (a GitHub ruleset
+rejecting non-fast-forward pushes, or equivalent) remains the
+authoritative guard.
+
 ### Coverage enforcement (`--with-coverage-hook`, P0-03)
 
 `--with-hook` alone only installs `prevent-trunk-commit` — the shared

@@ -682,6 +682,135 @@ print(d['hooks_path'])
     [[ "$output" != *"agent-lock.sh is missing or not executable"* ]]
 }
 
+@test "lifecycle: #155 regression — init --with-hook sets merge.ff=false" {
+    git -C "$TEST_PROJECT" init --quiet
+    run bash "$SCRIPT" init "$TEST_PROJECT" --skills committing --with-hook --mode copy
+    [ "$status" -eq 0 ]
+    [ "$(git -C "$TEST_PROJECT" config --get merge.ff)" = "false" ]
+}
+
+@test "lifecycle: #155 regression — doctor fails when with_hook is true but merge.ff isn't false" {
+    git -C "$TEST_PROJECT" init --quiet
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing --with-hook --mode copy
+    git -C "$TEST_PROJECT" config --unset merge.ff
+
+    run bash "$SCRIPT" doctor "$TEST_PROJECT"
+    [ "$status" -ne 0 ]
+    [[ "$output" =~ "merge.ff is not set to false" ]]
+}
+
+@test "lifecycle: #155 regression — doctor passes when merge.ff=false" {
+    git -C "$TEST_PROJECT" init --quiet
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing --with-hook --mode copy
+
+    run bash "$SCRIPT" doctor "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "merge.ff=false (fast-forward merges into trunk are blocked)" ]]
+}
+
+@test "lifecycle: #155 regression — uninstall unsets merge.ff when still exactly false" {
+    git -C "$TEST_PROJECT" init --quiet
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing --with-hook --mode copy
+    [ "$(git -C "$TEST_PROJECT" config --get merge.ff)" = "false" ]
+
+    echo y | bash "$SCRIPT" uninstall "$TEST_PROJECT"
+    [ -z "$(git -C "$TEST_PROJECT" config --get merge.ff 2>/dev/null)" ]
+}
+
+state_previous_merge_ff() {
+    python3 -c "
+import json
+with open('$1/.agentharness-state.json') as f:
+    print(json.load(f).get('previous_merge_ff'))
+"
+}
+
+@test "lifecycle: #155 regression — uninstall restores an operator's pre-existing merge.ff instead of just unsetting it (Copilot review)" {
+    git -C "$TEST_PROJECT" init --quiet
+    git -C "$TEST_PROJECT" config merge.ff only
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing --with-hook --mode copy
+    [ "$(git -C "$TEST_PROJECT" config --get merge.ff)" = "false" ]
+    [ "$(state_previous_merge_ff "$TEST_PROJECT")" = "only" ]
+
+    echo y | bash "$SCRIPT" uninstall "$TEST_PROJECT"
+    [ "$(git -C "$TEST_PROJECT" config --get merge.ff)" = "only" ]
+}
+
+@test "lifecycle: #155 regression — update carries previous_merge_ff forward instead of dropping it" {
+    git -C "$TEST_PROJECT" init --quiet
+    git -C "$TEST_PROJECT" config merge.ff only
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing --with-hook --mode copy
+    [ "$(state_previous_merge_ff "$TEST_PROJECT")" = "only" ]
+
+    echo y | bash "$SCRIPT" update "$TEST_PROJECT"
+    [ "$(state_previous_merge_ff "$TEST_PROJECT")" = "only" ]
+
+    echo y | bash "$SCRIPT" uninstall "$TEST_PROJECT"
+    [ "$(git -C "$TEST_PROJECT" config --get merge.ff)" = "only" ]
+}
+
+@test "lifecycle: #155 acceptance test — a real fast-forward git merge into trunk is now blocked, not just direct commits" {
+    # Direct reproduction of the issue #155 scenario: prevent-trunk-commit
+    # blocks 'git commit' and 'git merge --no-ff' onto trunk, but a plain
+    # fast-forward merge moves the ref with no commit for either hook to
+    # fire on — the most ordinary way to "integrate a branch" silently
+    # bypassed trunk protection. Uses real git merge, not a simulated hook.
+    #
+    # Whether a blocked, purely fast-forward-eligible merge leaves
+    # MERGE_HEAD/merge-in-progress state (vs. just aborting cleanly) varies
+    # by git version, so the two scenarios (blocked on trunk, allowed on a
+    # feature branch) each get their own fresh repo instead of sharing one
+    # and trying to clean up in between.
+    local trunk trunk_rev0
+
+    git -C "$TEST_PROJECT" init --quiet
+    git -C "$TEST_PROJECT" -c user.email=t@e.com -c user.name=t commit --quiet --allow-empty -m init
+    trunk="$(git -C "$TEST_PROJECT" branch --show-current)"
+    trunk_rev0="$(git -C "$TEST_PROJECT" rev-parse "$trunk")"
+
+    git -C "$TEST_PROJECT" checkout -b feature/x --quiet
+    echo "x" > "$TEST_PROJECT/x.txt"
+    git -C "$TEST_PROJECT" add x.txt
+    git -C "$TEST_PROJECT" -c user.email=t@e.com -c user.name=t commit --quiet -m "add x"
+    git -C "$TEST_PROJECT" checkout "$trunk" --quiet
+
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing --with-hook --mode copy
+
+    # Before the fix this succeeded (fast-forward, no commit created, no
+    # hook fired). With merge.ff=false it must now create a merge commit,
+    # which pre-merge-commit blocks.
+    run git -C "$TEST_PROJECT" merge feature/x
+    [ "$status" -ne 0 ]
+    [ "$(git -C "$TEST_PROJECT" rev-parse "$trunk")" = "$trunk_rev0" ]
+
+    # A non-trunk branch is unaffected — merges there still work. Uses an
+    # independent second fixture repo (see comment above) rather than
+    # reusing $TEST_PROJECT after the blocked merge.
+    local project2
+    project2=$(mktemp -d)
+    git -C "$project2" init --quiet
+    git -C "$project2" -c user.email=t@e.com -c user.name=t commit --quiet --allow-empty -m init
+    local trunk2
+    trunk2="$(git -C "$project2" branch --show-current)"
+
+    git -C "$project2" checkout -b feature/x --quiet
+    echo "x" > "$project2/x.txt"
+    git -C "$project2" add x.txt
+    git -C "$project2" -c user.email=t@e.com -c user.name=t commit --quiet -m "add x"
+    git -C "$project2" checkout -b integration --quiet "$trunk2"
+
+    bash "$SCRIPT" init "$project2" --skills committing --with-hook --mode copy
+
+    # This merge is real (not blocked) and, with merge.ff=false, creates an
+    # actual merge commit — unlike the -c-scoped commits above, git needs a
+    # repo-level identity for that, which a CI runner may not have globally.
+    git -C "$project2" config user.email t@e.com
+    git -C "$project2" config user.name t
+    run git -C "$project2" merge feature/x
+    [ "$status" -eq 0 ]
+    rm -rf "$project2"
+}
+
 @test "doctor: reports a leftover crash journal" {
     echo "# My project" > "$TEST_PROJECT/AGENTS.md"
     bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing

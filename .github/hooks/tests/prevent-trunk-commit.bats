@@ -85,3 +85,35 @@ install_hook() {
     run git commit -m "test"
     [ "$status" -eq 0 ]
 }
+
+@test "shows merge-aware guidance (git merge --abort), not the plain-commit stash advice, when blocked mid-merge (#155)" {
+    init_repo main
+    touch file.txt
+    git add file.txt
+    git commit -q -m init --no-verify
+    git checkout -q -b feature/x
+    echo x > x.txt
+    git add x.txt
+    git commit -q -m "add x" --no-verify
+    git checkout -q main
+
+    cp "$HOOK" .git/hooks/pre-merge-commit
+    chmod +x .git/hooks/pre-merge-commit
+    git config merge.ff false
+
+    run git merge feature/x
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"git merge --abort"* ]]
+    [[ "$output" != *"git stash"* ]]
+}
+
+@test "shows the plain-commit stash advice, not merge guidance, for a direct commit (no regression)" {
+    init_repo main
+    install_hook
+    touch file.txt
+    git add file.txt
+    run git commit -m "test"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"git stash"* ]]
+    [[ "$output" != *"git merge --abort"* ]]
+}
