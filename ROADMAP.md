@@ -353,13 +353,17 @@ label by the review filename cited next to it, never by number alone.
 - **P2-01 — Run real baseline/treatment GPT-5 evaluations.** The
   deterministic eval-suite infrastructure already shipped this session
   (an earlier review round's own "P2-04" — unrelated to this review's
-  P2-04 label below) is infrastructure. **First live evidence now exists**
+  P2-04 label below) is infrastructure. **First live evidence now exists,
+  but it is not GPT-5 evidence and does not close this item**
   (`docs/operational/eval-harness-observations-2026-07-23.md`): baseline
-  vs. treatment runs, scored deterministically from git state, showing
+  vs. treatment runs via the `opencode` CLI on the free
+  `opencode/big-pickle` model — not GPT-5, and not the target agent —
+  scored deterministically from git state, showing
   trunk commits at 2/2 unsafe → 0/2 under enforcement and branch-first at
   0/9 → 3/3 from the advisory layer with every hook off. That closes
-  "infrastructure, not evidence" for **governed-action safety only** — it
-  is single-digit N on one to three actions with a small free model, and
+  "infrastructure, not evidence" for **governed-action safety only**, on a
+  model this item does not ask about — it
+  is single-digit N on one to three actions, and
   the code-correctness battery read flat. What this item still asks for
   is unchanged: the target agent (Claude Code with its Stop-hook gate),
   pinned model/prompt versions, multiple seeds, and published raw results.

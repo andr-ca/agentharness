@@ -37,8 +37,11 @@ noted — resolve any label against the review filename cited next to it in
   behavior going 0/9 → 3/3 from the advisory layer alone (all hooks off).
   Treat these as integration tests for the boundary, **not** as
   statistics: single-digit run counts, one to three governed actions, and
-  a small free model rather than the target agent (Claude Code with its
-  Stop-hook gate). The code-correctness battery read flat, and that flat
+  a driver that is neither the target client nor a frontier model — the
+  runs used the `opencode` CLI on the free `opencode/big-pickle` model,
+  not Claude Code with its Stop-hook completion gate, which is the client
+  the harness actually targets and the one whose enforcement surface is
+  widest. The code-correctness battery read flat, and that flat
   result is a measurement artifact — toy tasks a capable model aces
   either way — not evidence the harness is inert. No run has shown the
   harness improves code quality, and none has been run on the target
