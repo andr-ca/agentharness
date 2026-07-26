@@ -184,18 +184,33 @@ GitHub Copilot, and Gemini CLI via the Agent Skills open standard.
   isn't a meaningful concept for a binary rule, so it needs a different
   detection approach, not an extension of this one.
 
-- **P2-05 (real dogfood) has no target.** Confirmed still not done as of
-  the 2026-07-13 re-audit (`gpt-5.6-completion-reaudit.md`): no evidence
-  the harness is pinned and used in a real, non-fixture project. This
-  isn't a coding task — it means picking at least one real repo (ideally
-  not this session's author's own) to adopt `harness-link.sh init`
-  against and letting friction surface over real use, then feeding
-  findings back. Tracked here so it isn't silently dropped between status
-  snapshots; see
-  `docs/operational/reviews/gpt-5.6-completion-reaudit-status.md`. An
-  executable plan + tracking template now exists at
-  `docs/operational/planning/DOGFOODING.md`; the run itself is still the
-  (user-triggered) open item.
+- **P2-05 (real dogfood) — partially closed; the independent half is
+  still open.** The 2026-07-13 re-audit
+  (`gpt-5.6-completion-reaudit.md`) recorded "no evidence the harness is
+  pinned and used in a real, non-fixture project," and **that text is now
+  stale**: the harness has since been used in `andr-ca/recalium` and
+  `andr-ca/infoocode`, and the friction that surfaced was filed upstream
+  as issues #76, #77, #78, #79, #88, #149 (recalium) and #110, #117
+  (infoocode) — real-use evidence the fixtures could not have produced.
+
+  Two things the original entry asked for are still genuinely missing,
+  and they are the ones that carry the generalization claim:
+  1. **A repo that is not the author's own.** Both dogfood targets are
+     the same operator's projects, so correlated blind spots — the
+     explicit reason fixtures aren't enough — remain untested.
+  2. **A recorded dogfood row.** No dated status doc under
+     `docs/operational/reviews/` captures the signals
+     `docs/operational/planning/DOGFOODING.md` defines (install time,
+     overrides needed, false positives, update friction, context cost,
+     abandoned features, net verdict). The friction was filed as
+     individual issues, which is not the same as the systematic
+     comparison the plan asks for.
+
+  Note also that `DOGFOODING.md` still opens with "**Status:** not
+  started," which is now wrong in the same direction; update it when the
+  first row is recorded. Tracked here so it isn't silently dropped
+  between status snapshots; see
+  `docs/operational/reviews/gpt-5.6-completion-reaudit-status.md`.
 
 - ~~P0-03's remote-write authorization model is unresolved.~~ —
   **IMPLEMENTED** (B1). `CLAUDE.md`'s Agent Workflow Completion section
@@ -338,7 +353,20 @@ label by the review filename cited next to it, never by number alone.
 - **P2-01 — Run real baseline/treatment GPT-5 evaluations.** The
   deterministic eval-suite infrastructure already shipped this session
   (an earlier review round's own "P2-04" — unrelated to this review's
-  P2-04 label below) is infrastructure, not evidence the harness helps.
+  P2-04 label below) is infrastructure. **First live evidence now exists,
+  but it is not GPT-5 evidence and does not close this item**
+  (`docs/operational/eval-harness-observations-2026-07-23.md`): baseline
+  vs. treatment runs via the `opencode` CLI on the free
+  `opencode/big-pickle` model — not GPT-5, and not the target agent —
+  scored deterministically from git state, showing
+  trunk commits at 2/2 unsafe → 0/2 under enforcement and branch-first at
+  0/9 → 3/3 from the advisory layer with every hook off. That closes
+  "infrastructure, not evidence" for **governed-action safety only**, on a
+  model this item does not ask about — it
+  is single-digit N on one to three actions, and
+  the code-correctness battery read flat. What this item still asks for
+  is unchanged: the target agent (Claude Code with its Stop-hook gate),
+  pinned model/prompt versions, multiple seeds, and published raw results.
   Proposed: a pluggable live runner
   outside the core package, pinned model/prompt versions, multiple seeds,
   recorded cost/turns/context/test score, published raw results, and
