@@ -92,6 +92,67 @@ _release() {
     [[ "$result" == *"FORBIDDEN"* ]] || [[ "$result" == *"NOT FOUND"* ]]
 }
 
+@test "release: missing agent_id prints usage instead of crashing on unbound variable" {
+    (cd "$TEST_ROOT" && bash "$LOCK_SCRIPT" acquire "usage-release" "feat/usage-release")
+    local rc=0
+    local result
+    # Explicitly unset so this stays deterministic even if the bats
+    # process itself inherited AGENTHARNESS_AGENT_ID from its caller —
+    # otherwise the release fallback (tested separately below) would
+    # mask the missing-arg path this test exists to cover.
+    result="$(cd "$TEST_ROOT" && unset AGENTHARNESS_AGENT_ID; bash "$LOCK_SCRIPT" release "usage-release" 2>&1)" || rc=$?
+    [[ $rc -ne 0 ]]
+    [[ "$result" == *"Usage: tools/agent-lock.sh release <feature> <agent_id>"* ]]
+}
+
+@test "release: missing feature prints usage instead of crashing on unbound variable" {
+    local rc=0
+    local result
+    result="$(cd "$TEST_ROOT" && bash "$LOCK_SCRIPT" release 2>&1)" || rc=$?
+    [[ $rc -ne 0 ]]
+    [[ "$result" == *"Usage: tools/agent-lock.sh release"* ]]
+}
+
+@test "release: falls back to AGENTHARNESS_AGENT_ID env var when agent_id omitted" {
+    local agent_id
+    agent_id="$(_acquire "env-fallback-feature")"
+    local result
+    result="$(cd "$TEST_ROOT" && AGENTHARNESS_AGENT_ID="$agent_id" bash "$LOCK_SCRIPT" release "env-fallback-feature" 2>&1)"
+    [[ "$result" == *"RELEASED"* ]]
+}
+
+@test "acquire: missing branch prints usage instead of crashing on unbound variable" {
+    local rc=0
+    local result
+    result="$(cd "$TEST_ROOT" && bash "$LOCK_SCRIPT" acquire "only-feature" 2>&1)" || rc=$?
+    [[ $rc -ne 0 ]]
+    [[ "$result" == *"Usage: tools/agent-lock.sh acquire <feature> <branch> [worktree]"* ]]
+}
+
+@test "check: missing feature prints usage instead of crashing on unbound variable" {
+    local rc=0
+    local result
+    result="$(cd "$TEST_ROOT" && bash "$LOCK_SCRIPT" check 2>&1)" || rc=$?
+    [[ $rc -ne 0 ]]
+    [[ "$result" == *"Usage: tools/agent-lock.sh check <feature>"* ]]
+}
+
+@test "check-branch: missing branch prints usage instead of crashing on unbound variable" {
+    local rc=0
+    local result
+    result="$(cd "$TEST_ROOT" && bash "$LOCK_SCRIPT" check-branch 2>&1)" || rc=$?
+    [[ $rc -ne 0 ]]
+    [[ "$result" == *"Usage: tools/agent-lock.sh check-branch <branch>"* ]]
+}
+
+@test "suggest-branch: missing feature prints usage instead of crashing on unbound variable" {
+    local rc=0
+    local result
+    result="$(cd "$TEST_ROOT" && bash "$LOCK_SCRIPT" suggest-branch 2>&1)" || rc=$?
+    [[ $rc -ne 0 ]]
+    [[ "$result" == *"Usage: tools/agent-lock.sh suggest-branch <feature>"* ]]
+}
+
 @test "acquire: blocked when active lock exists" {
     local first_id
     first_id="$(_acquire "contested" "feat/contested")"

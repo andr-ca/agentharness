@@ -3,7 +3,7 @@
 #
 # Usage:
 #   tools/agent-lock.sh acquire <feature> <branch> [worktree]
-#   tools/agent-lock.sh release <feature> <agent_id>
+#   tools/agent-lock.sh release <feature> [agent_id]  (defaults to $AGENTHARNESS_AGENT_ID)
 #   tools/agent-lock.sh check   <feature>
 #   tools/agent-lock.sh check-branch <branch>
 #   tools/agent-lock.sh list
@@ -127,9 +127,14 @@ _atomic_write() {
 # ---------------------------------------------------------------------------
 
 cmd_acquire() {
-    local feature="$1"
-    local branch="$2"
+    local feature="${1:-}"
+    local branch="${2:-}"
     local worktree="${3:-null}"
+
+    if [[ -z "$feature" || -z "$branch" ]]; then
+        echo "Usage: tools/agent-lock.sh acquire <feature> <branch> [worktree]" >&2
+        return 1
+    fi
 
     mkdir -p "$LOCKS_DIR"
     local path
@@ -218,8 +223,17 @@ HEREDOC
 }
 
 cmd_release() {
-    local feature="$1"
-    local agent_id="$2"
+    local feature="${1:-}"
+    # Falls back to AGENTHARNESS_AGENT_ID (which the protocol already
+    # mandates exporting after acquire) so the id doesn't have to be
+    # re-typed positionally at release time, often long after acquire ran.
+    local agent_id="${2:-${AGENTHARNESS_AGENT_ID:-}}"
+
+    if [[ -z "$feature" || -z "$agent_id" ]]; then
+        echo "Usage: tools/agent-lock.sh release <feature> <agent_id>" >&2
+        echo "  <agent_id> is the value printed by acquire, exported as AGENTHARNESS_AGENT_ID" >&2
+        return 1
+    fi
 
     local path
     path="$(_lock_path "$feature")"
@@ -240,7 +254,11 @@ cmd_release() {
 }
 
 cmd_check() {
-    local feature="$1"
+    local feature="${1:-}"
+    if [[ -z "$feature" ]]; then
+        echo "Usage: tools/agent-lock.sh check <feature>" >&2
+        return 1
+    fi
     local path
     path="$(_lock_path "$feature")"
 
@@ -277,7 +295,11 @@ cmd_check_branch() {
     # Exit 0: FREE (no live lock for this branch) or OWNED (this session
     # holds it, via AGENTHARNESS_AGENT_ID match or ancestor-pid match).
     # Exit 1: LOCKED by another live session.
-    local branch="$1"
+    local branch="${1:-}"
+    if [[ -z "$branch" ]]; then
+        echo "Usage: tools/agent-lock.sh check-branch <branch>" >&2
+        return 1
+    fi
     mkdir -p "$LOCKS_DIR"
     # Block if ANY live lock on this branch belongs to another session —
     # an owned lock must not mask a foreign one, so scan every lock file
@@ -389,7 +411,11 @@ cmd_clean() {
 }
 
 cmd_suggest_branch() {
-    local feature="$1"
+    local feature="${1:-}"
+    if [[ -z "$feature" ]]; then
+        echo "Usage: tools/agent-lock.sh suggest-branch <feature>" >&2
+        return 1
+    fi
     local slug
     slug="$(_slug "$feature" | cut -c1-20)"
     local ts
@@ -415,7 +441,14 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
         clean)          cmd_clean ;;
         suggest-branch) cmd_suggest_branch "$@" ;;
         *)
-            echo "Usage: tools/agent-lock.sh <acquire|release|check|check-branch|list|clean|suggest-branch> ..." >&2
+            echo "Usage:" >&2
+            echo "  tools/agent-lock.sh acquire <feature> <branch> [worktree]" >&2
+            echo "  tools/agent-lock.sh release <feature> [agent_id]  (defaults to \$AGENTHARNESS_AGENT_ID)" >&2
+            echo "  tools/agent-lock.sh check   <feature>" >&2
+            echo "  tools/agent-lock.sh check-branch <branch>" >&2
+            echo "  tools/agent-lock.sh list" >&2
+            echo "  tools/agent-lock.sh clean" >&2
+            echo "  tools/agent-lock.sh suggest-branch <feature>" >&2
             echo "See patterns/multi-agent-coordination/COORDINATION.md" >&2
             exit 1 ;;
     esac
