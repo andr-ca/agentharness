@@ -3,7 +3,7 @@
 #
 # Usage:
 #   tools/agent-lock.sh acquire <feature> <branch> [worktree]
-#   tools/agent-lock.sh release <feature> <agent_id>
+#   tools/agent-lock.sh release <feature> [agent_id]  (defaults to $AGENTHARNESS_AGENT_ID)
 #   tools/agent-lock.sh check   <feature>
 #   tools/agent-lock.sh check-branch <branch>
 #   tools/agent-lock.sh list
@@ -443,7 +443,7 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
         *)
             echo "Usage:" >&2
             echo "  tools/agent-lock.sh acquire <feature> <branch> [worktree]" >&2
-            echo "  tools/agent-lock.sh release <feature> <agent_id>" >&2
+            echo "  tools/agent-lock.sh release <feature> [agent_id]  (defaults to \$AGENTHARNESS_AGENT_ID)" >&2
             echo "  tools/agent-lock.sh check   <feature>" >&2
             echo "  tools/agent-lock.sh check-branch <branch>" >&2
             echo "  tools/agent-lock.sh list" >&2

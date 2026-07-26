@@ -96,7 +96,11 @@ _release() {
     (cd "$TEST_ROOT" && bash "$LOCK_SCRIPT" acquire "usage-release" "feat/usage-release")
     local rc=0
     local result
-    result="$(cd "$TEST_ROOT" && bash "$LOCK_SCRIPT" release "usage-release" 2>&1)" || rc=$?
+    # Explicitly unset so this stays deterministic even if the bats
+    # process itself inherited AGENTHARNESS_AGENT_ID from its caller —
+    # otherwise the release fallback (tested separately below) would
+    # mask the missing-arg path this test exists to cover.
+    result="$(cd "$TEST_ROOT" && unset AGENTHARNESS_AGENT_ID; bash "$LOCK_SCRIPT" release "usage-release" 2>&1)" || rc=$?
     [[ $rc -ne 0 ]]
     [[ "$result" == *"Usage: tools/agent-lock.sh release <feature> <agent_id>"* ]]
 }
