@@ -353,3 +353,37 @@ session-token/lease fix (not inferred solely from PID) closes both.
 unrelated) before manually removing the lock file — the tool has no safe
 command for this today. Logged upstream as a corroborating comment on
 [#148](https://github.com/andr-ca/agentharness/issues/148#issuecomment-5073204356).
+
+## 2026-07-25 – Third-party sandbox failure blocks the feedback procedure itself
+
+**What happened:** During a local article-review task, the first read-only
+repository command completed normally. Every subsequent shell command,
+including `pwd` and `sed`, failed before the requested program started with
+`bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted`. The failure
+reproduced through both the direct command executor and its JavaScript
+orchestration wrapper, with login-shell and TTY variations.
+
+**Root cause:** The immediate failure was in the third-party Codex sandbox's
+network-namespace setup, not in an agentharness script. The harness-feedback
+skill nevertheless triggers broadly on tool-output friction and mandates an
+upstream agentharness issue even when agentharness does not own the failing
+runtime. Its procedure also assumes local shell access remains available to
+inspect the opt-out flag, append this log, and run `gh issue create`.
+
+**Impact:** The gitignored local `media/` article could not be read, so the
+requested scored review and companion Markdown file could not be produced
+until the workspace sandbox was restored. The same outage prevented local
+skill reads, opt-out inspection, ordinary repository writes, the completion
+gate, staging, and commits.
+
+**What agentharness should change:** Limit mandatory upstream feedback to
+harness-owned rules, hooks, scripts, generated configuration, and documented
+integrations. Add a degraded-mode procedure for third-party runtime failures:
+allow read-only API fallbacks, prohibit guessing local opt-out state, and
+explain how to report a blocked local log or completion gate without treating
+that blockage as another agentharness defect.
+
+**Corrective action taken:** After the workspace sandbox was restored, read
+the local skills and opt-out state, resumed the article review, and recorded
+the complete incident. Logged upstream as
+[#162](https://github.com/andr-ca/agentharness/issues/162).
