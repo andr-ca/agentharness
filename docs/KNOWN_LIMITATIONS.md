@@ -18,13 +18,31 @@ noted — resolve any label against the review filename cited next to it in
   *published* behavior, not dogfooded end-to-end. See
   [CLIENT_COMPATIBILITY.md](./CLIENT_COMPATIBILITY.md)'s intro and
   [DECISIONS.md](./DECISIONS.md)'s "Claude-first client scope".
-- **No real-world dogfood yet.** The harness is exercised only by its own
-  CI fixtures (`examples/*-project/`), not pinned into a real, non-fixture
-  project with a different stack and a user other than the author.
-  → ROADMAP "P2-05 (real dogfood) has no target" / P2-02.
-- **Evals are infrastructure, not evidence.** `tools/eval/` is a
-  deterministic runner + scorer, but no baseline/treatment run has shown
-  the harness improves agent behavior. → ROADMAP P2-01, P2-03.
+- **Dogfood is real but not independent.** No longer "fixtures only": the
+  harness has been installed and used in non-fixture repositories
+  (`andr-ca/recalium`, `andr-ca/infoocode`), and that use has produced
+  real friction filed upstream as issues — #76, #77, #78, #79, #88, #149
+  (recalium) and #110, #117 (infoocode). What remains open is the part
+  that matters most for generalization: **every one of those repos is the
+  author's own**, so correlated blind spots are untested, and none of the
+  systematic signals `docs/operational/planning/DOGFOODING.md` asks for
+  (install time, overrides needed, false-positive rate, update friction,
+  context cost, abandoned features) has been recorded in a dated dogfood
+  status doc. → ROADMAP "P2-05 (real dogfood)" / P2-02.
+- **Evals now have first evidence for enforcement, none for code
+  quality.** Live baseline/treatment runs exist and are written up in
+  `docs/operational/eval-harness-observations-2026-07-23.md`: governed-action
+  safety was measured deterministically from git state, with trunk
+  commits going 2/2 unsafe → 0/2 under enforcement, and branch-first
+  behavior going 0/9 → 3/3 from the advisory layer alone (all hooks off).
+  Treat these as integration tests for the boundary, **not** as
+  statistics: single-digit run counts, one to three governed actions, and
+  a small free model rather than the target agent (Claude Code with its
+  Stop-hook gate). The code-correctness battery read flat, and that flat
+  result is a measurement artifact — toy tasks a capable model aces
+  either way — not evidence the harness is inert. No run has shown the
+  harness improves code quality, and none has been run on the target
+  agent. → ROADMAP P2-01, P2-03.
 
 ## Enforcement
 
