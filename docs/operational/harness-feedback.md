@@ -387,3 +387,43 @@ that blockage as another agentharness defect.
 the local skills and opt-out state, resumed the article review, and recorded
 the complete incident. Logged upstream as
 [#162](https://github.com/andr-ca/agentharness/issues/162).
+
+## 2026-07-25 – `agent-lock.sh release` crashes when `agent_id` is omitted
+
+**What happened:** Releasing locks at the end of a session (the work that
+became PR #165), `bash tools/agent-lock.sh release "<feature>"` aborted with
+`tools/agent-lock.sh: line 222: $2: unbound variable`. `cmd_release()` reads
+`local agent_id="$2"` under `set -u`, so a missing second argument produces a
+raw bash diagnostic naming an internal line number instead of a usage message.
+The usage banner does not recover it: it lists subcommand *names* followed by
+a bare `...`, documenting no arguments for any subcommand.
+
+**Root cause:** Asymmetric signatures with no validation. `acquire` takes
+`<feature> <branch>`; `release` takes `<feature> <agent_id>` — a different
+second argument, of a different kind, which the caller must have retained
+from the acquire output potentially hours earlier. Symmetry makes
+`release "<feature>" "<branch>"` the natural guess and `release "<feature>"`
+the second guess; neither is validated.
+
+**Impact:** Low in this instance — `agent-lock.sh list` confirmed both locks
+were already released, so nothing was left stale. The latent risk is the
+timing: release runs at session end, when an agent is winding down and least
+likely to stop and read the source to work out what `$2` was. An agent that
+shrugs at an opaque crash leaves a stale lock behind, which is precisely the
+failure the coordination protocol exists to prevent.
+
+**What agentharness should change:** Validate arguments explicitly in
+`cmd_release` (and audit sibling subcommands for the same pattern), printing
+`Usage: agent-lock.sh release <feature> <agent_id>` and a hint that the id is
+the value `acquire` printed and the protocol already mandates exporting as
+`AGENTHARNESS_AGENT_ID`. Better still, default `agent_id` to that environment
+variable when the argument is absent — it is almost always set, and would
+have made this invocation succeed. Expand the usage banner to per-subcommand
+argument lists.
+
+**Corrective action taken:** Verified no stale locks remained. Logged
+upstream as
+[#166](https://github.com/andr-ca/agentharness/issues/166). This entry was
+deliberately held until [#163](https://github.com/andr-ca/agentharness/pull/163)
+merged, since that PR was open against this same file and appending
+concurrently would have created an avoidable conflict.
