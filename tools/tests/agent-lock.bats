@@ -382,3 +382,208 @@ JSON
     [ "$status" -eq 1 ]
     [[ "$output" =~ "LOCKED" ]]
 }
+
+# ---------------------------------------------------------------------------
+# Lease liveness (#148): pid liveness alone cannot represent a logical agent
+# session. Clients that run each tool call in a fresh process (and even
+# long-lived shells, when acquire runs inside a command substitution) leave a
+# recorded pid that dies immediately while the session continues. Every lock
+# now carries an explicit `lease_expires_at`; a lock is stale only when its
+# pid is dead-or-reused AND its lease has expired, so a dead pid can no
+# longer silently expire a live session's lock.
+# ---------------------------------------------------------------------------
+
+_dead_pid() {
+    # Above the kernel's pid_max, so it can never belong to a live process.
+    echo $(( $(cat /proc/sys/kernel/pid_max 2>/dev/null || echo 4194304) + 1 ))
+}
+
+_write_lease_lock() {
+    # A lock owned by an agent_id, with caller-chosen pid and lease offset in
+    # seconds relative to now (negative = already expired).
+    local name="$1" branch="$2" pid="$3" lease_offset="$4" agent_id="${5:-lease-test-agent}"
+    local path
+    path="$( (source "$LOCK_SCRIPT"; _lock_path "$name") )"
+    local lease
+    lease="$(python3 -c "
+import sys
+from datetime import datetime, timedelta, timezone
+print((datetime.now(timezone.utc) + timedelta(seconds=int(sys.argv[1]))).strftime('%Y-%m-%dT%H:%M:%SZ'))
+" "$lease_offset")"
+    cat > "$path" <<JSON
+{
+  "agent_id": "$agent_id",
+  "feature": "$name",
+  "branch": "$branch",
+  "worktree": null,
+  "started_at": "2026-01-01T00:00:00Z",
+  "pid": $pid,
+  "pid_started_at": null,
+  "lease_expires_at": "$lease"
+}
+JSON
+}
+
+@test "lease: acquire records a lease_expires_at in the future" {
+    (cd "$TEST_ROOT" && bash "$LOCK_SCRIPT" acquire "lease-feature" "feat/lease")
+    local f
+    f="$(find "$TEST_ROOT/.agentharness-locks" -name '*.json' | head -1)"
+    run python3 -c "
+import json
+from datetime import datetime, timezone
+d = json.load(open('$f'))
+lease = datetime.strptime(d['lease_expires_at'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
+print('FUTURE' if lease > datetime.now(timezone.utc) else 'PAST')
+"
+    [ "$status" -eq 0 ]
+    [[ "$output" == "FUTURE" ]]
+}
+
+@test "lease: acquiring process exits but the lease keeps the lock alive (the #148 primary report)" {
+    # The exact stateless-client shape: the process that ran acquire is gone,
+    # the logical session continues. Before the lease, this read as stale and
+    # the lock silently vanished.
+    _write_lease_lock "stateless-feature" "feat/stateless" "$(_dead_pid)" 3600
+    run bash "$LOCK_SCRIPT" check "stateless-feature"
+    [ "$status" -eq 1 ]
+    [[ "$output" =~ "LOCKED" ]]
+}
+
+@test "lease: the owner still passes check-branch after its acquiring process exited" {
+    _write_lease_lock "stateless-feature" "feat/stateless" "$(_dead_pid)" 3600 "my-session-id"
+    AGENTHARNESS_AGENT_ID="my-session-id" run bash "$LOCK_SCRIPT" check-branch "feat/stateless"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "OWNED" ]]
+}
+
+@test "lease: the owner can still release after its acquiring process exited" {
+    _write_lease_lock "stateless-feature" "feat/stateless" "$(_dead_pid)" 3600 "my-session-id"
+    run bash "$LOCK_SCRIPT" release "stateless-feature" "my-session-id"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "RELEASED" ]]
+}
+
+@test "lease: a foreign session is still blocked while the lease is valid" {
+    _write_lease_lock "stateless-feature" "feat/stateless" "$(_dead_pid)" 3600 "someone-elses-id"
+    AGENTHARNESS_AGENT_ID="my-different-id" run bash "$LOCK_SCRIPT" check-branch "feat/stateless"
+    [ "$status" -eq 1 ]
+    [[ "$output" =~ "LOCKED" ]]
+}
+
+@test "lease: a crashed owner is recoverable once the lease expires" {
+    _write_lease_lock "crashed-feature" "feat/crashed" "$(_dead_pid)" -60
+    run bash "$LOCK_SCRIPT" check "crashed-feature"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "FREE" ]]
+}
+
+@test "lease: clean removes a dead-pid lock only after its lease has expired" {
+    _write_lease_lock "still-leased" "feat/a" "$(_dead_pid)" 3600
+    _write_lease_lock "lease-done" "feat/b" "$(_dead_pid)" -60
+    (cd "$TEST_ROOT" && bash "$LOCK_SCRIPT" clean)
+    [ -f "$( (source "$LOCK_SCRIPT"; _lock_path "still-leased") )" ]
+    [ ! -f "$( (source "$LOCK_SCRIPT"; _lock_path "lease-done") )" ]
+}
+
+@test "lease: a live pid keeps the lock alive even after the lease expires" {
+    # A genuinely long-lived shell must not lose its lock just because the
+    # TTL elapsed — pid liveness and lease validity are independent grants.
+    _write_lease_lock "longlived-feature" "feat/longlived" "$$" -60
+    run bash "$LOCK_SCRIPT" check "longlived-feature"
+    [ "$status" -eq 1 ]
+    [[ "$output" =~ "LOCKED" ]]
+}
+
+@test "lease: backward compat — a lock with no lease_expires_at keeps pid-only semantics" {
+    cat > "$TEST_ROOT/.agentharness-locks/legacy-abc12345.json" <<JSON
+{
+  "agent_id": "legacy-agent",
+  "feature": "legacy-feature",
+  "branch": "feat/legacy",
+  "worktree": null,
+  "started_at": "2000-01-01T00:00:00Z",
+  "pid": $(_dead_pid)
+}
+JSON
+    (cd "$TEST_ROOT" && bash "$LOCK_SCRIPT" clean)
+    [ ! -f "$TEST_ROOT/.agentharness-locks/legacy-abc12345.json" ]
+}
+
+@test "lease: list agrees with check — a dead-pid lock under a valid lease is still listed" {
+    _write_lease_lock "listed-feature" "feat/listed" "$(_dead_pid)" 3600
+    run bash "$LOCK_SCRIPT" list
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "listed-feature" ]]
+}
+
+@test "renew: the owner extends its own lease" {
+    _write_lease_lock "renew-feature" "feat/renew" "$(_dead_pid)" 60 "my-session-id"
+    local path
+    path="$( (source "$LOCK_SCRIPT"; _lock_path "renew-feature") )"
+    local before
+    before="$(python3 -c "import json; print(json.load(open('$path'))['lease_expires_at'])")"
+    run bash "$LOCK_SCRIPT" renew "renew-feature" "my-session-id"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "RENEWED" ]]
+    local after
+    after="$(python3 -c "import json; print(json.load(open('$path'))['lease_expires_at'])")"
+    [[ "$after" > "$before" ]]
+}
+
+@test "renew: a foreign agent_id cannot extend someone else's lease" {
+    _write_lease_lock "renew-feature" "feat/renew" "$(_dead_pid)" 60 "owner-id"
+    run bash "$LOCK_SCRIPT" renew "renew-feature" "not-the-owner"
+    [ "$status" -eq 1 ]
+    [[ "$output" =~ "FORBIDDEN" ]]
+}
+
+@test "renew: falls back to AGENTHARNESS_AGENT_ID like release does" {
+    _write_lease_lock "renew-feature" "feat/renew" "$(_dead_pid)" 60 "env-session-id"
+    AGENTHARNESS_AGENT_ID="env-session-id" run bash "$LOCK_SCRIPT" renew "renew-feature"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "RENEWED" ]]
+}
+
+@test "renew: missing feature prints usage instead of crashing on unbound variable" {
+    run bash "$LOCK_SCRIPT" renew
+    [ "$status" -eq 1 ]
+    [[ "$output" =~ "Usage" ]]
+}
+
+# ---------------------------------------------------------------------------
+# Session marker (#148): a PreToolUse/pre-push hook runs in its own process
+# and does NOT inherit an AGENTHARNESS_AGENT_ID exported inline by the agent's
+# own shell, so env-var ownership proof is unavailable exactly where the push
+# gate needs it. acquire therefore also records the id in a per-checkout
+# session marker that any process standing in the checkout can read.
+# ---------------------------------------------------------------------------
+
+@test "session marker: check-branch reports OWNED with no env var and no ancestor pid" {
+    _write_lease_lock "marker-feature" "feat/marker" "$(_dead_pid)" 3600 "marker-session-id"
+    echo "marker-session-id" >> "$TEST_ROOT/.agentharness-locks/.session-ids"
+    run env -u AGENTHARNESS_AGENT_ID bash "$LOCK_SCRIPT" check-branch "feat/marker"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "OWNED" ]]
+}
+
+@test "session marker: acquire records the agent_id in the marker file" {
+    local id
+    id="$(_acquire "marker-write" "feat/marker-write")"
+    grep -q "$id" "$TEST_ROOT/.agentharness-locks/.session-ids"
+}
+
+@test "session marker: release drops the id so a released lock stops proving ownership" {
+    local id
+    id="$(_acquire "marker-drop" "feat/marker-drop")"
+    (cd "$TEST_ROOT" && bash "$LOCK_SCRIPT" release "marker-drop" "$id")
+    run grep -q "$id" "$TEST_ROOT/.agentharness-locks/.session-ids"
+    [ "$status" -ne 0 ]
+}
+
+@test "session marker: an id not in this checkout's marker does not prove ownership" {
+    _write_lease_lock "marker-feature" "feat/marker" "$(_dead_pid)" 3600 "someone-elses-id"
+    echo "my-own-unrelated-id" >> "$TEST_ROOT/.agentharness-locks/.session-ids"
+    run env -u AGENTHARNESS_AGENT_ID bash "$LOCK_SCRIPT" check-branch "feat/marker"
+    [ "$status" -eq 1 ]
+    [[ "$output" =~ "LOCKED" ]]
+}
