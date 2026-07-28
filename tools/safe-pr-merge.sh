@@ -8,9 +8,14 @@
 # Usage:
 #   bash tools/safe-pr-merge.sh <pr-number> [gh pr merge options]
 #
+# Merge strategy defaults to --merge. Pass --squash or --rebase to
+# override it; passing more than one strategy is rejected immediately,
+# before any of the polling steps below.
+#
 # Examples:
 #   bash tools/safe-pr-merge.sh 42
 #   bash tools/safe-pr-merge.sh 42 --delete-branch
+#   bash tools/safe-pr-merge.sh 42 --squash --delete-branch
 #
 # Exit codes:
 #   0 — PR merged successfully and post-merge CI is green
@@ -212,25 +217,44 @@ verify_all_comments_replied() {
     log_step "Verifying all review comments have replies..."
 
     local unanswered=()
-    local pr_author
-    pr_author="$(gh pr view "$pr_num" -R "$repo" --json author -q '.author.login' 2>/dev/null || echo "")"
+    # Anchor on the user performing the merge, NOT the PR author. The
+    # mandate is "reply to every comment" — the obligation belongs to
+    # whoever is merging, and on a bot-opened PR that is never the author.
+    # Anchoring on the author also broke outright on Dependabot PRs:
+    # GitHub reports their author login as "app/dependabot" while the same
+    # bot's comments are authored by "dependabot", so the two never
+    # compared equal, every comment looked unanswered, and replying only
+    # added another non-author comment — the check could not be satisfied
+    # at all.
+    local viewer
+    viewer="$(gh api user -q '.login' 2>/dev/null || echo "")"
+    # Fail fast rather than fail confusingly. An empty viewer (not
+    # authenticated, API error) makes every comment look unanswered
+    # below, since any createdAt string compares greater than "" — the
+    # caller would get a list of "unanswered" comment ids that are
+    # actually fine, instead of being told gh can't identify them.
+    if [ -z "$viewer" ]; then
+        log_error "Could not determine the authenticated GitHub user (gh api user)."
+        log_error "Run 'gh auth status' — the reply check needs to know who is merging."
+        return 1
+    fi
 
-    # Issue-level comments have no threading; the mandate's reply
-    # convention is a later `gh pr comment` from the PR author. A
-    # non-author comment counts as answered if any author comment is
-    # newer than it.
+    # Issue-level comments have no threading; the reply convention is a
+    # later `gh pr comment`. A comment counts as answered when a comment
+    # from the merging user is newer than it; the merging user's own
+    # comments need no reply to themselves.
     local issue_unreplied
     issue_unreplied="$(gh pr view "$pr_num" -R "$repo" --json comments 2>/dev/null \
         | python3 -c '
 import json, sys
-author = sys.argv[1]
+viewer = sys.argv[1]
 comments = json.load(sys.stdin).get("comments", [])
-author_times = [c["createdAt"] for c in comments if c["author"]["login"] == author]
-last_author = max(author_times) if author_times else ""
+viewer_times = [c["createdAt"] for c in comments if c["author"]["login"] == viewer]
+last_viewer = max(viewer_times) if viewer_times else ""
 for c in comments:
-    if c["author"]["login"] != author and c["createdAt"] > last_author:
+    if c["author"]["login"] != viewer and c["createdAt"] > last_viewer:
         print(c["id"])
-' "$pr_author" 2>/dev/null || true)"
+' "$viewer" 2>/dev/null || true)"
 
     while IFS= read -r comment_id; do
         if [ -z "$comment_id" ]; then continue; fi
@@ -385,6 +409,50 @@ warn_if_stale_script() {
     fi
 }
 
+# Resolve which merge strategy to pass to `gh pr merge`.
+#
+# The usage text advertises "[gh pr merge options]" pass-through, but the
+# merge call used to hardcode --merge, so a caller-supplied --squash or
+# --rebase collided with it and gh refused ("only one of --merge,
+# --rebase, or --squash can be enabled"). Worse, that collision surfaced
+# only at the final merge step — after the full ~20-minute automated
+# reviewer poll had already run. Honour the caller's choice when they
+# make one, default to --merge when they don't, and let main() reject a
+# genuinely ambiguous request before any of the slow work starts.
+#
+# Echoes the single strategy flag; exits 1 if the caller passed more than
+# one.
+resolve_merge_strategy() {
+    local strategies=()
+    local arg
+    for arg in "$@"; do
+        case "$arg" in
+            --merge | --squash | --rebase) strategies+=("$arg") ;;
+        esac
+    done
+    if [ ${#strategies[@]} -gt 1 ]; then
+        echo "conflicting merge strategy flags: ${strategies[*]}" >&2
+        return 1
+    fi
+    if [ ${#strategies[@]} -eq 1 ]; then
+        echo "${strategies[0]}"
+    else
+        echo "--merge"
+    fi
+}
+
+# Drop strategy flags from the pass-through args — resolve_merge_strategy
+# re-adds exactly one, so leaving them here would recreate the collision.
+filter_strategy_flags() {
+    local arg
+    for arg in "$@"; do
+        case "$arg" in
+            --merge | --squash | --rebase) ;;
+            *) printf '%s\n' "$arg" ;;
+        esac
+    done
+}
+
 # Main entrypoint
 main() {
     if [ $# -lt 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
@@ -405,7 +473,25 @@ main() {
         log_error "PR number must be numeric, got: $pr_num"
         return 1
     fi
-    local merge_args=("$@")
+    # Resolved before any polling, so a conflicting request fails in
+    # milliseconds rather than after the reviewer wait.
+    local merge_strategy
+    merge_strategy="$(resolve_merge_strategy "$@")" || {
+        echo "Usage: $(basename "$0") <pr-number> [gh pr merge options]" >&2
+        log_error "Pass at most one of --merge, --squash, --rebase (default: --merge)"
+        return 1
+    }
+    # Seeded with the resolved strategy so the array is never empty. That
+    # keeps the expansion at the merge call a plain "${merge_args[@]}":
+    # under `set -u`, expanding an *empty* array that way is an unbound
+    # variable error on bash < 4.4 (macOS still ships 3.2), which is the
+    # only reason a guarded expansion would be needed at all.
+    local merge_args=("$merge_strategy")
+    if [ $# -gt 0 ]; then
+        while IFS= read -r _filtered_arg; do
+            [ -n "$_filtered_arg" ] && merge_args+=("$_filtered_arg")
+        done < <(filter_strategy_flags "$@")
+    fi
 
     # Get repo owner/name
     local repo
@@ -452,7 +538,7 @@ main() {
 
     # Step 5: Merge the PR
     log_step "Merging PR #$pr_num..."
-    if ! gh pr merge "$pr_num" -R "$repo" --merge "${merge_args[@]}"; then
+    if ! gh pr merge "$pr_num" -R "$repo" "${merge_args[@]}"; then
         log_error "Failed to merge PR #$pr_num"
         return 1
     fi
