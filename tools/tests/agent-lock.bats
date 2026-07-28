@@ -587,3 +587,55 @@ JSON
     [ "$status" -eq 1 ]
     [[ "$output" =~ "LOCKED" ]]
 }
+
+# ---------------------------------------------------------------------------
+# AGENT_LOCK_LEASE_SECONDS validation. A documented override makes a typo a
+# realistic input, and an unvalidated one used to reach Python's int() inside
+# the mutex critical section: the ValueError killed the script under `set -e`,
+# the EXIT trap then died on an already-unwound local, and the mutex directory
+# leaked — permanently failing every later acquire of that feature with
+# "RACE: could not acquire mutex".
+# ---------------------------------------------------------------------------
+
+@test "lease override: a non-integer value is rejected with a clear message" {
+    run env AGENT_LOCK_LEASE_SECONDS=abc bash "$LOCK_SCRIPT" acquire "bad-lease" "feat/bad-lease"
+    [ "$status" -eq 1 ]
+    [[ "$output" =~ "AGENT_LOCK_LEASE_SECONDS" ]]
+    [[ ! "$output" =~ "Traceback" ]]
+}
+
+@test "lease override: zero is rejected (a lock born already expired is not useful)" {
+    run env AGENT_LOCK_LEASE_SECONDS=0 bash "$LOCK_SCRIPT" acquire "zero-lease" "feat/zero-lease"
+    [ "$status" -eq 1 ]
+    [[ "$output" =~ "AGENT_LOCK_LEASE_SECONDS" ]]
+}
+
+@test "lease override: a rejected value leaves no lock and no leaked mutex directory" {
+    run env AGENT_LOCK_LEASE_SECONDS=abc bash "$LOCK_SCRIPT" acquire "bad-lease" "feat/bad-lease"
+    [ "$status" -eq 1 ]
+    [[ "$(find "$TEST_ROOT/.agentharness-locks" -name '*.json' | wc -l)" -eq 0 ]]
+    [[ "$(find "$TEST_ROOT/.agentharness-locks" -maxdepth 1 -type d -name '.mutex-*' | wc -l)" -eq 0 ]]
+}
+
+@test "lease override: the feature is still acquirable after a rejected attempt" {
+    # The regression that mattered most: a leaked mutex used to deadlock the
+    # feature permanently, needing a manual rmdir to recover.
+    run env AGENT_LOCK_LEASE_SECONDS=abc bash "$LOCK_SCRIPT" acquire "bad-lease" "feat/bad-lease"
+    [ "$status" -eq 1 ]
+    run bash "$LOCK_SCRIPT" acquire "bad-lease" "feat/bad-lease"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "ACQUIRED" ]]
+}
+
+@test "lease override: a valid value is honoured" {
+    run env AGENT_LOCK_LEASE_SECONDS=60 bash "$LOCK_SCRIPT" acquire "good-lease" "feat/good-lease"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "ACQUIRED" ]]
+}
+
+@test "lease override: renew rejects a bad value too" {
+    _write_lease_lock "renew-bad" "feat/renew-bad" "$(_dead_pid)" 60 "owner-id"
+    run env AGENT_LOCK_LEASE_SECONDS=abc bash "$LOCK_SCRIPT" renew "renew-bad" "owner-id"
+    [ "$status" -eq 1 ]
+    [[ "$output" =~ "AGENT_LOCK_LEASE_SECONDS" ]]
+}

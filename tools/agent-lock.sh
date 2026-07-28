@@ -175,6 +175,25 @@ _session_marker_remove() {
     mv "$tmp" "$marker"
 }
 
+_validate_lease_seconds() {
+    # Must run BEFORE the caller enters the mutex. AGENT_LOCK_LEASE_SECONDS
+    # is a documented override, so a typo is a realistic input — and letting
+    # it reach Python's int() inside the critical section was badly
+    # behaved: the ValueError killed the script under `set -e`, the EXIT
+    # trap then failed on an already-unwound local (`mutex_dir: unbound
+    # variable`), and the mutex directory leaked. Every later acquire of
+    # that same feature then died with "RACE: could not acquire mutex",
+    # permanently, until someone rmdir'd it by hand. Reject early and
+    # loudly instead of silently defaulting, so a typo can't quietly buy a
+    # different TTL than the operator asked for.
+    local seconds="${AGENT_LOCK_LEASE_SECONDS:-}"
+    [[ -n "$seconds" ]] || return 0
+    if ! [[ "$seconds" =~ ^[0-9]+$ ]] || [[ "$seconds" -eq 0 ]]; then
+        echo "INVALID: AGENT_LOCK_LEASE_SECONDS must be a positive integer (got '$seconds')" >&2
+        return 1
+    fi
+}
+
 _lease_expiry() {
     # Default TTL is deliberately generous relative to a working session:
     # the lease is a backstop against abandoned locks, not a work timer, and
@@ -238,6 +257,9 @@ cmd_acquire() {
         return 1
     fi
 
+    # Before the mutex, so a bad override can't leak the mutex directory.
+    _validate_lease_seconds || return 1
+
     mkdir -p "$LOCKS_DIR"
     local path
     path="$(_lock_path "$feature")"
@@ -250,7 +272,11 @@ cmd_acquire() {
         sleep 0.1
         mkdir "$mutex_dir" 2>/dev/null || { echo "RACE: could not acquire mutex — retry" >&2; return 1; }
     fi
-    trap 'rmdir "$mutex_dir" 2>/dev/null' EXIT
+    # ${mutex_dir:-} not $mutex_dir: if the shell exits from inside this
+    # critical section, the local may already be unwound by the time the
+    # trap runs, and `set -u` would abort the trap itself — leaking the
+    # very directory the trap exists to remove.
+    trap 'rmdir "${mutex_dir:-}" 2>/dev/null || true' EXIT
 
     if [[ -f "$path" ]]; then
         local pid pid_started_at lease_expires_at
@@ -376,6 +402,8 @@ cmd_renew() {
         echo "  <agent_id> defaults to \$AGENTHARNESS_AGENT_ID" >&2
         return 1
     fi
+
+    _validate_lease_seconds || return 1
 
     local path
     path="$(_lock_path "$feature")"
