@@ -310,3 +310,40 @@ _run_verify() {
     [ "$status" -eq 0 ]
     [[ "$output" == "--merge" ]]
 }
+
+@test "verify_all_comments_replied: unauthenticated gh fails with an auth error, not a bogus unanswered list" {
+    # An empty viewer makes every comment compare > "" and look unanswered.
+    # The caller must be told gh can't identify them, not handed a list of
+    # comment ids that are actually fine.
+    mkdir -p "$TEST_PROJECT/bin"
+    cat > "$TEST_PROJECT/bin/gh" <<'STUB'
+#!/usr/bin/env bash
+if [ "$1" = "api" ] && [ "$2" = "user" ]; then exit 1; fi
+if [ "$1" = "pr" ] && [ "$2" = "view" ]; then
+    echo '{"comments": [{"id":"c1","author":{"login":"someone"},"createdAt":"2026-07-28T11:00:00Z"}]}'
+    exit 0
+fi
+echo '[]'
+exit 0
+STUB
+    chmod +x "$TEST_PROJECT/bin/gh"
+    _run_verify
+    [ "$status" -eq 1 ]
+    [[ "$output" =~ "authenticated GitHub user" ]]
+    [[ ! "$output" =~ "unanswered" ]]
+}
+
+@test "safe-pr-merge: merge_args is never empty, so no guarded expansion is needed under set -u" {
+    # Regression guard for the bash < 4.4 (macOS 3.2) case: expanding an
+    # empty array as "${a[@]}" under `set -u` is an unbound variable error.
+    # Seeding the array with the resolved strategy makes that unreachable.
+    run bash -c '
+        set -euo pipefail
+        merge_strategy="--merge"
+        merge_args=("$merge_strategy")
+        printf "%s\n" "${#merge_args[@]}" "${merge_args[@]}"
+    '
+    [ "$status" -eq 0 ]
+    [[ "${lines[0]}" == "1" ]]
+    [[ "${lines[1]}" == "--merge" ]]
+}

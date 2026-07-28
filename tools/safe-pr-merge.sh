@@ -228,6 +228,16 @@ verify_all_comments_replied() {
     # at all.
     local viewer
     viewer="$(gh api user -q '.login' 2>/dev/null || echo "")"
+    # Fail fast rather than fail confusingly. An empty viewer (not
+    # authenticated, API error) makes every comment look unanswered
+    # below, since any createdAt string compares greater than "" — the
+    # caller would get a list of "unanswered" comment ids that are
+    # actually fine, instead of being told gh can't identify them.
+    if [ -z "$viewer" ]; then
+        log_error "Could not determine the authenticated GitHub user (gh api user)."
+        log_error "Run 'gh auth status' — the reply check needs to know who is merging."
+        return 1
+    fi
 
     # Issue-level comments have no threading; the reply convention is a
     # later `gh pr comment`. A comment counts as answered when a comment
@@ -471,7 +481,12 @@ main() {
         log_error "Pass at most one of --merge, --squash, --rebase (default: --merge)"
         return 1
     }
-    local merge_args=()
+    # Seeded with the resolved strategy so the array is never empty. That
+    # keeps the expansion at the merge call a plain "${merge_args[@]}":
+    # under `set -u`, expanding an *empty* array that way is an unbound
+    # variable error on bash < 4.4 (macOS still ships 3.2), which is the
+    # only reason a guarded expansion would be needed at all.
+    local merge_args=("$merge_strategy")
     if [ $# -gt 0 ]; then
         while IFS= read -r _filtered_arg; do
             [ -n "$_filtered_arg" ] && merge_args+=("$_filtered_arg")
@@ -523,7 +538,7 @@ main() {
 
     # Step 5: Merge the PR
     log_step "Merging PR #$pr_num..."
-    if ! gh pr merge "$pr_num" -R "$repo" "$merge_strategy" ${merge_args[@]+"${merge_args[@]}"}; then
+    if ! gh pr merge "$pr_num" -R "$repo" "${merge_args[@]}"; then
         log_error "Failed to merge PR #$pr_num"
         return 1
     fi
