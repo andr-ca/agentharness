@@ -223,3 +223,132 @@ def test_check_console_snippets_ignores_non_prompt_output_lines(tmp_path):
     errors = vcq.check_console_snippets(sources=[good])
 
     assert errors == []
+
+
+# ---------------------------------------------------------------------------
+# check_absence_claims_match_manifest: KNOWN_LIMITATIONS.md is hand-maintained
+# and states what the harness does NOT have yet. Those claims go stale silently
+# when the thing gets built — docs/KNOWN_LIMITATIONS.md claimed "no API-design
+# pattern yet" while patterns/api-design/, a skill, and manifest.yaml all had
+# it. manifest.yaml can answer that class of claim mechanically, so the check
+# derives the answer rather than asking anyone to remember.
+# ---------------------------------------------------------------------------
+
+
+def _write_limitations(tmp_path: Path, body: str) -> None:
+    docs = tmp_path / "docs"
+    docs.mkdir(parents=True, exist_ok=True)
+    (docs / "KNOWN_LIMITATIONS.md").write_text(body)
+
+
+def _write_manifest(tmp_path: Path, paths: list[str]) -> None:
+    # Mirrors the real manifest.yaml shape: assets nest under sections[],
+    # not a flat top-level list. Getting this wrong made both the check and
+    # its fixtures agree on a schema neither had verified, so every case
+    # passed for the wrong reason.
+    entries = "\n".join(f"    - path: {p}" for p in paths)
+    (tmp_path / "manifest.yaml").write_text(
+        f"sections:\n  - name: Test\n    assets:\n{entries}\n"
+    )
+
+
+def test_extracts_asset_paths_from_the_real_manifest_schema():
+    # Guards the vacuous-pass failure mode directly: if the manifest schema
+    # changes, extraction returns nothing and every absence claim would
+    # silently pass. The check must report that instead of succeeding.
+    import yaml as _yaml
+
+    real = Path(__file__).resolve().parents[2] / "manifest.yaml"
+    data = _yaml.safe_load(real.read_text(encoding="utf-8"))
+    paths = vcq._manifest_asset_paths(data)
+
+    assert len(paths) > 50
+    assert any(p.startswith("patterns/") for p in paths)
+
+
+def test_reports_a_schema_change_rather_than_passing_vacuously(tmp_path):
+    _write_limitations(tmp_path, "- **Patterns:** no api-design pattern yet.\n")
+    (tmp_path / "manifest.yaml").write_text("unexpected_key: []\n")
+
+    errors = vcq.check_absence_claims_match_manifest(scan_root=tmp_path)
+
+    assert len(errors) == 1
+    assert "schema changed" in errors[0]
+
+
+def test_flags_an_absence_claim_the_manifest_contradicts(tmp_path):
+    _write_manifest(tmp_path, ["patterns/api-design/README.md"])
+    _write_limitations(tmp_path, "- **Patterns:** no API-design pattern yet.\n")
+
+    errors = vcq.check_absence_claims_match_manifest(scan_root=tmp_path)
+
+    assert len(errors) == 1
+    assert "api-design" in errors[0]
+    assert "manifest.yaml" in errors[0]
+
+
+def test_does_not_flag_an_absence_claim_that_is_still_true(tmp_path):
+    _write_manifest(tmp_path, ["patterns/testing/README.md"])
+    _write_limitations(tmp_path, "- **Patterns:** no graphql-design pattern yet.\n")
+
+    errors = vcq.check_absence_claims_match_manifest(scan_root=tmp_path)
+
+    assert errors == []
+
+
+def test_matches_the_asset_kind_not_just_the_name(tmp_path):
+    # A skill named api-design must not silence a claim about a *pattern*
+    # of the same name — they are different assets in different roots.
+    _write_manifest(tmp_path, [".claude/skills/api-design/SKILL.md"])
+    _write_limitations(tmp_path, "- **Patterns:** no API-design pattern yet.\n")
+
+    errors = vcq.check_absence_claims_match_manifest(scan_root=tmp_path)
+
+    assert errors == []
+
+
+def test_is_case_insensitive_about_the_asset_name(tmp_path):
+    _write_manifest(tmp_path, ["patterns/api-design/README.md"])
+    _write_limitations(tmp_path, "- **Patterns:** no api-design pattern yet.\n")
+
+    errors = vcq.check_absence_claims_match_manifest(scan_root=tmp_path)
+
+    assert len(errors) == 1
+
+
+def test_no_limitations_file_is_not_an_error(tmp_path):
+    _write_manifest(tmp_path, ["patterns/api-design/README.md"])
+
+    assert vcq.check_absence_claims_match_manifest(scan_root=tmp_path) == []
+
+
+def test_the_real_repo_has_no_contradicted_absence_claims():
+    # Guards the actual fix, not just the synthetic cases.
+    assert vcq.check_absence_claims_match_manifest() == []
+
+
+def test_reports_prose_that_parses_to_zero_claims(tmp_path):
+    # The exact regression Copilot caught on PR #183: a comma-separated
+    # rewording reads fine to a human and matches nothing, silently
+    # disabling the check for every item in the list.
+    _write_manifest(tmp_path, ["patterns/api-design/README.md"])
+    _write_limitations(
+        tmp_path,
+        "- **Patterns:** no GraphQL, messaging/event-driven, or caching pattern yet.\n",
+    )
+
+    errors = vcq.check_absence_claims_match_manifest(scan_root=tmp_path)
+
+    assert len(errors) == 1
+    assert "no absence claims matched" in errors[0]
+
+
+def test_the_real_limitations_file_still_parses_its_claims():
+    # Guards the live file against the same silent-disable regression.
+    limitations = (
+        Path(__file__).resolve().parents[2] / "docs" / "KNOWN_LIMITATIONS.md"
+    ).read_text(encoding="utf-8")
+    claims = vcq._ABSENCE_CLAIM.findall(limitations)
+
+    assert len(claims) >= 3
+    assert {"graphql", "messaging", "caching"} <= {n.lower() for n, _ in claims}
