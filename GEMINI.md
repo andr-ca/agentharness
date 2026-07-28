@@ -358,10 +358,17 @@ referenced everywhere instead of drifting across projects. Full rationale:
 - **One branch, one session.** Before your first commit on any branch,
   acquire the multi-agent lock — `tools/agent-lock.sh acquire "<feature>"
   "<branch>"` — and export the printed id as `AGENTHARNESS_AGENT_ID`.
+  Do **not** capture that id with command substitution
+  (`ID="$(… acquire …)"`): the recorded owner pid would be the
+  substitution subshell, which exits immediately. Pass a stable
+  `AGENT_LOCK_PID` instead, and read the id from the printed output —
+  see the multi-agent-coordination skill for the exact pattern. Locks
+  now carry a renewable lease, so a session whose acquiring process has
+  exited still holds its lock; `renew` extends one that outlives the TTL.
   The pre-push hook blocks pushes to a branch whose lock another live
   session holds. Never force-push: a repo-wide GitHub ruleset rejects
   non-fast-forward pushes on every branch, so when a push is rejected,
-  fetch and rebase instead. See the multi-agent-coordination skill.
+  fetch and rebase instead.
 - **Harness friction is a first-class finding.** When using this harness, friction (hook failures, ambiguous guidance, violated mandates, mismatched tool output) discovered during any session must be addressed, logged locally to `docs/operational/harness-feedback.md`, and filed upstream to andr-ca/agentharness by default — without waiting for the operator to ask. See the harness-feedback skill. Skip upstream filing only if `.agentharness-no-upstream-feedback` exists at the repo root.
 
 ### Operational Documents

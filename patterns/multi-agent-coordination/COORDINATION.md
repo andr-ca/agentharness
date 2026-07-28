@@ -36,8 +36,9 @@ feature reads the lock, detects the conflict, and either:
   "branch":         "feat/user-auth",
   "worktree":       ".worktrees/feat-user-auth",
   "started_at":     "2026-07-14T10:00:00Z",
-  "pid":            12345,
-  "pid_started_at": 1784023200
+  "pid":              12345,
+  "pid_started_at":   1784023200,
+  "lease_expires_at": "2026-07-14T14:00:00Z"
 }
 ```
 
@@ -48,29 +49,55 @@ feature reads the lock, detects the conflict, and either:
 | `branch` | The branch this agent is using |
 | `worktree` | Path to the worktree, or `null` if using the main checkout |
 | `started_at` | ISO 8601 UTC timestamp the lock was acquired |
-| `pid` | OS process ID — used for stale-lock detection |
+| `pid` | OS process ID of the session's stable process — one of two liveness grants (see below). Defaults to `$PPID`; callers whose parent does not outlive the session must pass `AGENT_LOCK_PID` explicitly |
 | `pid_started_at` | Epoch seconds `pid` itself started, captured at acquire time — used to detect pid reuse (see below); `null`/absent on locks written before this field existed or when undeterminable, in which case detection falls back to `pid` liveness alone |
+| `lease_expires_at` | ISO 8601 UTC expiry — the second liveness grant, so a lock survives its acquiring process exiting. Default TTL 4h (`AGENT_LOCK_LEASE_SECONDS`), extended by `renew`; absent on locks written before this field existed, in which case detection falls back to `pid` liveness alone |
 
 ---
 
 ## Stale lock detection
 
-A lock is stale if `pid` no longer refers to a running process:
+A lock has **two independent liveness grants**, and is stale only when
+**both** are absent:
 
-```bash
-kill -0 "$pid" 2>/dev/null && echo "alive" || echo "stale"
-```
+1. **Live owner pid** — `pid` still refers to the running process that
+   acquired the lock (not one that merely reused the number).
+2. **Valid lease** — `lease_expires_at` is still in the future.
 
-`kill -0` alone is not sufficient, though: a `pid` can answer `kill -0`
+Deriving liveness from `pid` alone was wrong in both directions.
+
+**Too slow to expire.** A `pid` can answer `kill -0`
 while belonging to a completely different, unrelated process — the OS
 reused the number after the original owner exited. Observed in practice
 ([issue #148](https://github.com/andr-ca/agentharness/issues/148)): a
 lock for a branch merged a week earlier still read as "live" because its
 recorded `pid` had since been reassigned to an unrelated long-running
-shell. A lock is only genuinely alive if, in addition to `kill -0`
-succeeding, that pid's *current* process-start time still matches
-`pid_started_at` — a mismatch means the pid was reused and the lock is
-stale regardless of `kill -0`'s answer.
+shell. So grant 1 requires more than `kill -0`: that pid's *current*
+process-start time must still match `pid_started_at` — a mismatch means
+the pid was reused, and the pid grant does not apply regardless of
+`kill -0`'s answer.
+
+**Too eager to expire.** The recorded `pid` also dies while the logical
+session is very much alive — for clients that run each tool call in a
+fresh process, and for *any* caller that ran `acquire` inside a command
+substitution, where the recorded owner is a subshell that exits
+immediately. Treating that as death made a live session's lock silently
+vanish, letting a second session start overlapping work. Grant 2 (the
+lease) covers exactly this case: the lock stays valid for its TTL
+regardless of what happened to the acquiring process, and `renew`
+extends it for a session that outlives the default.
+
+A genuinely crashed owner is still recoverable — its pid is dead and its
+lease eventually runs out — just not instantly. That delay is the
+deliberate trade: bounded recovery time in exchange for never silently
+expiring a live session.
+
+**Ownership** (as distinct from liveness) is provable three ways: a
+matching `AGENTHARNESS_AGENT_ID`, an ancestor-pid match, or membership
+in the per-checkout session marker `.agentharness-locks/.session-ids`
+that `acquire` writes. The third exists because hook processes run in
+their own process tree and do not inherit an `AGENTHARNESS_AGENT_ID`
+exported inline by a single agent tool call.
 
 When a stale lock is detected, it must be deleted before a new one is
 created — do not skip detection and overwrite silently.
@@ -81,7 +108,7 @@ created — do not skip detection and overwrite silently.
 
 ```bash
 # agent-lock.sh acquire <feature> <branch> [worktree]
-tools/agent-lock.sh acquire "add-user-auth" "feat/user-auth"
+AGENT_LOCK_PID=<stable-session-pid> tools/agent-lock.sh acquire "add-user-auth" "feat/user-auth"
 ```
 
 Steps:
@@ -89,8 +116,28 @@ Steps:
 2. Check `.agentharness-locks/<slug>.json` — if it exists and is not stale:
    - Print the existing lock (feature, branch, worktree).
    - Exit non-zero with: `LOCKED: feature already being worked on`.
-3. Write the lock file atomically (`mktemp` + `mv`).
-4. Exit 0.
+3. Write the lock file atomically (`mktemp` + `mv`), recording `pid`,
+   `pid_started_at`, and `lease_expires_at`.
+4. Record `agent_id` in the per-checkout session marker.
+5. Exit 0.
+
+Never capture the printed id with command substitution
+(`ID="$(… acquire …)"`) — that records the substitution subshell as the
+owner process, and it exits immediately. Read the id from the output and
+export it as `AGENTHARNESS_AGENT_ID`.
+
+---
+
+## Renewing a lease
+
+```bash
+tools/agent-lock.sh renew "add-user-auth" "$AGENT_ID"
+```
+
+Extends `lease_expires_at` by another TTL. Requires a matching
+`agent_id` (falls back to `$AGENTHARNESS_AGENT_ID`), so one session
+cannot extend another's lease. Only needed when a session outlives the
+TTL without a live owner pid.
 
 ---
 
