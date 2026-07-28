@@ -86,7 +86,8 @@ noted — resolve any label against the review filename cited next to it in
   not started. → ROADMAP "Planned Components".
 - **Frameworks:** only React. Vue/Angular/Django/Express/etc. are not
   started.
-- **Patterns:** no API-design pattern yet. → ROADMAP "Planned Components".
+- **Patterns:** no GraphQL, messaging/event-driven, or caching pattern
+  yet. → ROADMAP "Planned Components".
 
 ## Maintenance & robustness
 

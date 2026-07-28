@@ -608,6 +608,88 @@ def check_gemini_agents_sync() -> list[str]:
     )
 
 
+# Absence claims in KNOWN_LIMITATIONS.md, e.g.
+#   - **Patterns:** no API-design pattern yet.
+# Captures the asset name and the asset kind so a claim about a *pattern*
+# isn't silenced by a *skill* that happens to share the name.
+_ABSENCE_CLAIM = re.compile(
+    r"\bno\s+([A-Za-z0-9][A-Za-z0-9._-]*)\s+(pattern|skill)\b",
+    re.IGNORECASE,
+)
+
+# Which manifest path prefix answers a claim about each asset kind.
+_KIND_ROOTS = {
+    "pattern": ("patterns/",),
+    "skill": (".claude/skills/", ".agents/skills/"),
+}
+
+
+def _manifest_asset_paths(data: object) -> list[str]:
+    """Every asset `path` in manifest.yaml, which nests them under
+    sections[].assets[] rather than a flat top-level list."""
+    if not isinstance(data, dict):
+        return []
+    paths: list[str] = []
+    for section in data.get("sections") or []:
+        if not isinstance(section, dict):
+            continue
+        for asset in section.get("assets") or []:
+            if isinstance(asset, dict) and asset.get("path"):
+                paths.append(str(asset["path"]))
+    return paths
+
+
+def check_absence_claims_match_manifest(scan_root: Path = REPO_ROOT) -> list[str]:
+    """Flag "no X yet" claims that manifest.yaml contradicts.
+
+    KNOWN_LIMITATIONS.md is hand-maintained and states what the harness does
+    not have yet. Those claims go stale silently the moment the thing gets
+    built, and nothing notices: the file said "no API-design pattern yet"
+    while patterns/api-design/, a skill, and manifest.yaml all had it.
+
+    manifest.yaml can answer this class of claim mechanically, so derive the
+    answer instead of relying on someone remembering to update prose. Scoped
+    deliberately to absence claims about patterns and skills — the kinds the
+    manifest actually inventories — rather than every sentence in the file.
+    """
+    limitations = scan_root / "docs" / "KNOWN_LIMITATIONS.md"
+    manifest = scan_root / "manifest.yaml"
+    if not limitations.exists() or not manifest.exists():
+        return []
+
+    try:
+        data = yaml.safe_load(manifest.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError:
+        return []  # check_yaml_files() already reports malformed YAML
+
+    paths = _manifest_asset_paths(data)
+    if not paths:
+        # Extracting nothing would make every absence claim silently pass.
+        # That is a schema change, not a clean bill of health — say so
+        # rather than reporting success for the wrong reason.
+        return ["manifest.yaml: no asset paths found — schema changed?"]
+
+    errors = []
+    for line_no, line in enumerate(limitations.read_text(encoding="utf-8").splitlines(), 1):
+        for match in _ABSENCE_CLAIM.finditer(line):
+            name, kind = match.group(1).lower(), match.group(2).lower()
+            roots = _KIND_ROOTS.get(kind, ())
+            hit = next(
+                (
+                    path
+                    for path in paths
+                    if any(path.lower().startswith(f"{root}{name}/") for root in roots)
+                ),
+                None,
+            )
+            if hit:
+                errors.append(
+                    f"docs/KNOWN_LIMITATIONS.md:{line_no}: claims no '{name}' {kind}, "
+                    f"but manifest.yaml lists {hit} — correct the claim or remove it"
+                )
+    return errors
+
+
 def main() -> int:
     errors = []
     errors += check_yaml_files()
@@ -616,6 +698,7 @@ def main() -> int:
     errors += check_bash_snippets()
     errors += check_console_snippets()
     errors += check_duplicate_policy_numbers()
+    errors += check_absence_claims_match_manifest()
     errors += check_agents_md_sync()
     errors += check_manifest_md_sync()
     errors += check_gemini_md_sync()
