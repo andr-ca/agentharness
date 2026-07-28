@@ -25,6 +25,10 @@ short header if it doesn't exist). Use this template:
 ```markdown
 ## [ISO 8601 date] – [one-line summary]
 
+**Recurrence key:** `[stable-kebab-case-slug]`
+
+**Harness version:** [commit SHA or tag of the harness in use]
+
 **What happened:** [The friction event and when you noticed it]
 
 **Root cause:** [Why did this happen? What in the harness design or docs caused it?]
@@ -35,6 +39,30 @@ short header if it doesn't exist). Use this template:
 
 **Corrective action taken:** [What you did to work around or fix it] Logged upstream as #[issue-number] — or "Not filed upstream (opted out via .agentharness-no-upstream-feedback)".
 ```
+
+**About the two structured fields.** They exist because recurrence is the
+signal that turns a one-off annoyance into something worth changing, and
+recurrence was being caught only by a human happening to remember an
+earlier entry — the same trunk-protection gap was filed twice two months
+apart, and one root cause has been filed as both an issue and a comment
+on a different issue.
+
+- **Recurrence key** — a stable slug for the *underlying cause*, not this
+  symptom. Before writing a new entry, grep existing entries and upstream
+  issues for the key you're about to use: if it already exists, you are
+  looking at a recurrence, and say so in the entry and the upstream issue
+  rather than filing a fresh unrelated-looking report. Two different
+  symptoms of one cause should share a key (e.g. a lock expiring too
+  early and a lock expiring too late both being `agent-lock-liveness`).
+- **Harness version** — which harness the friction was observed against,
+  so a report can be told apart from one already fixed since. `git -C
+  <harness-dir> rev-parse --short HEAD` is enough.
+
+Deliberately *not* added: event class, observed-vs-inferred cause,
+evidence reference, severity, and resolution. Ten local entries is not
+enough volume to justify a full schema, and a human found every
+recurrence to date with no structure at all. Revisit only when volume
+actually demands aggregation tooling.
 
 #### 3. File upstream
 
