@@ -12,6 +12,79 @@ impact → what agentharness should change → corrective action taken. In
 consuming projects this file lives at the same path; entries here are the
 self-hosted (dogfood) case.
 
+## 2026-07-28 – `safe-pr-merge.sh` documents "[gh pr merge options]" but hardcodes `--merge`
+
+**Recurrence key:** `safe-pr-merge-arg-passthrough`
+
+**Harness version:** 74672e6
+
+**What happened:** Ran `bash tools/safe-pr-merge.sh 172 --squash --delete-branch`
+to merge a green Dependabot PR. The script spent its full ~20-minute
+automated-reviewer poll, then failed at the merge step with gh's usage error
+"only one of --merge, --rebase, or --squash can be enabled". The PR was not
+merged, and the whole wait had to be repeated.
+
+**Root cause:** The script's usage line advertises
+`safe-pr-merge.sh <pr-number> [gh pr merge options]`, but line 455 invokes
+`gh pr merge "$pr_num" -R "$repo" --merge "${merge_args[@]}"` — the merge
+strategy is hardcoded, so any caller-supplied strategy flag collides with it.
+The documented interface promises pass-through of options the implementation
+cannot actually accept. `--delete-branch` works; `--squash`/`--rebase` cannot.
+
+**Impact:** A ~20-minute wait wasted before the failure surfaced, because the
+argument collision is only detected at the last step, after all the polling.
+Compounded by a second-order trap: the failure is easy to miss when the script
+is piped (e.g. `| tail -30`), because the pipe masks its non-zero exit status
+and the run looks successful.
+
+**What agentharness should change:** Either (a) detect a caller-supplied
+strategy flag in `merge_args` and omit the hardcoded `--merge`, or (b) correct
+the usage text to state that the strategy is fixed and only non-strategy
+options pass through. (a) is preferable — the checklist this script enforces is
+orthogonal to which merge strategy a repo wants. Validating conflicting
+arguments up front, before the 20-minute poll rather than after it, is worth
+doing either way.
+
+**Corrective action taken:** Re-ran without the strategy flag and captured the
+exit code instead of piping it. Fix and upstream issue filed as part of this
+session's work.
+
+## 2026-07-28 – `PreToolUse` push guard cannot see an inline-exported `AGENTHARNESS_AGENT_ID`
+
+**Recurrence key:** `agent-lock-liveness`
+
+**Harness version:** 74672e6
+
+**What happened:** Holding a valid lock for the branch being pushed, ran
+`export AGENTHARNESS_AGENT_ID=<id>; git push -u origin <branch>`. The
+`claude-push-lock-guard.sh` `PreToolUse` hook blocked the push with "LOCKED:
+branch is held by another live agent session" — and printed an `agent_id`
+identical to the one being exported.
+
+**Root cause:** Two compounding causes. The hook runs in its own process and
+does not inherit an `AGENTHARNESS_AGENT_ID` exported inline within an agent
+tool call, so `cmd_check_branch`'s env-var ownership proof is unavailable
+exactly where the push gate needs it. The ancestor-pid fallback then also
+failed, because the lock had been acquired with an `AGENT_LOCK_PID` pointing at
+the wrong one of several `claude` processes on the host — an operator error the
+tool gave no way to notice, since `acquire` reports success either way.
+
+**Impact:** An agent can be blocked from pushing its own locked branch with an
+error message that appears to contradict itself (the id it demands is the id it
+prints). The natural workaround — `AGENTHARNESS_LOCK_BYPASS=1` — defeats the
+mutex entirely, which is the wrong reflex to train.
+
+**What agentharness should change:** Provide an ownership proof that does not
+depend on env inheritance (a per-checkout session marker written at acquire
+time). Separately, `acquire` should make the recorded owner pid visible in its
+success output so a wrong `AGENT_LOCK_PID` is noticeable at acquire time rather
+than at push time.
+
+**Corrective action taken:** Diagnosed by running `check-branch` with and
+without the env var to confirm the hook's actual view, then re-acquired with the
+correct session pid. The session-marker proof is implemented in PR #174 against
+issue #148, whose root cause this shares.
+
 ## 2026-07-17 – content-quality scan descends into `.claude/worktrees/`, false-failing the completion gate
 
 **What happened:** Running `tools/check-completion.sh` before a commit on
