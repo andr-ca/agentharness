@@ -325,3 +325,30 @@ def test_no_limitations_file_is_not_an_error(tmp_path):
 def test_the_real_repo_has_no_contradicted_absence_claims():
     # Guards the actual fix, not just the synthetic cases.
     assert vcq.check_absence_claims_match_manifest() == []
+
+
+def test_reports_prose_that_parses_to_zero_claims(tmp_path):
+    # The exact regression Copilot caught on PR #183: a comma-separated
+    # rewording reads fine to a human and matches nothing, silently
+    # disabling the check for every item in the list.
+    _write_manifest(tmp_path, ["patterns/api-design/README.md"])
+    _write_limitations(
+        tmp_path,
+        "- **Patterns:** no GraphQL, messaging/event-driven, or caching pattern yet.\n",
+    )
+
+    errors = vcq.check_absence_claims_match_manifest(scan_root=tmp_path)
+
+    assert len(errors) == 1
+    assert "no absence claims matched" in errors[0]
+
+
+def test_the_real_limitations_file_still_parses_its_claims():
+    # Guards the live file against the same silent-disable regression.
+    limitations = (
+        Path(__file__).resolve().parents[2] / "docs" / "KNOWN_LIMITATIONS.md"
+    ).read_text(encoding="utf-8")
+    claims = vcq._ABSENCE_CLAIM.findall(limitations)
+
+    assert len(claims) >= 3
+    assert {"graphql", "messaging", "caching"} <= {n.lower() for n, _ in claims}

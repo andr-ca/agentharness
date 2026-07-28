@@ -86,8 +86,11 @@ noted — resolve any label against the review filename cited next to it in
   not started. → ROADMAP "Planned Components".
 - **Frameworks:** only React. Vue/Angular/Django/Express/etc. are not
   started.
-- **Patterns:** no GraphQL, messaging/event-driven, or caching pattern
-  yet. → ROADMAP "Planned Components".
+- **Patterns:** no graphql pattern, no messaging pattern, and no caching
+  pattern yet. → ROADMAP "Planned Components". (Phrased as separate
+  `no <name> pattern` clauses on purpose — that is the form
+  `check_absence_claims_match_manifest()` parses, so each claim is
+  checked against `manifest.yaml` instead of just read by a human.)
 
 ## Maintenance & robustness
 

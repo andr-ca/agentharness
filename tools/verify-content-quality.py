@@ -670,8 +670,10 @@ def check_absence_claims_match_manifest(scan_root: Path = REPO_ROOT) -> list[str
         return ["manifest.yaml: no asset paths found — schema changed?"]
 
     errors = []
+    parsed_claims = 0
     for line_no, line in enumerate(limitations.read_text(encoding="utf-8").splitlines(), 1):
         for match in _ABSENCE_CLAIM.finditer(line):
+            parsed_claims += 1
             name, kind = match.group(1).lower(), match.group(2).lower()
             roots = _KIND_ROOTS.get(kind, ())
             hit = next(
@@ -687,6 +689,19 @@ def check_absence_claims_match_manifest(scan_root: Path = REPO_ROOT) -> list[str
                     f"docs/KNOWN_LIMITATIONS.md:{line_no}: claims no '{name}' {kind}, "
                     f"but manifest.yaml lists {hit} — correct the claim or remove it"
                 )
+
+    # A file with zero parseable claims is almost certainly a rewording
+    # that slipped out of the recognized form, not a file that genuinely
+    # asserts no absences. Reported so the check cannot be silently
+    # disabled by prose — which is exactly how the first version of this
+    # very fix regressed: "no GraphQL, messaging/event-driven, or caching
+    # pattern yet" reads fine and matches nothing.
+    if parsed_claims == 0:
+        errors.append(
+            "docs/KNOWN_LIMITATIONS.md: no absence claims matched the "
+            "'no <name> pattern|skill' form — reword them into that shape "
+            "so they stay machine-checked, or remove this check"
+        )
     return errors
 
 
