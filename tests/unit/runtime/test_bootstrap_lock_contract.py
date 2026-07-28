@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import tarfile
 from pathlib import Path
 
@@ -100,29 +101,43 @@ def test_reviewed_real_archives_match_pins_and_supported_tar_subset() -> None:
             assert not archive.pax_headers
 
 
+def _setup_python_steps(job: object) -> list[dict]:
+    if not isinstance(job, dict):
+        return []
+    steps = job.get("steps")
+    if not isinstance(steps, list):
+        return []
+    return [
+        step
+        for step in steps
+        if isinstance(step, dict)
+        and str(step.get("uses", "")).startswith("actions/setup-python@")
+    ]
+
+
 def test_ci_runs_the_bootstrap_contract_for_all_four_pinned_runtimes() -> None:
     workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
     job = workflow["jobs"]["runtime-bootstrap-exact-four"]
-    expected_setup_python = (
-        "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1"
-    )
-    setup_python = [
-        step
-        for step in job["steps"]
-        if isinstance(step, dict)
-        and str(step.get("uses", "")).startswith("actions/setup-python@")
-    ]
-    hook_setup_python = [
-        step
-        for step in workflow["jobs"]["hook-tests"]["steps"]
-        if isinstance(step, dict)
-        and str(step.get("uses", "")).startswith("actions/setup-python@")
-    ]
+    setup_python = _setup_python_steps(job)
+    hook_setup_python = _setup_python_steps(workflow["jobs"]["hook-tests"])
+    # The bootstrap contract needs every job that provisions Python to
+    # provision the SAME one, from an immutable commit-SHA pin. Assert that
+    # as an internal-consistency property rather than against a literal SHA
+    # written into this file: the literal added no guarantee beyond "all
+    # jobs agree", and turned every routine Dependabot bump of
+    # actions/setup-python into a red python-tests job that a human had to
+    # hand-edit before the bump could merge (#169).
+    pins = {
+        str(step["uses"]).split("@", 1)[1]
+        for candidate in workflow["jobs"].values()
+        for step in _setup_python_steps(candidate)
+    }
+    assert len(pins) == 1, f"actions/setup-python pins disagree across jobs: {pins}"
+    (pin,) = pins
+    assert re.fullmatch(r"[0-9a-f]{40}", pin), f"not pinned to a commit SHA: {pin}"
     assert len(setup_python) == 1
-    assert setup_python[0]["uses"] == expected_setup_python
     assert setup_python[0]["with"]["python-version"] == "3.12"
     assert len(hook_setup_python) == 1
-    assert hook_setup_python[0]["uses"] == expected_setup_python
     assert hook_setup_python[0]["with"]["python-version"] == "3.12"
     helper_step_index = next(
         index
