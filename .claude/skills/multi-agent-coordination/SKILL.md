@@ -44,10 +44,17 @@ tools/agent-lock.sh check "add-user-auth"
 
 ```bash
 AGENT_LOCK_PID=<stable-session-pid> tools/agent-lock.sh acquire "add-user-auth" "feat/user-auth"
-# ACQUIRED: locked 'add-user-auth' (agent_id=3f2a1c8d-...)
+# ACQUIRED: locked 'add-user-auth' (agent_id=3f2a1c8d-..., owner_pid=12345)
 # 3f2a1c8d-...
 export AGENTHARNESS_AGENT_ID=3f2a1c8d-...   # the id from the last line
 ```
+
+**Check `owner_pid` in that output.** It is the process whose liveness and
+ancestry the lock is anchored to. If it isn't the session process you
+meant, `acquire` still succeeds — and the mistake surfaces much later, as
+a push blocked by your *own* lock. `acquire` prints a `NOTE` when the
+recorded pid isn't an ancestor of the acquiring process, which is the
+usual signature of a wrong `AGENT_LOCK_PID`.
 
 The agent id is a UUID printed on the last line. Keep it — you need it to
 release or renew.

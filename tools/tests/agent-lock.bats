@@ -639,3 +639,35 @@ JSON
     [ "$status" -eq 1 ]
     [[ "$output" =~ "AGENT_LOCK_LEASE_SECONDS" ]]
 }
+
+# ---------------------------------------------------------------------------
+# acquire's success output must expose the recorded owner pid. A wrong
+# AGENT_LOCK_PID (e.g. pointing at an unrelated process that happens to be a
+# long-lived agent client) otherwise reports success identically to a correct
+# one, and the mistake only surfaces later as a push blocked by the agent's
+# OWN lock — with an error naming the very agent_id the caller holds.
+# ---------------------------------------------------------------------------
+
+@test "acquire: reports the recorded owner pid, not just the agent_id" {
+    run env AGENT_LOCK_PID=$$ bash "$LOCK_SCRIPT" acquire "pid-visible" "feat/pid-visible"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "owner_pid=$$" ]]
+}
+
+@test "acquire: notes when the owner pid is unrelated to the acquiring process" {
+    # A live pid that is not an ancestor: ownership will not be recognized by
+    # hook processes via the ancestor check, so say so at acquire time.
+    sleep 60 &
+    local stranger=$!
+    run env AGENT_LOCK_PID="$stranger" bash "$LOCK_SCRIPT" acquire "pid-stranger" "feat/pid-stranger"
+    kill "$stranger" 2>/dev/null || true
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "NOTE" ]]
+    [[ "$output" =~ "not an ancestor" ]]
+}
+
+@test "acquire: stays quiet when the owner pid is a genuine ancestor" {
+    run env AGENT_LOCK_PID=$$ bash "$LOCK_SCRIPT" acquire "pid-ancestor" "feat/pid-ancestor"
+    [ "$status" -eq 0 ]
+    [[ ! "$output" =~ "not an ancestor" ]]
+}

@@ -46,8 +46,16 @@ arguments up front, before the 20-minute poll rather than after it, is worth
 doing either way.
 
 **Corrective action taken:** Re-ran without the strategy flag and captured the
-exit code instead of piping it. Fix and upstream issue filed as part of this
-session's work.
+exit code instead of piping it. Fixed directly in PR #180 (merged), which
+implemented option (a) plus up-front rejection of conflicting strategy flags,
+and also fixed a second defect found in the same function: the reply check
+anchored on the PR author, and GitHub reports a Dependabot PR's author as
+`app/dependabot` while that bot's comments come from `dependabot`, so every
+comment read as unanswered and replying added another. No separate upstream
+issue was filed: this is the upstream repo, and the fix landed in the same
+session the friction was found, so an issue would have been opened and closed
+without ever carrying information the PR doesn't. Recorded here rather than
+silently skipped.
 
 ## 2026-07-28 – `PreToolUse` push guard cannot see an inline-exported `AGENTHARNESS_AGENT_ID`
 

@@ -354,7 +354,20 @@ HEREDOC
     _session_marker_add "$agent_id"
     rmdir "$mutex_dir" 2>/dev/null
     trap - EXIT
-    echo "ACQUIRED: locked '$feature' (agent_id=$agent_id)" >&2
+    # Surface the recorded owner pid, not just the agent_id. A wrong
+    # AGENT_LOCK_PID reports success identically to a correct one, and the
+    # mistake only shows up later as a push blocked by the caller's OWN
+    # lock — with an error naming the very agent_id the caller holds.
+    # Observed: a lock acquired against an unrelated long-lived agent
+    # process, which then failed the hook's ancestor check.
+    echo "ACQUIRED: locked '$feature' (agent_id=$agent_id, owner_pid=$pid)" >&2
+    if [[ "$pid" -ne $$ ]] && ! _is_ancestor_pid "$pid"; then
+        echo "  NOTE: owner_pid $pid is not an ancestor of this process." >&2
+        echo "  Hook processes (PreToolUse, pre-push) can't see an inline-exported" >&2
+        echo "  AGENTHARNESS_AGENT_ID, so they prove ownership by ancestor pid or the" >&2
+        echo "  session marker. Pass AGENT_LOCK_PID=<your session's own process> if" >&2
+        echo "  pushes are unexpectedly blocked by this lock." >&2
+    fi
     echo "$agent_id"
 }
 
