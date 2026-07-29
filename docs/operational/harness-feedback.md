@@ -551,3 +551,43 @@ upstream as
 deliberately held until [#163](https://github.com/andr-ca/agentharness/pull/163)
 merged, since that PR was open against this same file and appending
 concurrently would have created an avoidable conflict.
+
+## 2026-07-28 – First-run bootstrap is designed and partially built but has no usable surface
+
+**Recurrence key:** `bootstrap-first-run-surface-integration`
+
+**Harness version:** `65c1f39`
+
+**What happened:** A user asked whether agentharness has a bootstrap skill
+that assesses a repository on first use and helps tailor the harness to that
+project. The installed skill inventory has no such skill. The stable
+`harness-link.sh init` flow installs selected assets and generates guarded-path
+configuration, but it does not perform the requested interactive capability
+assessment. Meanwhile, the experimental Python CLI's `status` result directs
+users to run `agentharness bootstrap`, although its argument parser does not
+register a `bootstrap` command. `ROADMAP.md` also still describes PR #47 as in
+progress even though GitHub records it as merged on 2026-07-16.
+
+**Root cause:** PR #47 merged the project-bootstrap policy core and its design
+artifacts without completing or consistently labelling the user-facing
+integration. The stable installer, experimental core, CLI remediation, skill
+inventory, manifest, and roadmap therefore describe different stages of the
+same capability.
+
+**Impact:** A first-time adopter cannot tell whether repository assessment is
+available through a skill, the stable lifecycle installer, or the experimental
+CLI. Following the CLI's own remediation fails with an invalid-command error,
+while the stale roadmap obscures that the core merged but remains unreleased.
+
+**What agentharness should change:** Establish one supported first-run
+surface. Prefer a deterministic `agentharness bootstrap` command for discovery
+and planning, paired with a thin `project-bootstrap` skill for interactive
+questions and recommendation assessment. Until that ships, remove or qualify
+the unavailable-command remediation, update the roadmap to distinguish the
+merged core from the unreleased workflow, and test that every emitted
+remediation command is registered.
+
+**Corrective action taken:** Distinguished the stable installer from the
+unreleased policy core, documented the current workaround as
+`harness-link.sh plan/init` plus conversational assessment, and logged upstream
+as [#187](https://github.com/andr-ca/agentharness/issues/187).
