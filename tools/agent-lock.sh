@@ -60,6 +60,27 @@ LOCKS_DIR="$(_canonical_root)/.agentharness-locks"
 # what it is for. It stays beside the current checkout, not the canonical one.
 SESSION_DIR="$REPO_ROOT/.agentharness-locks"
 
+_warn_orphaned_legacy_locks() {
+    # Before this fix, locks lived in the per-checkout store. Switching to
+    # the canonical one makes any lock still sitting there invisible —
+    # which would orphan a LIVE lock and let a second session start
+    # overlapping work: exactly the harm this change exists to prevent,
+    # reintroduced by the change itself. Never migrate silently (moving a
+    # record could collide with one already at the canonical path); say
+    # what was found and what to run.
+    [[ "$SESSION_DIR" != "$LOCKS_DIR" ]] || return 0
+    [[ -d "$SESSION_DIR" ]] || return 0
+    local legacy
+    legacy="$(find "$SESSION_DIR" -maxdepth 1 -name '*.json' 2>/dev/null | head -20)"
+    [[ -n "$legacy" ]] || return 0
+    echo "WARNING: lock record(s) found in this checkout's pre-upgrade store:" >&2
+    echo "$legacy" | sed 's/^/  /' >&2
+    echo "  Locks are now repo-wide, at: $LOCKS_DIR" >&2
+    echo "  These are NOT visible to any command and may still be live." >&2
+    echo "  Review them, then move or delete them:" >&2
+    echo "    mv $SESSION_DIR/*.json $LOCKS_DIR/   # after checking for name collisions" >&2
+}
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -678,6 +699,7 @@ cmd_suggest_branch() {
 # ---------------------------------------------------------------------------
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    _warn_orphaned_legacy_locks
     command="${1:-}"
     shift || true
     case "$command" in

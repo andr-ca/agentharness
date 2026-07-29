@@ -751,9 +751,36 @@ _make_repo_with_worktree() {
     # foreign worktree's session would pass the ownership check.
     read -r primary linked <<< "$(_make_repo_with_worktree)"
     (cd "$primary" && env -u AGENTHARNESS_ROOT AGENT_LOCK_PID=$$ bash tools/agent-lock.sh acquire "marker-feat" "feat/marker" >/dev/null 2>&1)
-    primary_marker=$(find "$primary" -name '.session-ids' | wc -l)
-    linked_marker=$(find "$linked" -name '.session-ids' | wc -l)
+    # $(( )) coerces to an integer: BSD/macOS `wc -l` pads with leading
+    # spaces, which would make the numeric comparisons below error with
+    # "integer expression expected" on the macos CI leg.
+    primary_marker=$(( $(find "$primary" -name '.session-ids' | wc -l) ))
+    linked_marker=$(( $(find "$linked" -name '.session-ids' | wc -l) ))
     rm -rf "$(dirname "$primary")"
     [ "$primary_marker" -eq 1 ]
     [ "$linked_marker" -eq 0 ]
+}
+
+@test "worktree: a lock left in a pre-upgrade store is reported, not silently orphaned" {
+    # The upgrade hazard: a lock written by the old per-checkout behaviour
+    # becomes invisible under the canonical store. Silently ignoring it
+    # would orphan a possibly-live lock and let a second session start
+    # overlapping work — the exact harm this change prevents.
+    read -r primary linked <<< "$(_make_repo_with_worktree)"
+    mkdir -p "$linked/.agentharness-locks"
+    printf '{"agent_id":"legacy","feature":"old","branch":"b","pid":1}\n' \
+        > "$linked/.agentharness-locks/legacy-deadbeef.json"
+    run bash -c "cd '$linked' && env -u AGENTHARNESS_ROOT bash tools/agent-lock.sh list 2>&1"
+    rm -rf "$(dirname "$primary")"
+    [[ "$output" =~ "pre-upgrade store" ]]
+    [[ "$output" =~ "legacy-deadbeef.json" ]]
+}
+
+@test "worktree: no orphan warning when the pre-upgrade store is empty" {
+    # Must stay silent in the normal case, or it becomes noise everyone
+    # learns to scroll past.
+    read -r primary linked <<< "$(_make_repo_with_worktree)"
+    run bash -c "cd '$linked' && env -u AGENTHARNESS_ROOT bash tools/agent-lock.sh list 2>&1"
+    rm -rf "$(dirname "$primary")"
+    [[ ! "$output" =~ "pre-upgrade store" ]]
 }
