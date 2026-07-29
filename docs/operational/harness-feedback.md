@@ -591,3 +591,39 @@ remediation command is registered.
 unreleased policy core, documented the current workaround as
 `harness-link.sh plan/init` plus conversational assessment, and logged upstream
 as [#187](https://github.com/andr-ca/agentharness/issues/187).
+
+## 2026-07-28 – Agent locks are isolated between linked worktrees
+
+**Recurrence key:** `agent-lock-worktree-shared-state`
+
+**Harness version:** `f8941a8`
+
+**What happened:** A feature lock was acquired from the primary checkout with
+an isolated linked worktree recorded in the lock. After the work completed,
+running `agent-lock.sh release` from that linked worktree returned `NOT FOUND`.
+Running `check` from the primary checkout immediately afterward showed the
+lock still live, and releasing it there succeeded.
+
+**Root cause:** `agent-lock.sh` derives `REPO_ROOT` from the script's current
+checkout path and stores records under `$REPO_ROOT/.agentharness-locks`.
+Linked worktrees have distinct top-level paths and therefore distinct lock
+directories. The `worktree` argument accepted by `acquire` is recorded only as
+metadata; it does not select a repository-wide store.
+
+**Impact:** Sessions working in different linked worktrees cannot see one
+another's feature locks. `check-branch` and the pre-push hook can therefore
+pass in one worktree while another live session holds the relevant lock in a
+different checkout, defeating the coordination protocol precisely in its
+recommended parallel-work setup.
+
+**What agentharness should change:** Derive one canonical lock store from the
+Git common directory or another repository-wide identity, while handling
+existing root-level lock records deliberately. Add real linked-worktree tests
+for cross-worktree acquire, check, renew, release, cleanup, and pre-push branch
+enforcement. Until that ships, tell agents to run all lock commands from one
+canonical checkout.
+
+**Corrective action taken:** Located and released the live record from the
+primary checkout where it was acquired, verified that store reported the
+feature free, and logged upstream as
+[#190](https://github.com/andr-ca/agentharness/issues/190).
