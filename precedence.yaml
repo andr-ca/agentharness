@@ -1,0 +1,87 @@
+# Machine-readable precedence ladders.
+#
+# The repo has two independent "which rule wins" orderings, and both lived
+# only in prose — patterns/profiles/README.md, CLAUDE.md, and a docstring
+# in src/agentharness/authority/loader.py. Three copies, no check that
+# they agree, and no way for a tool to answer "what overrides what".
+#
+# This is the declared source. tools/verify-content-quality.py's
+# check_precedence_matches_docs() asserts the prose still matches it, the
+# same way MANIFEST.md is checked against manifest.yaml.
+#
+# `doc_match` is the distinctive phrase the check looks for in the prose,
+# kept separate from `summary` so the model describes the level in its own
+# words without being coupled to how any one document happens to phrase it.
+#
+# `mechanizable` records whether a tool can actually observe the level.
+# It is the honest half of the model: the top level of both ladders is a
+# human instruction in the current conversation, which no gate can see —
+# so any enforcement built on these ladders must treat those levels as
+# reported, never as verified.
+
+ladders:
+  - id: rigor_tier
+    name: Rigor tier selection
+    documented_in: patterns/profiles/README.md
+    anchor: precedence-order
+    fail_safe: production
+    fail_safe_note: >-
+      A missing or unrecognized .agentharness-profile must default to the
+      strictest tier, never silently relax enforcement.
+    levels:
+      - rank: 1
+        id: explicit_instruction
+        summary: Explicit instruction in the current request
+        doc_match: Explicit instruction in the current request
+        mechanizable: false
+      - rank: 2
+        id: repo_local_override
+        summary: A repo-local override in the project's own CLAUDE.md or equivalent
+        doc_match: A repo-local override
+        mechanizable: false
+      - rank: 3
+        id: selected_profile
+        summary: The profile selected via .agentharness-profile
+        doc_match: The profile selected via
+        mechanizable: true
+      - rank: 4
+        id: language_addon
+        summary: Language or framework-specific add-on guidance
+        doc_match: Language/framework-specific add-on guidance
+        mechanizable: false
+      - rank: 5
+        id: generic_default
+        summary: The generic default from the Rigor Tiers table
+        doc_match: The generic default
+        mechanizable: true
+
+  - id: publish_authority
+    name: Publish authority resolution
+    documented_in: CLAUDE.md
+    anchor: publish-authority
+    implemented_in: src/agentharness/authority/loader.py
+    fail_safe: verify-and-stage
+    fail_safe_note: >-
+      With no contract and no flag, an agent verifies and stages, then
+      stops. Absence never grants authority.
+    levels:
+      - rank: 1
+        id: explicit_instruction
+        summary: Explicit in-session instruction from the operator
+        doc_match: explicit in-session instruction
+        mechanizable: false
+      - rank: 2
+        id: authority_contract
+        summary: The .agentharness-authority.json scoped contract
+        doc_match: "`.agentharness-authority.json` > bare flag"
+        mechanizable: true
+      - rank: 3
+        id: publish_mode_flag
+        summary: The bare .agentharness-publish-mode flag
+        doc_match: bare flag > default
+        mechanizable: true
+      - rank: 4
+        id: default_stage
+        summary: Default — verify and stage, then stop
+        doc_match: default (verify-and-stage)
+        mechanizable: true

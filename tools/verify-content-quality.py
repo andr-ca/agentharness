@@ -624,6 +624,87 @@ _KIND_ROOTS = {
 }
 
 
+def check_precedence_matches_docs(scan_root: Path = REPO_ROOT) -> list[str]:
+    """Assert the prose precedence ladders still match precedence.yaml.
+
+    The repo has two independent "which rule wins" orderings, and both
+    lived only in prose across three separate places with nothing checking
+    they agreed. precedence.yaml is the declared source; this keeps the
+    documentation honest against it, the same way MANIFEST.md is checked
+    against manifest.yaml.
+
+    Order is the whole content of a precedence rule, so a doc listing the
+    right levels in the wrong sequence is a failure, not untidiness.
+    """
+    model_path = scan_root / "precedence.yaml"
+    if not model_path.exists():
+        return []  # consumer repos have no model; do not fail them
+
+    try:
+        model = yaml.safe_load(model_path.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError:
+        return []  # check_yaml_files() already reports malformed YAML
+
+    ladders = model.get("ladders") or []
+    if not ladders:
+        # A model that parses to nothing would make every prose doc pass.
+        return ["precedence.yaml: no ladders declared — schema changed?"]
+
+    errors: list[str] = []
+    for ladder in ladders:
+        if not isinstance(ladder, dict):
+            continue
+        ladder_id = ladder.get("id", "<unnamed>")
+        doc_rel = str(ladder.get("documented_in", ""))
+        doc_path = scan_root / doc_rel
+        if not doc_path.is_file():
+            errors.append(
+                f"precedence.yaml: ladder '{ladder_id}' points at "
+                f"{doc_rel}, which does not exist"
+            )
+            continue
+
+        prose = doc_path.read_text(encoding="utf-8")
+        levels = sorted(
+            (lv for lv in (ladder.get("levels") or []) if isinstance(lv, dict)),
+            key=lambda lv: lv.get("rank", 0),
+        )
+
+        # Where each level's summary first appears in the prose. A level
+        # the doc never mentions is missing; levels appearing out of
+        # sequence mean the doc contradicts the declared order.
+        positions: list[int] = []
+        for level in levels:
+            # doc_match when present: the distinctive phrase to find in
+            # the prose, kept separate from the summary so the model can
+            # describe a level in its own words without being coupled to
+            # any one document's phrasing.
+            summary = str(
+                level.get("doc_match") or level.get("summary", "")
+            ).strip()
+            if not summary:
+                continue
+            index = prose.find(summary)
+            if index < 0:
+                errors.append(
+                    f"{doc_rel}: precedence level '{summary}' "
+                    f"(rank {level.get('rank')}, ladder '{ladder_id}') "
+                    "is not documented — update the prose or precedence.yaml"
+                )
+            else:
+                positions.append(index)
+
+        if len(positions) > 1 and positions != sorted(positions):
+            errors.append(
+                f"{doc_rel}: precedence levels for ladder '{ladder_id}' "
+                "appear in a different order than precedence.yaml declares "
+                "— order is the substance of a precedence rule, so one of "
+                "the two is wrong"
+            )
+
+    return errors
+
+
 def _manifest_asset_paths(data: object) -> list[str]:
     """Every asset `path` in manifest.yaml, which nests them under
     sections[].assets[] rather than a flat top-level list."""
@@ -714,6 +795,7 @@ def main() -> int:
     errors += check_console_snippets()
     errors += check_duplicate_policy_numbers()
     errors += check_absence_claims_match_manifest()
+    errors += check_precedence_matches_docs()
     errors += check_agents_md_sync()
     errors += check_manifest_md_sync()
     errors += check_gemini_md_sync()

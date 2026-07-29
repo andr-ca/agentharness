@@ -49,3 +49,4 @@ docs/operational/context-management-analysis-2026-07-29.md
 tools/context-budget.py
 tools/tests/test_context_budget.py
 docs/operational/context-budget-baseline.json
+precedence.yaml
