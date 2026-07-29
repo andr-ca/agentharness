@@ -12,6 +12,49 @@ impact → what agentharness should change → corrective action taken. In
 consuming projects this file lives at the same path; entries here are the
 self-hosted (dogfood) case.
 
+## 2026-07-28 – `safe-pr-merge.sh` reports a false CI failure on a transient status read
+
+**Recurrence key:** `safe-pr-merge-ci-status-misread`
+
+**Harness version:** ba4f484
+
+**What happened:** `safe-pr-merge.sh 185` merged the PR, then reported
+`Post-merge CI failed (conclusion: )` and exited 1. The post-merge run for that
+exact merge commit had in fact completed successfully. The log showed
+`CI run completed with status: unknown, conclusion:` at 120s elapsed — against a
+900s polling budget, so nothing had timed out.
+
+**Root cause:** the status poll fell back to the literal string `unknown` when
+`gh run view` failed (`... || echo "unknown"`). `unknown` is not
+`in_progress`/`queued`/`requested`, so the loop treated it as a terminal state
+and broke out, then read the conclusion of a still-running job — which is empty
+— and the `[ "$conclusion" != "success" ]` test turned that empty value into
+"CI failed". A single transient API error was therefore enough to manufacture a
+failure report for a healthy run.
+
+**Impact:** the inverse of the earlier false-green defects logged against this
+same tool, and arguably worse for trust: an agent that believes post-merge CI
+failed will start investigating or reverting work that is actually fine, and an
+operator who learns the failure reports are unreliable will discount the real
+ones. The tool exists specifically to make "merged" and "CI passed" separate,
+trustworthy claims.
+
+**What agentharness should change:** distinguish "could not read the status"
+from "the run reached a terminal state" — retry a failed read, bounded so a
+persistently broken `gh` still terminates. Separately, an empty or unreadable
+conclusion should be reported as unknown rather than as a failure; conflating
+them trains the reader to distrust genuine failures.
+
+**Corrective action taken:** Verified against the actual run before believing
+the report (`gh run list --branch main`) — the merge commit's run was
+`completed/success`. Fixed in the PR carrying this entry: failed status reads
+are retried up to 3 consecutive times, an empty/unknown conclusion is reported
+as undetermined with an explicit "this is unknown, NOT a failure" message, and
+the misleading "CI run completed with status: unknown" wording is gone. Not
+filed as a separate upstream issue for the same reason recorded in the
+`safe-pr-merge-arg-passthrough` entry: this is the upstream repo and the fix
+landed in the same session.
+
 ## 2026-07-28 – `safe-pr-merge.sh` documents "[gh pr merge options]" but hardcodes `--merge`
 
 **Recurrence key:** `safe-pr-merge-arg-passthrough`

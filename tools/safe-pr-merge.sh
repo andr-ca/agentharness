@@ -342,6 +342,11 @@ wait_for_ci_run() {
     # This repo's full CI takes ~6-8 minutes wall time; 5 minutes would
     # time out on every healthy run.
     local max_wait=$((60 * 15))
+    # Consecutive failed status reads tolerated before giving up. Bounded
+    # so a persistently broken gh/network still terminates rather than
+    # polling for the full budget.
+    local read_failures=0
+    local max_read_failures=3
 
     while [ "$status" == "in_progress" ] || [ "$status" == "queued" ] || [ "$status" == "requested" ]; do
         if [ $elapsed -gt $max_wait ]; then
@@ -349,7 +354,28 @@ wait_for_ci_run() {
             return 1
         fi
 
-        status="$(gh run view "$run_id" -R "$repo" --json status -q '.status' 2>/dev/null || echo "unknown")"
+        # A failed read is NOT a terminal state. This previously fell back
+        # to "unknown", which isn't in_progress/queued/requested, so the
+        # loop broke out, read an empty conclusion from a still-running
+        # job, and reported "Post-merge CI failed" for a run that went on
+        # to pass — the inverse of the earlier false-green defects, and
+        # observed live at 120s elapsed against a 900s budget. Retry
+        # instead, bounded so a persistently broken gh still terminates.
+        if ! status="$(gh run view "$run_id" -R "$repo" --json status -q '.status' 2>/dev/null)" ||
+            [ -z "$status" ]; then
+            read_failures=$((read_failures + 1))
+            if [ "$read_failures" -ge "$max_read_failures" ]; then
+                log_error "Could not read CI run status after ${max_read_failures} consecutive attempts"
+                log_error "This is a status-read failure, NOT a CI failure — check the run manually"
+                return 1
+            fi
+            log_info "CI status read failed (${read_failures}/${max_read_failures}), retrying..."
+            status="in_progress"
+            sleep 10
+            elapsed=$((elapsed + 10))
+            continue
+        fi
+        read_failures=0
 
         if [ "$status" != "in_progress" ] && [ "$status" != "queued" ] && [ "$status" != "requested" ]; then
             break
@@ -360,11 +386,20 @@ wait_for_ci_run() {
         elapsed=$((elapsed + 10))
     done
 
-    # Check conclusion
+    # Check conclusion. An unreadable or empty conclusion is reported as
+    # exactly that — "we could not determine the outcome" is a different
+    # claim from "the run failed", and conflating them trains the reader
+    # to distrust real failures.
     local conclusion
-    conclusion="$(gh run view "$run_id" -R "$repo" --json conclusion -q '.conclusion' 2>/dev/null || echo "unknown")"
+    conclusion="$(gh run view "$run_id" -R "$repo" --json conclusion -q '.conclusion' 2>/dev/null || echo "")"
 
-    log_info "CI run completed with status: $status, conclusion: $conclusion"
+    log_info "CI run finished with status: $status, conclusion: ${conclusion:-<unreadable>}"
+
+    if [ -z "$conclusion" ] || [ "$conclusion" == "unknown" ]; then
+        log_error "Could not determine the post-merge CI conclusion (status: $status)"
+        log_error "This is unknown, NOT a failure — verify the run before acting on it"
+        return 1
+    fi
 
     if [ "$conclusion" != "success" ]; then
         log_error "Post-merge CI failed (conclusion: $conclusion)"
