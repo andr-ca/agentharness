@@ -45,3 +45,4 @@ src/agentharness/bootstrap/plan.py
 tests/unit/bootstrap/test_discovery.py
 tests/unit/bootstrap/test_plan.py
 tools/tests/npm-launcher-routing.bats
+docs/operational/context-management-analysis-2026-07-29.md
