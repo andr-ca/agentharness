@@ -101,8 +101,11 @@ def _remediation_strings() -> list[str]:
 
 
 def test_remediation_inventory_is_not_empty():
-    # Guards against the check passing because the regex stopped matching.
-    assert len(_remediation_strings()) >= 3
+    # Guards against the check above passing because the regex stopped
+    # matching anything. Deliberately `> 0`, not a floor tied to today's
+    # count: the guard is "we are still parsing remediations at all", and
+    # a legitimate consolidation to fewer of them should not fail it.
+    assert len(_remediation_strings()) > 0
 
 
 def test_every_remediation_command_is_actually_registered():
