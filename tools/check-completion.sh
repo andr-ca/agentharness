@@ -171,6 +171,18 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Gate 5b: Always-on context budget — fails on growth, not on a threshold
+# ---------------------------------------------------------------------------
+# Deliberately growth-based. The root-instruction inventory found that
+# mechanical enforcement, not size, predicts what is safe to remove — and
+# the largest section of the router is prose-only-enforced, so a "get
+# under N tokens" gate would point straight at the guidance doing the most
+# work. This catches silent bloat without demanding those cuts.
+if [ -f tools/context-budget.py ]; then
+    run_gate "context-budget" python3 tools/context-budget.py --check
+fi
+
+# ---------------------------------------------------------------------------
 # Gate 6: Git status — no uncommitted or untracked changes
 # ---------------------------------------------------------------------------
 # `git status --porcelain`, not `git diff HEAD`: a file that was never
