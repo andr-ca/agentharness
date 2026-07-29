@@ -6,6 +6,35 @@ section into a tagged version.
 
 ## [Unreleased]
 
+### Added
+- **First-run bootstrap surface.** `agentharness bootstrap plan`
+  inventories what a project already configures (linting, tests, type
+  checking, logging, docs, mutation testing) and lists the decisions only
+  its owner can make; `agentharness bootstrap apply --confirm <hash>`
+  creates only what was answered for. `plan` is read-only; `apply`
+  refuses an unresolved plan, refuses to run without `--confirm`, and
+  refuses a hash that no longer matches the current repository or
+  answers. A capability the project already configures is never offered
+  for adoption, and no action ever overwrites an existing file.
+- **`project-bootstrap` skill** — conducts the first-run interview from
+  `bootstrap plan --json`, one question at a time, keeping verified
+  detections separate from recommendations.
+
+### Fixed
+- The npm launcher never reached the packaged Python core: `bin/cli.js`
+  forwarded every argument to `harness-link.sh`, so any Python
+  subcommand failed with "Unexpected argument". `bootstrap`, `runtime`,
+  `github`, `profile`, and `authority` now route to
+  `dist/agentharness.pyz`. `status` and `plan` deliberately still route
+  to the bash CLI, where they already had meaning — **no change for
+  existing installs.**
+- `agentharness status` advertised `agentharness bootstrap`, which was
+  never a registered command. A test now asserts every `Run
+  'agentharness ...'` remediation the CLI emits names a runnable command.
+- Ruff detection missed `ruff.toml` / `.ruff.toml` — ruff's own
+  documented standalone config files — and reported such projects as
+  having no linter configured.
+
 ## [0.3.0] - 2026-07-21
 
 ### Added

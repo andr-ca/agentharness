@@ -339,6 +339,7 @@ referenced everywhere instead of drifting across projects. Full rationale:
 | Logging | `patterns/logging/` |
 | Python conventions | `languages/python/` |
 | Integrating this repo into a project | `docs/INTEGRATION.md`, or just run `tools/setup/harness-link.sh` |
+| First run in a project (what applies here?) | `agentharness bootstrap plan`, and the project-bootstrap skill for the interview |
 | What's planned but not built | [ROADMAP.md](ROADMAP.md) |
 
 ### Rules That Apply Regardless of What You're Working On
@@ -407,6 +408,7 @@ Temporary/working docs (research notes, agent logs, planning) go in
 - `.agents/skills/performance-profiling/SKILL.md` — Use when diagnosing slow code, high memory usage, or CPU spikes — language-agnostic profiling workflow: form a hypothesis, identify the hot path, benchmark before and after, and interpret profiler output. Includes Python (cProfile, py-spy), Go (pprof), and Node.js (--inspect, clinic.js) tooling.
 - `.agents/skills/planning-with-files/SKILL.md` — Use when starting a complex multi-step task, a research project, or any task requiring more than 5 tool calls — creates and maintains task_plan.md, findings.md, and progress.md to preserve state across context resets.
 - `.agents/skills/port-agent-config/SKILL.md` — Use when asked to port, migrate, or add equivalent agent instructions, skills, or custom sub-agents for a different coding tool than the one already configured — e.g. "add Cursor support from our CLAUDE.md", "we're switching from Cursor to Codex, port our rules", "make this work for Copilot too", "port our review subagent to Codex". Covers both agentharness-linked projects (use the real generators, don't hand-write) and plain projects with hand-authored config (port by hand, same principles).
+- `.agents/skills/project-bootstrap/SKILL.md` — Use on the first run in a project, or when asked to set the harness up, tailor it to this repository, or work out which conventions apply here — inventories what the project already does, interviews the owner about the decisions only they can make, and applies a confirmed plan without overwriting existing setup.
 - `.agents/skills/python-conventions/SKILL.md` — Use when writing or reviewing Python code — naming conventions, type hints, common pitfalls (mutable defaults, bare except, is-vs-==), and testing structure.
 - `.agents/skills/react-best-practices/SKILL.md` — Use when writing, reviewing, or optimizing React or Next.js code — component architecture, hooks rules, server vs. client components, data fetching patterns, bundle size, and accessibility in React.
 - `.agents/skills/requirements-clarification/SKILL.md` — Use before implementing a significant feature or change when requirements are ambiguous, underspecified, or likely to have multiple reasonable interpretations, or when a requirement arrives pre-formed as an issue, audit finding, or review comment whose claim needs checking — covers verifying the premise before acting, structured discovery, one question at a time, edge-case probing, and writing a brief requirements summary before coding starts.

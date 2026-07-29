@@ -53,7 +53,41 @@ function shouldDefaultToNpmMode(args) {
   return first === 'init' || first === 'plan' || !KNOWN_SUBCOMMANDS.has(first);
 }
 
+// Subcommands served by the Python core (dist/agentharness.pyz), not by
+// harness-link.sh. Without this routing the launcher forwarded EVERY
+// argument to the bash script, so `agentharness bootstrap plan` died with
+// "Unexpected argument: plan" — the packaged CLI advertised a command it
+// could not reach.
+//
+// Deliberately excludes 'status' and 'plan', which both already mean
+// something in harness-link.sh. Re-pointing them at the Python core would
+// silently change behaviour for existing installs; the names listed here
+// are the ones with no bash-side meaning, so routing them is unambiguous.
+const PYTHON_SUBCOMMANDS = new Set([
+  'bootstrap', 'runtime', 'github', 'profile', 'authority',
+]);
+
 const forwardedArgs = process.argv.slice(2);
+
+if (PYTHON_SUBCOMMANDS.has(forwardedArgs[0])) {
+  const zipapp = path.join(HARNESS_ROOT, 'dist', 'agentharness.pyz');
+  if (!require('node:fs').existsSync(zipapp)) {
+    console.error(
+      `agentharness: ${forwardedArgs[0]} requires the packaged Python core, ` +
+        `which is missing from this install (${zipapp}).`
+    );
+    process.exit(1);
+  }
+  const pythonResult = spawnSync('python3', [zipapp, ...forwardedArgs], {
+    stdio: 'inherit',
+  });
+  if (pythonResult.error) {
+    console.error(`Failed to run ${zipapp}: ${pythonResult.error.message}`);
+    process.exit(1);
+  }
+  process.exit(pythonResult.status === null ? 1 : pythonResult.status);
+}
+
 const finalArgs = shouldDefaultToNpmMode(forwardedArgs)
   ? [...forwardedArgs, '--mode', 'npm']
   : forwardedArgs;

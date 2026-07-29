@@ -12,6 +12,41 @@ impact → what agentharness should change → corrective action taken. In
 consuming projects this file lives at the same path; entries here are the
 self-hosted (dogfood) case.
 
+## 2026-07-29 – completion gate reports success with a required file left untracked
+
+**Recurrence key:** `completion-gate-untracked-blindspot`
+
+**Harness version:** e05944c
+
+**What happened:** Added a new skill (`.claude/skills/project-bootstrap/`) and
+its `.agents/skills/` symlink. `tools/check-completion.sh` returned
+`can_declare_complete: true` with the symlink still untracked. The defect was
+caught much later by the pre-push bats suite —
+`generate-agents-md: path resolution — every referenced .agents/skills/*/SKILL.md
+path exists on disk` — after a full push cycle had already been spent.
+
+**Root cause:** the gate's `git-clean` check reports "N uncommitted change(s) to
+tracked files". A brand-new file that was never `git add`-ed is not a tracked
+file, so it is invisible to the check. Every other gate (lint, types, tests,
+coverage) operates on the working tree, where the file is present and
+everything passes — so the whole gate goes green on a state that cannot be
+reproduced from the commit.
+
+**Impact:** the gate's entire purpose is to be the last word before declaring
+work done, and this is the one class of mistake it structurally cannot see:
+new files. It is also the most likely mistake when adding a skill, a test
+fixture, or a generated artifact — exactly the work the gate is most often run
+after. The failure surfaces later and far from its cause.
+
+**What agentharness should change:** `git-clean` should count untracked,
+non-ignored files as uncommitted too — `git status --porcelain
+--untracked-files=all` already reports both in one call. Anything genuinely
+transient belongs in `.gitignore`, which the check would then correctly skip.
+
+**Corrective action taken:** Created the missing symlink and committed it.
+Logged here; the gate change itself is a separate scoped fix, not folded into
+this feature branch.
+
 ## 2026-07-28 – `safe-pr-merge.sh` reports a false CI failure on a transient status read
 
 **Recurrence key:** `safe-pr-merge-ci-status-misread`

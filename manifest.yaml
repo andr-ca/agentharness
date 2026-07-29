@@ -481,10 +481,18 @@ sections:
     path: tools/runtime/seed-runtime-artifacts.py
     type: script
     when_to_use: Downloads fixed official artifacts as inert bytes, strictly parses requirements-runtime.lock, promotes each file atomically under a cache lock, and fails closed if a mixed generation remains
-  - asset: Bootstrap policy core (⚠ EXPERIMENTAL — unreleased; not wired into public CLI)
+  - asset: Project bootstrap (first-run discovery, interview, and apply)
+    path: src/agentharness/bootstrap/
+    type: package
+    when_to_use: First run in a project — `agentharness bootstrap plan` inventories what the repo already configures and lists the decisions the owner must make; `apply --confirm <hash>` creates only what was answered for. Read-only until confirmed; never overwrites existing config
+  - asset: Project bootstrap skill
+    path: .claude/skills/project-bootstrap/SKILL.md
+    type: skill
+    when_to_use: Conducting the first-run interview — turns `bootstrap plan` output into a one-question-at-a-time conversation with the owner, separating verified detections from recommendations
+  - asset: Policy core (⚠ EXPERIMENTAL — gates, profiles, plugins not wired into public CLI)
     path: src/agentharness/
     type: package
-    when_to_use: Deterministic Python policy core (bootstrap, gates, profiles, plugins) — experimental and unreleased; the public npm launcher does not invoke it. See docs/STATUS.md for the version split and E1/E2 in the 2026-07-16 launch-readiness plan
+    when_to_use: Deterministic Python policy core. The bootstrap surface above is released; the remaining gates/profiles/plugins machinery is experimental and the public npm launcher does not invoke it. See docs/STATUS.md for the version split
   - asset: Canonical runtime requirements parser
     path: src/agentharness/runtime_requirements.py
     type: utility
@@ -684,10 +692,10 @@ sections:
   - asset: Existing-surface integration implementation plan (implemented)
     path: docs/superpowers/plans/2026-07-17-existing-surface-integration.md
     type: implementation plan
-  - asset: Project bootstrap and deterministic policy design (approved; not implemented)
+  - asset: Project bootstrap and deterministic policy design (first-run surface implemented; gates/profiles still experimental)
     path: docs/superpowers/specs/2026-07-14-project-bootstrap-policy-design.md
     type: design specification
-  - asset: Project bootstrap implementation master plan (planned; not implemented)
+  - asset: Project bootstrap implementation master plan (first-run surface delivered; later slices open)
     path: docs/superpowers/plans/2026-07-14-project-bootstrap-policy-master-plan.md
     type: implementation plan
   - asset: Project bootstrap acceptance and evidence matrix

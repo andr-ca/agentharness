@@ -338,6 +338,7 @@ referenced everywhere instead of drifting across projects. Full rationale:
 | Logging | `patterns/logging/` |
 | Python conventions | `languages/python/` |
 | Integrating this repo into a project | `docs/INTEGRATION.md`, or just run `tools/setup/harness-link.sh` |
+| First run in a project (what applies here?) | `agentharness bootstrap plan`, and the project-bootstrap skill for the interview |
 | What's planned but not built | [ROADMAP.md](ROADMAP.md) |
 
 ### Rules That Apply Regardless of What You're Working On

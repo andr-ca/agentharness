@@ -93,12 +93,30 @@ This repo's own tooling is implemented, though: `tools/setup/harness-link.sh`
 
 ### Project bootstrap and deterministic policy engine
 
-**Implementation in progress on PR #47 (`feature/project-bootstrap-policy`).**
-Slices 1–5 are complete with tests passing; Slice 6 Task 1
-(machine-verifiable acceptance ledger) is done; Slice 6 Tasks 3–10
-require npm publish authority and a live GitHub sandbox (externally
-blocked until those are configured). See PR #47 for current status and
-the acceptance/evidence matrix for per-criterion tracking.
+**First-run workflow released; the rest of the policy engine is still
+experimental.** These are two different claims and were previously
+conflated, which made the state unreadable from this file alone.
+
+- **Merged:** PR #47 (`feature/project-bootstrap-policy`) merged
+  2026-07-16. Slices 1–5 complete with tests passing; Slice 6 Task 1
+  (machine-verifiable acceptance ledger) done.
+- **Released:** the first-run surface. `agentharness bootstrap plan`
+  inventories what a project already configures and lists the decisions
+  its owner must make; `agentharness bootstrap apply --confirm <hash>`
+  creates only what was answered for. The `project-bootstrap` skill
+  conducts the interview. `plan` is read-only, `apply` refuses an
+  unresolved or unconfirmed plan, and neither overwrites existing
+  configuration.
+- **Still experimental:** the remaining gates/profiles/plugins machinery
+  under `src/agentharness/` is not wired into the public CLI —
+  `MANIFEST.md` records it as such. `tools/setup/harness-link.sh` remains
+  the installer for the harness assets themselves.
+- **Still blocked:** Slice 6 Tasks 3–10 require npm publish authority and
+  a live GitHub sandbox (externally blocked until those are configured).
+- **Resolved:** the descope-vs-complete decision. The first-run surface
+  was completed rather than descoped.
+
+See the acceptance/evidence matrix for per-criterion tracking.
 
 The permanent design specification is
 [`docs/superpowers/specs/2026-07-14-project-bootstrap-policy-design.md`](docs/superpowers/specs/2026-07-14-project-bootstrap-policy-design.md).
@@ -114,7 +132,7 @@ Implemented: `.github/dependabot.yml` (Go modules + GitHub Actions updates)
 and `.github/CODEOWNERS` (review routing for framework/GitHub config areas).
 
 ### Claude Code Skills (`.claude/skills/`)
-Implemented: 24 skills total — 7 original skills (`committing`, `branching`,
+Implemented: 35 skills total (see MANIFEST.md for the current list — that count drifts, the manifest does not) — 7 original skills (`committing`, `branching`,
 `python-conventions`, `error-handling`, `agentic-loops`, `audit-review-followup`,
 `port-agent-config`) plus 17 new skills added in 2026-07:
 
@@ -127,7 +145,8 @@ Implemented: 24 skills total — 7 original skills (`committing`, `branching`,
 **Tier 3 (ecosystem-specific):** `react-best-practices`, `database-conventions`,
 `docker-conventions`, `dependency-audit`, `performance-profiling`
 
-**Additional:** `mutation-testing`, `multi-agent-coordination`
+**Additional:** `mutation-testing`, `multi-agent-coordination`,
+`project-bootstrap` (first-run discovery and interview)
 
 Each skill is on-demand discoverable by Claude Code, Codex, Cursor, Kilo Code,
 GitHub Copilot, and Gemini CLI via the Agent Skills open standard.

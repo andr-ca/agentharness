@@ -10,6 +10,18 @@ this repo today — see [MANIFEST.md](../MANIFEST.md) for the inventory.
 ~/agentharness/tools/setup/harness-link.sh init /path/to/your-project
 ```
 
+**Then, on your first run in that project:**
+
+```bash
+agentharness bootstrap plan
+```
+
+`harness-link.sh init` installs the harness *assets*. `bootstrap` tailors
+them to the project: it inventories what the repository already
+configures (linting, tests, type checking, logging, docs, mutation
+testing), lists the decisions only you can make, and applies only what
+you answer for. See "First run: bootstrap" below.
+
 This is `harness-link.sh`'s lifecycle CLI: `init` symlinks (or copies, or
 adds a submodule and symlinks from it — see Method 1/2/3 below) skills,
 merges `.github/.gitignore.template` into `.gitignore`, optionally
@@ -99,6 +111,67 @@ that already calls it that way.
 Everything below is the manual, step-by-step version of what `--mode`
 does, useful for understanding what's actually happening or for
 integrating a single component by hand instead of everything at once.
+
+## First run: bootstrap
+
+`harness-link.sh` installs the harness. `agentharness bootstrap` tailors
+it to the project — the two are separate steps and answer different
+questions ("what is available here?" vs "what should apply here?").
+
+```bash
+# 1. Read-only inventory. Prints findings, open questions, and a plan hash.
+agentharness bootstrap plan
+
+# 2. Answer the questions it listed (repeat --answer per question).
+agentharness bootstrap plan --answer rigor.tier=production
+
+# 3. Apply, quoting the plan_hash from the plan you reviewed.
+agentharness bootstrap apply --answer rigor.tier=production --confirm "$PLAN_HASH"
+```
+
+### What it does
+
+1. **Inventories the repository, read-only.** Detects linting, test
+   framework, type checking, logging, documentation tooling, and mutation
+   testing from configuration files. A capability counts as present only
+   with a config file backing it, and the output names that file as
+   evidence.
+2. **Asks what it cannot detect.** Rigor tier, publish authority, and
+   whether to adopt each capability the project is missing.
+3. **Applies only what was answered and confirmed.** `apply` refuses an
+   unresolved plan, refuses to run without `--confirm`, and refuses a
+   hash that no longer matches — so it can never act on a plan you did
+   not see.
+
+### Guarantees
+
+| Property | How it is enforced |
+|---|---|
+| `plan` never writes | It only reads config files; verified by test |
+| Existing setup is preserved | A detected capability is never offered for adoption and never generates an action |
+| No file is clobbered | Actions skip any path that already exists — re-checked at write time, not just at plan time |
+| Nothing happens by default | Every missing capability is an explicit question; unanswered means no action |
+| Confirmation is meaningful | The hash covers the inventory, every answer, and every action |
+
+### For agents
+
+Use the `project-bootstrap` skill. It turns `plan --json` into a
+one-question-at-a-time interview and keeps verified detections separate
+from recommendations. `bootstrap` is deliberately non-interactive — it
+emits questions rather than prompting — so agents and humans drive the
+same code path and the whole flow stays scriptable and testable.
+
+### Answer ids
+
+| Id | Values | Meaning |
+|---|---|---|
+| `rigor.tier` | `prototype` / `production` | Which tier of the coding guidelines applies |
+| `authority.publish` | `stage` / `publish` | Whether agents may push and open PRs, or must stop after staging |
+| `adopt.<capability>` | `yes` / `no` | Whether to scaffold a starter config for a missing capability |
+
+Scaffolded configs are minimal starting points, expected to be edited.
+
+---
 
 ## Integration Methods
 
