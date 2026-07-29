@@ -217,3 +217,39 @@ d = json.loads('''$output''')
 assert any("git-clean" in g for g in d["gates_failed"]), d
 PYEOF
 }
+
+@test "check-completion: an unborn-HEAD repo with untracked files fails git-clean" {
+    # The previous `rev-parse --verify HEAD` guard reported a repo with no
+    # commits as clean regardless of its contents — the same blind spot as
+    # untracked files, in a different disguise. `git status --porcelain`
+    # works fine without any commits, so no guard is needed.
+    dir="$(mktemp -d)"
+    git -C "$dir" init -q
+    mkdir -p "$dir/tools"
+    cp "$SCRIPT" "$dir/tools/check-completion.sh"
+    printf 'import sys\nsys.exit(0)\n' > "$dir/tools/verify-content-quality.py"
+    output=$(cd "$dir" && bash tools/check-completion.sh 2>/dev/null || true)
+    rm -rf "$dir"
+    python3 - <<PYEOF
+import json
+d = json.loads('''$output''')
+assert any("git-clean" in g for g in d["gates_failed"]), d
+PYEOF
+}
+
+@test "check-completion: an untracked directory is detected without enumerating it" {
+    # --untracked-files=normal collapses it to one entry; detection must
+    # still fire, which is the property that matters.
+    proj="$(_make_minimal_project)"
+    mkdir -p "$proj/build/deep" && touch "$proj/build/deep/a.o" "$proj/build/deep/b.o"
+    output=$(cd "$proj" && bash tools/check-completion.sh 2>/dev/null || true)
+    rm -rf "$proj"
+    python3 - <<PYEOF
+import json
+d = json.loads('''$output''')
+failed = [g for g in d["gates_failed"] if "git-clean" in g]
+assert failed, d
+# One entry for the directory, not one per file inside it.
+assert "1 uncommitted" in failed[0], failed
+PYEOF
+}
