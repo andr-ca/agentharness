@@ -116,5 +116,6 @@ generator script yet (see ROADMAP.md).
 | Frameworks overview | `frameworks/README.md` | doc | Index of framework-specific harness directories (none built yet — see ROADMAP.md) |
 | Prior full repo review | `docs/operational/reviews/fable-review.md` | historical record — dated 2026-07-11, describes the repo as `awesome-harness` before the rename |
 | Review recommendations status | `docs/operational/reviews/fable-review-status.md` | disposition of all 30 backlog items from the review above |
-| Independent repo review (GPT-5.6) | `docs/operational/reviews/gpt-5.6-review.md` | second-opinion review, dated 2026-07-11; not yet triaged against current repo state |
+| Independent repo review (GPT-5.6) | `docs/operational/reviews/gpt-5.6-review.md` | second-opinion review, dated 2026-07-11 |
 | PR #4 review-comment status | `docs/operational/reviews/pr4-comments-status.md` | disposition of Copilot's PR #4 comments and this session's own audit gaps |
+| GPT-5.6 review status | `docs/operational/reviews/gpt-5.6-review-status.md` | disposition of the GPT-5.6 review's ~30 findings; one item (P0-03) escalated, awaiting a decision |

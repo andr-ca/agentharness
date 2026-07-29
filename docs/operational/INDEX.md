@@ -25,8 +25,17 @@ Documents ready to be promoted to harness or archived:
   fixes across the repo; kept here as the historical record rather than
   archived, since `reviews/fable-review-status.md` actively references it.
 - `reviews/fable-review-status.md` — disposition of all 30 review
-  recommendations. Stays active until the two partial items (logging
-  config loader, sample integration project) are picked up.
+  recommendations. Both items originally left partial (logging config
+  loader, sample integration project) are now implemented — see
+  `ROADMAP.md`'s "Explicitly Deferred" section — so this is now a
+  historical record rather than an active item, same as the review above.
+- `reviews/gpt-5.6-review.md` — independent second-opinion review,
+  dated 2026-07-11, filed against PR #4's branch.
+- `reviews/gpt-5.6-review-status.md` — disposition of the review above.
+  Stays active until P0-03 (self-authorization mandate) is decided; the
+  P1/P2 items it defers are tracked in `ROADMAP.md`.
+- `reviews/pr4-comments-status.md` — disposition of Copilot's PR #4
+  review comments plus a fable-review-status audit gap.
 
 ## 📚 Archives
 

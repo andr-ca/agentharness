@@ -75,3 +75,46 @@ language/pattern skills can follow the same template.
   `config_loader.py` with tests for loading YAML configs with `${VAR:-default}`
   environment variable interpolation. Documentation integrated into
   `LOGGING_STANDARDS.md`.
+
+- **Profiles + precedence system** (`gpt-5.6-review.md` P1-02) — `prototype`
+  / `internal` / `production` profiles that *select* policies instead of
+  the current single set of universal mandates qualified only by prose
+  ("Rigor Tiers"). Real feature work, not a fix — needs its own design
+  pass on what a profile actually gates (coverage %? logging backends?
+  screenshot requirements?) before implementation.
+
+- **Lifecycle CLI for `harness-link.sh`** (P1-04) — `init`/`plan --dry-run`/
+  `status`/`audit`/`update`/`uninstall`, with a state file recording what
+  was installed. The current script is one-shot install-only; this is a
+  rewrite, not a patch.
+
+- **Consumer fixtures beyond the symlink path** (P1-05) — CI currently
+  proves `harness-link.sh --with-hook` (symlink mode) end-to-end via
+  `examples/sample-project`. The copy and submodule integration paths
+  documented in `docs/INTEGRATION.md` are not independently exercised in
+  CI.
+
+- **Technical edit pass on TypeScript/Go guides** (P1-09) — `gpt-5.6-review.md`'s
+  "Content correctness" section lists concrete defects: `languages/typescript/CONVENTIONS.md`
+  calls `_private` fields "deprecated" (not a real TS deprecation), uses
+  `Map<string, any>` while the same policy says avoid `any`, and claims a
+  small regex is RFC 5322-compliant (it isn't). `languages/go/CONVENTIONS.md`
+  flags an already-camelCase identifier as wrong, uses deprecated
+  `ioutil.ReadFile` over `os.ReadFile`, and defines methods on
+  `*UserRepository` after presenting `UserRepository` as an interface
+  (doesn't compile). Not fixed in this pass — see
+  `docs/operational/reviews/gpt-5.6-review-status.md` for why.
+
+- **Full agentic-loop safety framework** (P0-07's full scope beyond the
+  crash-bug fixes already shipped) — JSON Schema validation of tool
+  arguments against a declared schema, approval boundaries, sandboxing,
+  time/token/cost budgets, cancellation, idempotency, prompt-injection
+  handling, and persistence/resume. The crash bugs (missing imports,
+  uninitialized state, task never reaching the model, no call-id
+  correlation) are fixed; the safety framework is a system to design, not
+  a bug to patch.
+
+- **CI supply-chain hardening** (P1-07) — pin GitHub Actions and the Bats
+  install to reviewed revisions instead of a mutable default branch
+  installed with `sudo`; add `permissions: contents: read` to the
+  workflow; add step timeouts.
