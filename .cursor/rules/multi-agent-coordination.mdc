@@ -95,6 +95,14 @@ session outlives the lease, extend it:
 tools/agent-lock.sh renew "add-user-auth"    # uses $AGENTHARNESS_AGENT_ID
 ```
 
+**Locks are repo-wide; the session marker is not.** Feature locks
+resolve to one store shared by the primary checkout and every linked
+worktree, so a lock taken in one is visible from all of them — worktree
+isolation must not hide the coordination state it exists to protect. The
+session marker is deliberately per-checkout: it proves *this* checkout's
+own session, and sharing it would let a foreign worktree's session pass
+the ownership check.
+
 **Ownership is provable three ways**, in this order: a matching
 `AGENTHARNESS_AGENT_ID`, an ancestor-pid match, or the per-checkout
 session marker (`.agentharness-locks/.session-ids`) that `acquire`

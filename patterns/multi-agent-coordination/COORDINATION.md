@@ -92,6 +92,15 @@ lease eventually runs out — just not instantly. That delay is the
 deliberate trade: bounded recovery time in exchange for never silently
 expiring a live session.
 
+**Scope: locks are repo-wide, the session marker is per-checkout.** The
+lock store resolves from the repository's git common directory, which is
+the same absolute path from the primary checkout and every linked
+worktree — so one store serves them all. Deriving it from the current
+checkout instead made locks invisible across worktrees, letting two
+agents each see the same branch as free; worktree isolation is meant to
+prevent working-tree collisions, not to hide the state that coordinates
+them. The session marker stays beside the current checkout by design.
+
 **Ownership** (as distinct from liveness) is provable three ways: a
 matching `AGENTHARNESS_AGENT_ID`, an ancestor-pid match, or membership
 in the per-checkout session marker `.agentharness-locks/.session-ids`
