@@ -569,7 +569,7 @@ register a `bootstrap` command. `ROADMAP.md` also still describes PR #47 as in
 progress even though GitHub records it as merged on 2026-07-16.
 
 **Root cause:** PR #47 merged the project-bootstrap policy core and its design
-artifacts without completing or consistently labelling the user-facing
+artifacts without completing or consistently labeling the user-facing
 integration. The stable installer, experimental core, CLI remediation, skill
 inventory, manifest, and roadmap therefore describe different stages of the
 same capability.
