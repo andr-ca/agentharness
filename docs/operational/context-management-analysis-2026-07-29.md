@@ -31,7 +31,7 @@ against the current tree:
 | **Lineage** | **Partial** | `manifest.yaml`: 115 entries with `when_to_use`. No rule → canonical-source mapping |
 | **Persistence** | **Partial, ad hoc** | `planning-with-files`, `harness-feedback` (674 lines), six `.agentharness-*` state files. No lifecycle |
 | **Prioritization** | **Prose only** | Precedence rules live in `CLAUDE.md` and `patterns/profiles/README.md`. Not machine-readable |
-| **Reduction** | **Nothing** | No budget, no measurement, no gate. Confirmed: zero references to tokens or budgets in any tool |
+| **Reduction** | **Nothing** | No context budget, no measurement, no gate |
 
 Building a registry that "unifies" six functions when two are already
 solved by a different mechanism risks reimplementing working machinery.
@@ -54,6 +54,13 @@ Every consuming session pays ~7,800 tokens before doing anything, plus 35
 skill descriptions in the discovery index. Nothing measures this and
 nothing gates it. **Reduction is the real gap**, and it is the only one
 of the six with no mechanism at all.
+
+To be precise about the absence: the repo does use the words "token" and
+"budget" in several tools — GitHub auth tokens, the agent loop's
+iteration and time budgets, the lock lease TTL. What does not exist
+anywhere is an *LLM context-token* budget: no tool measures how much
+always-on context a consuming session is handed, and nothing fails when
+it grows.
 
 ## 3. The trap: budget enforcement without a gating strategy
 
