@@ -451,3 +451,32 @@ def test_the_real_precedence_model_declares_both_ladders():
     ids = {ladder["id"] for ladder in model["ladders"]}
 
     assert {"rigor_tier", "publish_authority"} <= ids
+
+
+def test_precedence_reports_a_directory_named_like_the_model(tmp_path):
+    # exists() is true for a directory; read_text() then raises and would
+    # crash the entire content-quality gate rather than reporting.
+    (tmp_path / "precedence.yaml").mkdir()
+
+    errors = vcq.check_precedence_matches_docs(scan_root=tmp_path)
+
+    assert len(errors) == 1
+    assert "not a regular file" in errors[0]
+
+
+def test_precedence_reports_an_unreadable_documented_in_target(tmp_path):
+    _write_precedence(tmp_path, ["Alpha rule"], "doc.md")
+    (tmp_path / "doc.md").mkdir()  # present but not readable as text
+
+    errors = vcq.check_precedence_matches_docs(scan_root=tmp_path)
+
+    assert len(errors) == 1
+    assert "doc.md" in errors[0]
+
+
+def test_absence_check_survives_a_directory_named_like_the_manifest(tmp_path):
+    _write_limitations(tmp_path, "- **Patterns:** no graphql pattern yet.\n")
+    (tmp_path / "manifest.yaml").mkdir()
+
+    # Must not raise; a malformed layout is not this check's to report.
+    assert vcq.check_absence_claims_match_manifest(scan_root=tmp_path) == []

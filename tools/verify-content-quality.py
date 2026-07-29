@@ -637,11 +637,24 @@ def check_precedence_matches_docs(scan_root: Path = REPO_ROOT) -> list[str]:
     right levels in the wrong sequence is a failure, not untidiness.
     """
     model_path = scan_root / "precedence.yaml"
-    if not model_path.exists():
+    # is_file(), not exists(): a directory or symlink-to-nothing named
+    # precedence.yaml passes exists() and then makes read_text() raise,
+    # crashing the whole content-quality gate instead of reporting.
+    if not model_path.is_file():
+        if model_path.exists():
+            return [
+                "precedence.yaml: exists but is not a regular file — "
+                "expected a YAML file"
+            ]
         return []  # consumer repos have no model; do not fail them
 
     try:
-        model = yaml.safe_load(model_path.read_text(encoding="utf-8")) or {}
+        raw = model_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        return [f"precedence.yaml: could not be read — {exc}"]
+
+    try:
+        model = yaml.safe_load(raw) or {}
     except yaml.YAMLError:
         return []  # check_yaml_files() already reports malformed YAML
 
@@ -664,7 +677,11 @@ def check_precedence_matches_docs(scan_root: Path = REPO_ROOT) -> list[str]:
             )
             continue
 
-        prose = doc_path.read_text(encoding="utf-8")
+        try:
+            prose = doc_path.read_text(encoding="utf-8")
+        except OSError as exc:
+            errors.append(f"{doc_rel}: could not be read — {exc}")
+            continue
         levels = sorted(
             (lv for lv in (ladder.get("levels") or []) if isinstance(lv, dict)),
             key=lambda lv: lv.get("rank", 0),
@@ -735,12 +752,14 @@ def check_absence_claims_match_manifest(scan_root: Path = REPO_ROOT) -> list[str
     """
     limitations = scan_root / "docs" / "KNOWN_LIMITATIONS.md"
     manifest = scan_root / "manifest.yaml"
-    if not limitations.exists() or not manifest.exists():
+    # is_file() for the same reason as above — exists() is true for a
+    # directory, and read_text() would then crash the gate.
+    if not limitations.is_file() or not manifest.is_file():
         return []
 
     try:
         data = yaml.safe_load(manifest.read_text(encoding="utf-8")) or {}
-    except yaml.YAMLError:
+    except (OSError, yaml.YAMLError):
         return []  # check_yaml_files() already reports malformed YAML
 
     paths = _manifest_asset_paths(data)
@@ -752,7 +771,12 @@ def check_absence_claims_match_manifest(scan_root: Path = REPO_ROOT) -> list[str
 
     errors = []
     parsed_claims = 0
-    for line_no, line in enumerate(limitations.read_text(encoding="utf-8").splitlines(), 1):
+    try:
+        limitations_text = limitations.read_text(encoding="utf-8")
+    except OSError as exc:
+        return [f"docs/KNOWN_LIMITATIONS.md: could not be read — {exc}"]
+
+    for line_no, line in enumerate(limitations_text.splitlines(), 1):
         for match in _ABSENCE_CLAIM.finditer(line):
             parsed_claims += 1
             name, kind = match.group(1).lower(), match.group(2).lower()
