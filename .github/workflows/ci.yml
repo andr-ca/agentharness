@@ -138,6 +138,8 @@ jobs:
         run: bash tools/runtime/seed-runtime-artifacts.sh
       - name: Run hook tests
         run: bats .github/hooks/tests/
+      - name: Context budget must not grow silently
+        run: python3 tools/context-budget.py --check
       - name: Run npm launcher routing tests
         run: bats tools/tests/npm-launcher-routing.bats
       - name: Run harness-link tests
