@@ -93,12 +93,25 @@ This repo's own tooling is implemented, though: `tools/setup/harness-link.sh`
 
 ### Project bootstrap and deterministic policy engine
 
-**Implementation in progress on PR #47 (`feature/project-bootstrap-policy`).**
-Slices 1–5 are complete with tests passing; Slice 6 Task 1
-(machine-verifiable acceptance ledger) is done; Slice 6 Tasks 3–10
-require npm publish authority and a live GitHub sandbox (externally
-blocked until those are configured). See PR #47 for current status and
-the acceptance/evidence matrix for per-criterion tracking.
+**Core merged; no public workflow released.** These are two different
+claims and were previously conflated, which made the state unreadable
+from this file alone.
+
+- **Merged:** PR #47 (`feature/project-bootstrap-policy`) merged
+  2026-07-16. Slices 1–5 complete with tests passing; Slice 6 Task 1
+  (machine-verifiable acceptance ledger) done.
+- **Not released:** the resulting core under `src/agentharness/` is
+  experimental and **not wired into the public CLI** — `MANIFEST.md`
+  records it as such. There is no `agentharness bootstrap` command and no
+  project-bootstrap skill; the supported installer remains
+  `tools/setup/harness-link.sh`.
+- **Still blocked:** Slice 6 Tasks 3–10 require npm publish authority and
+  a live GitHub sandbox (externally blocked until those are configured).
+- **Still undecided:** whether to complete the public first-run surface
+  or descope it. Until that is decided, nothing should advertise a
+  bootstrap command to users.
+
+See the acceptance/evidence matrix for per-criterion tracking.
 
 The permanent design specification is
 [`docs/superpowers/specs/2026-07-14-project-bootstrap-policy-design.md`](docs/superpowers/specs/2026-07-14-project-bootstrap-policy-design.md).

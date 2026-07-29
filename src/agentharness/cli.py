@@ -127,11 +127,20 @@ def create_parser() -> argparse.ArgumentParser:
 
 
 def execute_status() -> CommandResult:
+    # Deliberately does NOT advertise `agentharness bootstrap`: that command
+    # is not registered in create_parser(), so following the advice returned
+    # "The command is invalid." The bootstrap policy core under src/ is
+    # experimental and unreleased (see MANIFEST.md), and the supported
+    # installer is tools/setup/harness-link.sh. Point at what actually runs.
     return CommandResult(
         code=ResultCode.STATUS_AVAILABLE,
         outcome=Outcome.SUCCESS,
         summary="Project is not configured.",
-        remediation="Run 'agentharness bootstrap' to configure this project.",
+        remediation=(
+            "Run 'tools/setup/harness-link.sh init' to install the harness. "
+            "The experimental bootstrap policy core is unreleased and has no "
+            "public command yet."
+        ),
         details={"state": "not_configured"},
     )
 
