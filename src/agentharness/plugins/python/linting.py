@@ -67,6 +67,16 @@ def detect_lint_tools(root: Path) -> list[LintTool]:
             if not any(t.kind == LintToolKind.FLAKE8 for t in tools):
                 tools.append(LintTool(LintToolKind.FLAKE8, filename))
 
+    # ruff.toml / .ruff.toml are ruff's own documented standalone config
+    # files. Looking only inside pyproject.toml reported a project
+    # configured the standard way as having no linter at all.
+    for filename in ("ruff.toml", ".ruff.toml"):
+        if not (root / filename).exists():
+            continue
+        if not any(t.kind == LintToolKind.RUFF for t in tools):
+            tools.append(LintTool(LintToolKind.RUFF, filename))
+        break
+
     if (root / ".isort.cfg").exists():
         if not any(t.kind == LintToolKind.ISORT for t in tools):
             tools.append(LintTool(LintToolKind.ISORT, ".isort.cfg"))

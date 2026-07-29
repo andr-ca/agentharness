@@ -1,0 +1,129 @@
+---
+name: project-bootstrap
+description: "Use on the first run in a project, or when asked to set the harness up, tailor it to this repository, or work out which conventions apply here — inventories what the project already does, interviews the owner about the decisions only they can make, and applies a confirmed plan without overwriting existing setup."
+metadata:
+  type: skills
+  complexity: medium
+  scope: [all]
+---
+
+# Project Bootstrap
+
+Use this the first time the harness runs in a project, or whenever the
+owner asks you to set it up, tailor it, or figure out which conventions
+apply here.
+
+The deterministic work is done by `agentharness bootstrap`. **Your job is
+the conversation** — the tool inventories the repository and lists the
+decisions that need making; you ask the owner about them, one at a time,
+and feed the answers back.
+
+**Check the command exists first:** `agentharness bootstrap plan --help`.
+If it is unavailable, this repository has not installed the harness CLI —
+fall back to `tools/setup/harness-link.sh` and assess the project
+conversationally rather than claiming a bootstrap flow exists.
+
+---
+
+## The loop
+
+```bash
+# 1. Inventory (read-only — writes nothing, safe to run any time)
+agentharness bootstrap plan --json
+
+# 2. Feed answers back as you collect them
+agentharness bootstrap plan --answer rigor.tier=production
+
+# 3. Apply, only with the hash of the plan the owner approved
+agentharness bootstrap apply --answer ... --confirm <plan_hash>
+```
+
+`plan` is safe to re-run at any point. Re-run it after every answer — the
+question set and the proposed actions both change as answers come in.
+
+---
+
+## Reading the plan
+
+```json
+{
+  "detected":  [{"capability": "test", "present": true,
+                 "detail": "pytest", "evidence": ["pyproject.toml"]}],
+  "questions": [{"id": "rigor.tier", "prompt": "...", "default": "production"}],
+  "actions":   [{"path": "ruff.toml", "summary": "Create ruff.toml"}],
+  "is_resolved": false,
+  "plan_hash": "..."
+}
+```
+
+| Field | What it means |
+|---|---|
+| `detected` | **Verified facts.** `present: true` means a config file says so, and `evidence` names it. |
+| `questions` | Decisions only the owner can make. Unanswered ones block `apply`. |
+| `actions` | Exactly what `apply` would create. Empty until answers ask for something. |
+| `is_resolved` | False while any question is unanswered. |
+| `plan_hash` | Changes whenever the repo or the answers change. |
+
+---
+
+## Conducting the interview
+
+**Report what you found before asking anything.** Lead with the
+detections, and say plainly what is already in place — the owner should
+see that their existing setup is understood, not about to be replaced.
+
+**Keep facts and proposals separate.** `detected` entries are verified
+from config files. Everything else is a suggestion. Say which is which;
+never present a recommendation as a finding.
+
+**Ask one question at a time.** Use the `prompt` text, mention the
+`default`, and wait. Do not dump the whole question list at the owner —
+that produces rubber-stamped defaults, which is the opposite of the point.
+
+**Explain the consequence, not just the choice.** "Production tier means
+the completion gate enforces the full coverage requirement" is useful;
+"choose prototype or production" is not.
+
+**Take "no" for an answer.** Declining a capability is a legitimate,
+common outcome. Record it and move on; do not re-litigate it later in
+the same conversation.
+
+---
+
+## Before applying
+
+Show the owner the exact list of files that will be created, then get
+explicit confirmation. Only then pass `--confirm <plan_hash>`.
+
+The hash is what makes that confirmation meaningful: it covers the
+inventory, every answer, and every action. If anything changed since the
+plan was shown — the repo, or an answer — the hash no longer matches and
+`apply` refuses. When that happens, **re-run `plan` and show the owner
+the new plan.** Do not simply re-read the new hash and pass it through;
+that defeats the entire mechanism.
+
+`apply` also refuses to run at all while any question is unanswered, so
+nothing is ever created because the owner failed to say no.
+
+---
+
+## What it will not do
+
+- **Overwrite anything.** A capability already configured is never
+  offered for adoption, and no action ever targets an existing file.
+- **Touch your source.** Only configuration files it proposed and you
+  confirmed.
+- **Decide for you.** No question is auto-answered, including the ones
+  with defaults.
+
+---
+
+## After bootstrapping
+
+Re-run `agentharness bootstrap plan` and confirm the capabilities you
+adopted now read as `present`. If one still reads absent, the scaffold
+and the detector disagree — report it rather than re-applying, because
+applying again will not fix it and will look like a loop to the owner.
+
+Scaffolded configs are deliberately minimal starting points. Tell the
+owner they are expected to edit them.

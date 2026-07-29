@@ -8,10 +8,8 @@ from agentharness.cli import create_parser, main
 
 EXPECTED_STATUS_JSON = (
     '{"code": "status_available", "details": {"state": "not_configured"}, '
-    '"outcome": "success", "remediation": "Run '
-    '\'tools/setup/harness-link.sh init\' to install the harness. The '
-    'experimental bootstrap policy core is unreleased and has no public '
-    'command yet.", "schema_version": 1, '
+    '"outcome": "success", "remediation": "Run \'agentharness bootstrap plan\' '
+    'to inspect this project.", "schema_version": 1, '
     '"summary": "Project is not configured."}\n'
 )
 
@@ -30,9 +28,8 @@ def test_status_human_output_states_project_is_not_configured(capsys):
     assert (exit_code, captured.out, captured.err) == (
         0,
         "success: Project is not configured.\n"
-        "Next: Run 'tools/setup/harness-link.sh init' to install the "
-        "harness. The experimental bootstrap policy core is unreleased "
-        "and has no public command yet.\n",
+        "Next: Run 'agentharness bootstrap plan' to inspect this "
+        "project.\n",
         "",
     )
 
@@ -124,3 +121,107 @@ def test_every_remediation_command_is_actually_registered():
         f"remediation names unrunnable command(s): {broken} — "
         "either register the command or stop advertising it"
     )
+
+
+# ---------------------------------------------------------------------------
+# bootstrap: the first-run surface. `plan` must stay read-only, and `apply`
+# must refuse anything the owner has not explicitly seen and confirmed.
+# ---------------------------------------------------------------------------
+
+BASELINE = ["--answer", "rigor.tier=production", "--answer", "authority.publish=stage"]
+
+
+def _plan_hash(target, extra):
+    import io
+    import json as _json
+
+    buffer = io.StringIO()
+    main(["bootstrap", "plan", "--target-dir", str(target), "--json", *extra], buffer)
+    return _json.loads(buffer.getvalue())["details"]["plan_hash"]
+
+
+def test_bootstrap_plan_is_registered_and_runs(tmp_path, capsys):
+    assert main(["bootstrap", "plan", "--target-dir", str(tmp_path)]) == 0
+
+
+def test_bootstrap_plan_writes_nothing(tmp_path):
+    main(["bootstrap", "plan", "--target-dir", str(tmp_path)])
+
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_bootstrap_apply_refuses_an_unresolved_plan(tmp_path, capsys):
+    exit_code = main(["bootstrap", "apply", "--target-dir", str(tmp_path)])
+
+    assert exit_code == 1
+    assert "not resolved" in capsys.readouterr().out
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_bootstrap_apply_refuses_without_a_confirmation_hash(tmp_path, capsys):
+    answers = [*BASELINE, "--answer", "adopt.lint=no", "--answer",
+               "adopt.test=no", "--answer", "adopt.types=no"]
+
+    exit_code = main(["bootstrap", "apply", "--target-dir", str(tmp_path), *answers])
+
+    assert exit_code == 1
+    assert "without an explicit confirmation" in capsys.readouterr().out
+
+
+def test_bootstrap_apply_refuses_a_stale_confirmation_hash(tmp_path, capsys):
+    answers = [*BASELINE, "--answer", "adopt.lint=yes", "--answer",
+               "adopt.test=no", "--answer", "adopt.types=no"]
+
+    exit_code = main([
+        "bootstrap", "apply", "--target-dir", str(tmp_path), *answers,
+        "--confirm", "0" * 64,
+    ])
+
+    assert exit_code == 1
+    assert "does not match" in capsys.readouterr().out
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_bootstrap_apply_writes_only_what_was_confirmed(tmp_path, capsys):
+    answers = [*BASELINE, "--answer", "adopt.lint=yes", "--answer",
+               "adopt.test=no", "--answer", "adopt.types=no"]
+    digest = _plan_hash(tmp_path, answers)
+
+    exit_code = main([
+        "bootstrap", "apply", "--target-dir", str(tmp_path), *answers,
+        "--confirm", digest,
+    ])
+
+    assert exit_code == 0
+    written = sorted(p.name for p in tmp_path.iterdir())
+    assert written == ["ruff.toml"]  # declined capabilities produce nothing
+
+
+def test_bootstrap_apply_closes_the_loop(tmp_path):
+    # What apply writes must be what the next discovery run detects,
+    # otherwise the first-run flow would keep re-offering the same setup.
+    import io
+    import json as _json
+
+    answers = [*BASELINE, "--answer", "adopt.lint=yes", "--answer",
+               "adopt.test=yes", "--answer", "adopt.types=yes"]
+    main(["bootstrap", "apply", "--target-dir", str(tmp_path), *answers,
+          "--confirm", _plan_hash(tmp_path, answers)])
+
+    buffer = io.StringIO()
+    main(["bootstrap", "plan", "--target-dir", str(tmp_path), "--json"], buffer)
+    details = _json.loads(buffer.getvalue())["details"]
+
+    present = {d["capability"] for d in details["detected"] if d["present"]}
+    assert {"lint", "test", "types"} <= present
+    assert not [q for q in details["questions"] if q["id"].startswith("adopt.")]
+
+
+def test_bootstrap_rejects_a_typod_answer_key(tmp_path, capsys):
+    exit_code = main([
+        "bootstrap", "plan", "--target-dir", str(tmp_path),
+        "--answer", "adpot.lint=yes",
+    ])
+
+    assert exit_code == 1
+    assert "unknown answer key" in capsys.readouterr().out

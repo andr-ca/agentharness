@@ -31,6 +31,37 @@ def create_parser() -> argparse.ArgumentParser:
     status_parser = subparsers.add_parser("status", add_help=False)
     status_parser.add_argument("--json", action="store_true", dest="as_json")
 
+    # bootstrap: the first-run surface. `plan` is strictly read-only and
+    # emits the findings/questions an agent skill turns into an interview;
+    # `apply` writes only what a resolved, hash-confirmed plan describes.
+    bootstrap_parser = subparsers.add_parser("bootstrap", add_help=False)
+    bootstrap_sub = bootstrap_parser.add_subparsers(
+        dest="bootstrap_command", required=True
+    )
+
+    bs_plan = bootstrap_sub.add_parser("plan", add_help=False)
+    bs_plan.add_argument("--json", action="store_true", dest="as_json")
+    bs_plan.add_argument("--target-dir", dest="target_dir", default=".", type=Path)
+    bs_plan.add_argument(
+        "--answer",
+        dest="answers",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+    )
+
+    bs_apply = bootstrap_sub.add_parser("apply", add_help=False)
+    bs_apply.add_argument("--json", action="store_true", dest="as_json")
+    bs_apply.add_argument("--target-dir", dest="target_dir", default=".", type=Path)
+    bs_apply.add_argument(
+        "--answer",
+        dest="answers",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+    )
+    bs_apply.add_argument("--confirm", dest="confirm", default=None)
+
     runtime_parser = subparsers.add_parser("runtime", add_help=False)
     runtime_subparsers = runtime_parser.add_subparsers(
         dest="runtime_command", required=True
@@ -126,21 +157,152 @@ def create_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _parse_answers(raw: Sequence[str]) -> dict[str, str]:
+    """Parse repeated --answer KEY=VALUE flags.
+
+    A malformed pair is rejected rather than ignored: silently dropping
+    an answer would leave the plan unresolved with no visible reason.
+    """
+    answers: dict[str, str] = {}
+    for item in raw:
+        key, separator, value = item.partition("=")
+        if not separator or not key.strip():
+            raise CommandUsageError
+        answers[key.strip()] = value.strip()
+    return answers
+
+
+def execute_bootstrap_plan(
+    target_dir: Path,
+    raw_answers: Sequence[str],
+) -> CommandResult:
+    """Read-only: inventory the project and report findings and questions."""
+    from agentharness.bootstrap.plan import build_plan
+
+    try:
+        plan = build_plan(target_dir, answers=_parse_answers(raw_answers))
+    except ValueError as exc:
+        return CommandResult(
+            code=ResultCode.BOOTSTRAP_REJECTED,
+            outcome=Outcome.ERROR,
+            summary=str(exc),
+            remediation=(
+                "Run 'agentharness bootstrap plan' to list the valid "
+                "question ids."
+            ),
+        )
+
+    detected = len(plan.inventory.present)
+    total = len(plan.inventory.capabilities)
+    unanswered = [
+        q.id for q in plan.questions.questions if q.id not in plan.answers
+    ]
+    remediation = (
+        "Run 'agentharness bootstrap apply' with --confirm "
+        f"{plan.plan_hash} to apply this plan."
+        if plan.is_resolved
+        else (
+            "Answer the open questions with "
+            "'agentharness bootstrap plan --answer <id>=<value>'."
+        )
+    )
+    return CommandResult(
+        code=ResultCode.BOOTSTRAP_PLANNED,
+        outcome=Outcome.SUCCESS,
+        summary=(
+            f"Detected {detected} of {total} capabilities; "
+            f"{len(plan.actions)} change(s) proposed, "
+            f"{len(unanswered)} question(s) open."
+        ),
+        remediation=remediation,
+        details=plan.to_dict(),
+    )
+
+
+def execute_bootstrap_apply(
+    target_dir: Path,
+    raw_answers: Sequence[str],
+    confirm: str | None,
+) -> CommandResult:
+    """Apply a resolved, hash-confirmed plan through the bootstrap transaction."""
+    from agentharness.bootstrap.plan import _SCAFFOLDS, build_plan
+
+    try:
+        plan = build_plan(target_dir, answers=_parse_answers(raw_answers))
+    except ValueError as exc:
+        return CommandResult(
+            code=ResultCode.BOOTSTRAP_REJECTED,
+            outcome=Outcome.ERROR,
+            summary=str(exc),
+            remediation="Run 'agentharness bootstrap plan' to see valid ids.",
+        )
+
+    # Three refusals, in the order that gives the most useful message.
+    if not plan.is_resolved:
+        return CommandResult(
+            code=ResultCode.BOOTSTRAP_REJECTED,
+            outcome=Outcome.ERROR,
+            summary="Plan is not resolved — some questions are unanswered.",
+            remediation=(
+                "Answer them with 'agentharness bootstrap plan "
+                "--answer <id>=<value>'."
+            ),
+        )
+    if confirm is None:
+        return CommandResult(
+            code=ResultCode.BOOTSTRAP_REJECTED,
+            outcome=Outcome.ERROR,
+            summary="Refusing to apply without an explicit confirmation hash.",
+            remediation=(
+                f"Re-run with --confirm {plan.plan_hash} once you have "
+                "reviewed the plan."
+            ),
+        )
+    if confirm != plan.plan_hash:
+        return CommandResult(
+            code=ResultCode.BOOTSTRAP_REJECTED,
+            outcome=Outcome.ERROR,
+            summary=(
+                "Confirmation hash does not match the current plan — the "
+                "project or your answers changed since it was shown."
+            ),
+            remediation=(
+                "Re-run 'agentharness bootstrap plan' and review the "
+                "current plan before confirming."
+            ),
+        )
+
+    written: list[str] = []
+    root = Path(target_dir)
+    for action in plan.actions:
+        _, content = _SCAFFOLDS[action.capability]
+        destination = root / action.path
+        # Re-check at write time, not just at plan time: the file may have
+        # appeared between planning and applying.
+        if destination.exists():
+            continue
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(content, encoding="utf-8")
+        written.append(action.path)
+
+    return CommandResult(
+        code=ResultCode.BOOTSTRAP_APPLIED,
+        outcome=Outcome.SUCCESS,
+        summary=f"Applied {len(written)} change(s).",
+        remediation="Run 'agentharness bootstrap plan' to re-inspect the project.",
+        details={
+            "written": list(written),
+            "plan_hash": plan.plan_hash,
+        },
+    )
+
+
 def execute_status() -> CommandResult:
-    # Deliberately does NOT advertise `agentharness bootstrap`: that command
-    # is not registered in create_parser(), so following the advice returned
-    # "The command is invalid." The bootstrap policy core under src/ is
-    # experimental and unreleased (see MANIFEST.md), and the supported
-    # installer is tools/setup/harness-link.sh. Point at what actually runs.
     return CommandResult(
         code=ResultCode.STATUS_AVAILABLE,
         outcome=Outcome.SUCCESS,
         summary="Project is not configured.",
-        remediation=(
-            "Run 'tools/setup/harness-link.sh init' to install the harness. "
-            "The experimental bootstrap policy core is unreleased and has no "
-            "public command yet."
-        ),
+        remediation="Run 'agentharness bootstrap plan' to inspect this project.",
         details={"state": "not_configured"},
     )
 
@@ -762,6 +924,15 @@ def main(argv: Sequence[str] | None = None, output: TextIO | None = None) -> int
         arguments = create_parser().parse_args(argv)
         if arguments.command == "status":
             result = execute_status()
+        elif arguments.command == "bootstrap":
+            if arguments.bootstrap_command == "plan":
+                result = execute_bootstrap_plan(
+                    arguments.target_dir, arguments.answers
+                )
+            else:
+                result = execute_bootstrap_apply(
+                    arguments.target_dir, arguments.answers, arguments.confirm
+                )
         elif arguments.command == "github":
             result = _dispatch_github(arguments)
         elif arguments.command == "profile":

@@ -111,6 +111,9 @@ class ResultCode(StrEnum):
     STATUS_AVAILABLE = "status_available"
     RUNTIME_UPGRADE_PLANNED = "runtime_upgrade_planned"
     RUNTIME_UPGRADE_REJECTED = "runtime_upgrade_rejected"
+    BOOTSTRAP_PLANNED = "bootstrap_planned"
+    BOOTSTRAP_APPLIED = "bootstrap_applied"
+    BOOTSTRAP_REJECTED = "bootstrap_rejected"
     INVALID_COMMAND = "invalid_command"
 
 

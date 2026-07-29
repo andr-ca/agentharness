@@ -138,6 +138,8 @@ jobs:
         run: bash tools/runtime/seed-runtime-artifacts.sh
       - name: Run hook tests
         run: bats .github/hooks/tests/
+      - name: Run npm launcher routing tests
+        run: bats tools/tests/npm-launcher-routing.bats
       - name: Run harness-link tests
         run: bats tools/tests/harness-link.bats
       - name: Run harness lifecycle CLI tests
