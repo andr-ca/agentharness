@@ -352,3 +352,131 @@ def test_the_real_limitations_file_still_parses_its_claims():
 
     assert len(claims) >= 3
     assert {"graphql", "messaging", "caching"} <= {n.lower() for n, _ in claims}
+
+
+# ---------------------------------------------------------------------------
+# check_precedence_matches_docs: the repo has two "which rule wins" ladders
+# and both lived only in prose, in three separate places, with nothing
+# asserting they agree. precedence.yaml is now the declared source; this
+# check keeps the prose honest against it, the same way MANIFEST.md is
+# checked against manifest.yaml.
+# ---------------------------------------------------------------------------
+
+
+def _write_precedence(tmp_path: Path, levels: list[str], doc: str) -> None:
+    entries = "\n".join(
+        f"      - rank: {i}\n        id: l{i}\n        summary: {s}\n"
+        f"        mechanizable: true"
+        for i, s in enumerate(levels, 1)
+    )
+    (tmp_path / "precedence.yaml").write_text(
+        "ladders:\n"
+        "  - id: test_ladder\n"
+        "    name: Test ladder\n"
+        f"    documented_in: {doc}\n"
+        "    levels:\n" + entries + "\n",
+        encoding="utf-8",
+    )
+
+
+def test_precedence_passes_when_prose_lists_every_level_in_order(tmp_path):
+    _write_precedence(tmp_path, ["Alpha rule", "Beta rule"], "doc.md")
+    (tmp_path / "doc.md").write_text(
+        "1. **Alpha rule** wins first.\n2. **Beta rule** comes next.\n",
+        encoding="utf-8",
+    )
+
+    assert vcq.check_precedence_matches_docs(scan_root=tmp_path) == []
+
+
+def test_precedence_flags_a_level_missing_from_the_prose(tmp_path):
+    _write_precedence(tmp_path, ["Alpha rule", "Beta rule"], "doc.md")
+    (tmp_path / "doc.md").write_text("1. **Alpha rule** only.\n", encoding="utf-8")
+
+    errors = vcq.check_precedence_matches_docs(scan_root=tmp_path)
+
+    assert len(errors) == 1
+    assert "Beta rule" in errors[0]
+
+
+def test_precedence_flags_prose_that_reorders_the_ladder(tmp_path):
+    # Order is the entire content of a precedence rule — a doc that lists
+    # the same levels in a different order is wrong, not merely untidy.
+    _write_precedence(tmp_path, ["Alpha rule", "Beta rule"], "doc.md")
+    (tmp_path / "doc.md").write_text(
+        "1. **Beta rule** first.\n2. **Alpha rule** second.\n", encoding="utf-8"
+    )
+
+    errors = vcq.check_precedence_matches_docs(scan_root=tmp_path)
+
+    assert len(errors) == 1
+    assert "order" in errors[0].lower()
+
+
+def test_precedence_reports_a_missing_documented_in_target(tmp_path):
+    _write_precedence(tmp_path, ["Alpha rule"], "gone.md")
+
+    errors = vcq.check_precedence_matches_docs(scan_root=tmp_path)
+
+    assert len(errors) == 1
+    assert "gone.md" in errors[0]
+
+
+def test_precedence_reports_an_empty_model_rather_than_passing(tmp_path):
+    # A file that parses to zero ladders would make every prose doc pass.
+    (tmp_path / "precedence.yaml").write_text("ladders: []\n", encoding="utf-8")
+
+    errors = vcq.check_precedence_matches_docs(scan_root=tmp_path)
+
+    assert len(errors) == 1
+    assert "no ladders" in errors[0]
+
+
+def test_precedence_is_silent_when_the_model_is_absent(tmp_path):
+    # Consumer repos have no precedence.yaml; the check must not fail them.
+    assert vcq.check_precedence_matches_docs(scan_root=tmp_path) == []
+
+
+def test_the_real_repo_precedence_matches_its_docs():
+    assert vcq.check_precedence_matches_docs() == []
+
+
+def test_the_real_precedence_model_declares_both_ladders():
+    # Non-vacuity: guards against the model shrinking to nothing and the
+    # check above passing for the wrong reason.
+    import yaml as _yaml
+
+    root = Path(__file__).resolve().parents[2]
+    model = _yaml.safe_load((root / "precedence.yaml").read_text(encoding="utf-8"))
+    ids = {ladder["id"] for ladder in model["ladders"]}
+
+    assert {"rigor_tier", "publish_authority"} <= ids
+
+
+def test_precedence_reports_a_directory_named_like_the_model(tmp_path):
+    # exists() is true for a directory; read_text() then raises and would
+    # crash the entire content-quality gate rather than reporting.
+    (tmp_path / "precedence.yaml").mkdir()
+
+    errors = vcq.check_precedence_matches_docs(scan_root=tmp_path)
+
+    assert len(errors) == 1
+    assert "not a regular file" in errors[0]
+
+
+def test_precedence_reports_an_unreadable_documented_in_target(tmp_path):
+    _write_precedence(tmp_path, ["Alpha rule"], "doc.md")
+    (tmp_path / "doc.md").mkdir()  # present but not readable as text
+
+    errors = vcq.check_precedence_matches_docs(scan_root=tmp_path)
+
+    assert len(errors) == 1
+    assert "doc.md" in errors[0]
+
+
+def test_absence_check_survives_a_directory_named_like_the_manifest(tmp_path):
+    _write_limitations(tmp_path, "- **Patterns:** no graphql pattern yet.\n")
+    (tmp_path / "manifest.yaml").mkdir()
+
+    # Must not raise; a malformed layout is not this check's to report.
+    assert vcq.check_absence_claims_match_manifest(scan_root=tmp_path) == []

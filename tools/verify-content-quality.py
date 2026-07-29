@@ -624,6 +624,104 @@ _KIND_ROOTS = {
 }
 
 
+def check_precedence_matches_docs(scan_root: Path = REPO_ROOT) -> list[str]:
+    """Assert the prose precedence ladders still match precedence.yaml.
+
+    The repo has two independent "which rule wins" orderings, and both
+    lived only in prose across three separate places with nothing checking
+    they agreed. precedence.yaml is the declared source; this keeps the
+    documentation honest against it, the same way MANIFEST.md is checked
+    against manifest.yaml.
+
+    Order is the whole content of a precedence rule, so a doc listing the
+    right levels in the wrong sequence is a failure, not untidiness.
+    """
+    model_path = scan_root / "precedence.yaml"
+    # is_file(), not exists(): a directory or symlink-to-nothing named
+    # precedence.yaml passes exists() and then makes read_text() raise,
+    # crashing the whole content-quality gate instead of reporting.
+    if not model_path.is_file():
+        if model_path.exists():
+            return [
+                "precedence.yaml: exists but is not a regular file — "
+                "expected a YAML file"
+            ]
+        return []  # consumer repos have no model; do not fail them
+
+    try:
+        raw = model_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        return [f"precedence.yaml: could not be read — {exc}"]
+
+    try:
+        model = yaml.safe_load(raw) or {}
+    except yaml.YAMLError:
+        return []  # check_yaml_files() already reports malformed YAML
+
+    ladders = model.get("ladders") or []
+    if not ladders:
+        # A model that parses to nothing would make every prose doc pass.
+        return ["precedence.yaml: no ladders declared — schema changed?"]
+
+    errors: list[str] = []
+    for ladder in ladders:
+        if not isinstance(ladder, dict):
+            continue
+        ladder_id = ladder.get("id", "<unnamed>")
+        doc_rel = str(ladder.get("documented_in", ""))
+        doc_path = scan_root / doc_rel
+        if not doc_path.is_file():
+            errors.append(
+                f"precedence.yaml: ladder '{ladder_id}' points at "
+                f"{doc_rel}, which does not exist"
+            )
+            continue
+
+        try:
+            prose = doc_path.read_text(encoding="utf-8")
+        except OSError as exc:
+            errors.append(f"{doc_rel}: could not be read — {exc}")
+            continue
+        levels = sorted(
+            (lv for lv in (ladder.get("levels") or []) if isinstance(lv, dict)),
+            key=lambda lv: lv.get("rank", 0),
+        )
+
+        # Where each level's summary first appears in the prose. A level
+        # the doc never mentions is missing; levels appearing out of
+        # sequence mean the doc contradicts the declared order.
+        positions: list[int] = []
+        for level in levels:
+            # doc_match when present: the distinctive phrase to find in
+            # the prose, kept separate from the summary so the model can
+            # describe a level in its own words without being coupled to
+            # any one document's phrasing.
+            summary = str(
+                level.get("doc_match") or level.get("summary", "")
+            ).strip()
+            if not summary:
+                continue
+            index = prose.find(summary)
+            if index < 0:
+                errors.append(
+                    f"{doc_rel}: precedence level '{summary}' "
+                    f"(rank {level.get('rank')}, ladder '{ladder_id}') "
+                    "is not documented — update the prose or precedence.yaml"
+                )
+            else:
+                positions.append(index)
+
+        if len(positions) > 1 and positions != sorted(positions):
+            errors.append(
+                f"{doc_rel}: precedence levels for ladder '{ladder_id}' "
+                "appear in a different order than precedence.yaml declares "
+                "— order is the substance of a precedence rule, so one of "
+                "the two is wrong"
+            )
+
+    return errors
+
+
 def _manifest_asset_paths(data: object) -> list[str]:
     """Every asset `path` in manifest.yaml, which nests them under
     sections[].assets[] rather than a flat top-level list."""
@@ -654,12 +752,14 @@ def check_absence_claims_match_manifest(scan_root: Path = REPO_ROOT) -> list[str
     """
     limitations = scan_root / "docs" / "KNOWN_LIMITATIONS.md"
     manifest = scan_root / "manifest.yaml"
-    if not limitations.exists() or not manifest.exists():
+    # is_file() for the same reason as above — exists() is true for a
+    # directory, and read_text() would then crash the gate.
+    if not limitations.is_file() or not manifest.is_file():
         return []
 
     try:
         data = yaml.safe_load(manifest.read_text(encoding="utf-8")) or {}
-    except yaml.YAMLError:
+    except (OSError, yaml.YAMLError):
         return []  # check_yaml_files() already reports malformed YAML
 
     paths = _manifest_asset_paths(data)
@@ -671,7 +771,12 @@ def check_absence_claims_match_manifest(scan_root: Path = REPO_ROOT) -> list[str
 
     errors = []
     parsed_claims = 0
-    for line_no, line in enumerate(limitations.read_text(encoding="utf-8").splitlines(), 1):
+    try:
+        limitations_text = limitations.read_text(encoding="utf-8")
+    except OSError as exc:
+        return [f"docs/KNOWN_LIMITATIONS.md: could not be read — {exc}"]
+
+    for line_no, line in enumerate(limitations_text.splitlines(), 1):
         for match in _ABSENCE_CLAIM.finditer(line):
             parsed_claims += 1
             name, kind = match.group(1).lower(), match.group(2).lower()
@@ -714,6 +819,7 @@ def main() -> int:
     errors += check_console_snippets()
     errors += check_duplicate_policy_numbers()
     errors += check_absence_claims_match_manifest()
+    errors += check_precedence_matches_docs()
     errors += check_agents_md_sync()
     errors += check_manifest_md_sync()
     errors += check_gemini_md_sync()
