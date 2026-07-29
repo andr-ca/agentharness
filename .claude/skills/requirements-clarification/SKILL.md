@@ -1,6 +1,6 @@
 ---
 name: requirements-clarification
-description: Use before implementing a significant feature or change when requirements are ambiguous, underspecified, or likely to have multiple reasonable interpretations — covers structured discovery, one question at a time, edge-case probing, and writing a brief requirements summary before coding starts.
+description: Use before implementing a significant feature or change when requirements are ambiguous, underspecified, or likely to have multiple reasonable interpretations, or when a requirement arrives pre-formed as an issue, audit finding, or review comment whose claim needs checking — covers verifying the premise before acting, structured discovery, one question at a time, edge-case probing, and writing a brief requirements summary before coding starts.
 metadata:
   type: skills
   complexity: medium
@@ -16,6 +16,44 @@ ambiguous, underspecified, or likely to have non-obvious edge cases.
 **When NOT to clarify:** The request is a single, well-scoped bug fix
 with one clear resolution. Don't block on questions you can resolve by
 reading the existing code.
+
+---
+
+## Verify the premise before accepting the requirement
+
+Not every requirement arrives as a conversation. Many arrive pre-formed —
+a filed issue, an audit finding, a review comment, a recommendation
+document — asserting that something is broken or missing. That is a
+**claim**, and claims can be stale, partly wrong, or right for the wrong
+reason. Check it against the current code before designing anything.
+
+**A requirement that arrives with a proposed solution is two claims:**
+
+1. The problem exists.
+2. The proposed change addresses it.
+
+Verify them separately — they fail independently, and the second fails
+more often. A real problem paired with a wrong remedy is the most
+expensive case, because the problem being real lends the remedy false
+credibility.
+
+| What you find | Right response |
+|---|---|
+| Claim true, proposal fits | Implement it |
+| Claim true, proposal wrong or backwards | Solve it another way; say why |
+| Claim partly true | Narrow scope to the true part |
+| Claim false or already fixed | Don't implement; record the evidence |
+
+**Record the null result.** "I checked, and it's already correct" is a
+finding worth writing down. Without it the next person re-investigates
+from scratch, and a *rejected* recommendation is indistinguishable from
+an *ignored* one.
+
+**Watch for the check that passes for the wrong reason.** When you write
+a check to confirm a claim, confirm the check actually exercises what it
+names. A verification that silently matches nothing looks exactly like
+one that found nothing wrong — a green result you cannot distinguish from
+"never ran" is not evidence.
 
 ---
 
@@ -117,3 +155,7 @@ starting implementation.
   of scope for this PR — don't silently expand scope.
 - **Skipping "out of scope."** The most valuable question is often "what
   are you *not* asking for?"
+- **Treating an authoritative source as a verified one.** A filed issue,
+  an automated reviewer, or a written audit can all state something that
+  is no longer true. Where the requirement came from says nothing about
+  whether its premise still holds — check it, then act.
