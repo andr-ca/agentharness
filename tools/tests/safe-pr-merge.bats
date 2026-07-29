@@ -152,7 +152,7 @@ STUB
         wait_for_ci_run test-owner/test-repo main target-sha-abc
     "
     [ "$status" -eq 0 ]
-    [[ "$output" =~ "CI run completed with status: completed, conclusion: success" ]]
+    [[ "$output" =~ "CI run finished with status: completed, conclusion: success" ]]
     [[ "$output" =~ "Post-merge CI is green" ]]
 }
 
@@ -346,4 +346,98 @@ STUB
     [ "$status" -eq 0 ]
     [[ "${lines[0]}" == "1" ]]
     [[ "${lines[1]}" == "--merge" ]]
+}
+
+# ---------------------------------------------------------------------------
+# A transient `gh run view` failure during polling must not be read as a
+# terminal state. The status read falls back to "unknown" on error, and
+# "unknown" is not in_progress/queued/requested — so the loop used to break
+# out, read an empty conclusion from a still-running job, and report
+# "Post-merge CI failed" for a run that went on to pass. Observed live: a
+# merge reported post-merge CI failed at 120s (max_wait is 900s, so nothing
+# timed out) while the run for that exact merge commit completed green.
+# This is the inverse of the earlier false-green defects.
+# ---------------------------------------------------------------------------
+
+make_flaky_status_gh_stub() {
+    # Status reads: in_progress, then a hard failure (exit 1), then completed.
+    mkdir -p "$TEST_PROJECT/bin"
+    cat > "$TEST_PROJECT/bin/gh" <<STUB
+#!/usr/bin/env bash
+state="$TEST_PROJECT/.flaky-count"
+if [ "\$1" = "run" ] && [ "\$2" = "list" ]; then echo "555111"; exit 0; fi
+if [ "\$1" = "run" ] && [ "\$2" = "view" ]; then
+    if [[ "\$*" == *"status"* ]]; then
+        n=0; [ -f "\$state" ] && n="\$(cat "\$state")"
+        n=\$((n + 1)); echo "\$n" > "\$state"
+        case "\$n" in
+            1) echo "in_progress"; exit 0 ;;
+            2) exit 1 ;;                      # transient API failure
+            *) echo "completed"; exit 0 ;;
+        esac
+    fi
+    if [[ "\$*" == *"conclusion"* ]]; then
+        # A still-running run has an EMPTY conclusion — that is what made
+        # the premature break report a failure. Only report success once
+        # the status reads have actually reached "completed".
+        n=0; [ -f "\$state" ] && n="\$(cat "\$state")"
+        if [ "\$n" -ge 3 ]; then echo "success"; else echo ""; fi
+        exit 0
+    fi
+fi
+exit 1
+STUB
+    chmod +x "$TEST_PROJECT/bin/gh"
+}
+
+@test "wait_for_ci_run: a transient status-read failure is retried, not treated as terminal" {
+    make_flaky_status_gh_stub
+    run env PATH="$TEST_PROJECT/bin:$PATH" bash -c "
+        source '$SCRIPT'
+        wait_for_ci_run test-owner/test-repo main 555111sha
+    "
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Post-merge CI is green" ]]
+    [[ ! "$output" =~ "Post-merge CI failed" ]]
+}
+
+@test "wait_for_ci_run: an unreadable conclusion is reported as unknown, not as failure" {
+    mkdir -p "$TEST_PROJECT/bin"
+    cat > "$TEST_PROJECT/bin/gh" <<'STUB'
+#!/usr/bin/env bash
+if [ "$1" = "run" ] && [ "$2" = "list" ]; then echo "555222"; exit 0; fi
+if [ "$1" = "run" ] && [ "$2" = "view" ]; then
+    if [[ "$*" == *"status"* ]]; then echo "completed"; exit 0; fi
+    if [[ "$*" == *"conclusion"* ]]; then exit 1; fi
+fi
+exit 1
+STUB
+    chmod +x "$TEST_PROJECT/bin/gh"
+    run env PATH="$TEST_PROJECT/bin:$PATH" bash -c "
+        source '$SCRIPT'
+        wait_for_ci_run test-owner/test-repo main 555222sha
+    "
+    [ "$status" -ne 0 ]
+    # Must not claim the run failed when we simply couldn't read it.
+    [[ "$output" =~ "could not" ]] || [[ "$output" =~ "unknown" ]]
+}
+
+@test "wait_for_ci_run: a genuinely failed run is still reported as failed" {
+    mkdir -p "$TEST_PROJECT/bin"
+    cat > "$TEST_PROJECT/bin/gh" <<'STUB'
+#!/usr/bin/env bash
+if [ "$1" = "run" ] && [ "$2" = "list" ]; then echo "555333"; exit 0; fi
+if [ "$1" = "run" ] && [ "$2" = "view" ]; then
+    if [[ "$*" == *"status"* ]]; then echo "completed"; exit 0; fi
+    if [[ "$*" == *"conclusion"* ]]; then echo "failure"; exit 0; fi
+fi
+exit 1
+STUB
+    chmod +x "$TEST_PROJECT/bin/gh"
+    run env PATH="$TEST_PROJECT/bin:$PATH" bash -c "
+        source '$SCRIPT'
+        wait_for_ci_run test-owner/test-repo main 555333sha
+    "
+    [ "$status" -ne 0 ]
+    [[ "$output" =~ "Post-merge CI failed" ]]
 }
