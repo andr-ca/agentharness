@@ -586,3 +586,89 @@ upstream as
 deliberately held until [#163](https://github.com/andr-ca/agentharness/pull/163)
 merged, since that PR was open against this same file and appending
 concurrently would have created an avoidable conflict.
+
+## 2026-07-28 – First-run bootstrap is designed and partially built but has no usable surface
+
+**Recurrence key:** `bootstrap-first-run-surface-integration`
+
+**Harness version:** `65c1f39`
+
+**What happened:** A user asked whether agentharness has a bootstrap skill
+that assesses a repository on first use and helps tailor the harness to that
+project. The installed skill inventory has no such skill. The stable
+`harness-link.sh init` flow installs selected assets and generates guarded-path
+configuration, but it does not perform the requested interactive capability
+assessment. Meanwhile, the experimental Python CLI's `status` result directs
+users to run `agentharness bootstrap`, although its argument parser does not
+register a `bootstrap` command. `ROADMAP.md` also still describes PR #47 as in
+progress even though GitHub records it as merged on 2026-07-16.
+
+**Root cause:** PR #47 merged the project-bootstrap policy core and its design
+artifacts without completing or consistently labeling the user-facing
+integration. The stable installer, experimental core, CLI remediation, skill
+inventory, manifest, and roadmap therefore describe different stages of the
+same capability.
+
+**Impact:** A first-time adopter cannot tell whether repository assessment is
+available through a skill, the stable lifecycle installer, or the experimental
+CLI. Following the CLI's own remediation fails with an invalid-command error,
+while the stale roadmap obscures that the core merged but remains unreleased.
+
+**What agentharness should change:** Establish one supported first-run
+surface. Prefer a deterministic `agentharness bootstrap` command for discovery
+and planning, paired with a thin `project-bootstrap` skill for interactive
+questions and recommendation assessment. Until that ships, remove or qualify
+the unavailable-command remediation, update the roadmap to distinguish the
+merged core from the unreleased workflow, and test that every emitted
+remediation command is registered.
+
+**Corrective action taken:** Distinguished the stable installer from the
+unreleased policy core, documented the current workaround as
+`harness-link.sh plan/init` plus conversational assessment, and logged upstream
+as [#187](https://github.com/andr-ca/agentharness/issues/187).
+
+**Resolved 2026-07-29** by [#189](https://github.com/andr-ca/agentharness/pull/189):
+`agentharness bootstrap plan|apply` and the `project-bootstrap` skill now ship,
+so the workaround above is no longer the answer. Recorded rather than edited
+away — this entry is what the repository actually looked like on 2026-07-28,
+and the gap it describes is why the surface got built. Note the fix also had to
+cover something this entry could not see: the npm launcher forwarded every
+argument to `harness-link.sh` and never reached the Python core at all, so the
+command would have been unreachable from an install even once it existed. Not
+yet on npm — published is 0.3.0, and this needs a `v0.4.0` tag.
+
+## 2026-07-28 – Agent locks are isolated between linked worktrees
+
+**Recurrence key:** `agent-lock-worktree-shared-state`
+
+**Harness version:** `f8941a8`
+
+**What happened:** A feature lock was acquired from the primary checkout with
+an isolated linked worktree recorded in the lock. After the work completed,
+running `agent-lock.sh release` from that linked worktree returned `NOT FOUND`.
+Running `check` from the primary checkout immediately afterward showed the
+lock still live, and releasing it there succeeded.
+
+**Root cause:** `agent-lock.sh` derives `REPO_ROOT` from the script's current
+checkout path and stores records under `$REPO_ROOT/.agentharness-locks`.
+Linked worktrees have distinct top-level paths and therefore distinct lock
+directories. The `worktree` argument accepted by `acquire` is recorded only as
+metadata; it does not select a repository-wide store.
+
+**Impact:** Sessions working in different linked worktrees cannot see one
+another's feature locks. `check-branch` and the pre-push hook can therefore
+pass in one worktree while another live session holds the relevant lock in a
+different checkout, defeating the coordination protocol precisely in its
+recommended parallel-work setup.
+
+**What agentharness should change:** Derive one canonical lock store from the
+Git common directory or another repository-wide identity, while handling
+existing root-level lock records deliberately. Add real linked-worktree tests
+for cross-worktree acquire, check, renew, release, cleanup, and pre-push branch
+enforcement. Until that ships, tell agents to run all lock commands from one
+canonical checkout.
+
+**Corrective action taken:** Located and released the live record from the
+primary checkout where it was acquired, verified that store reported the
+feature free, and logged upstream as
+[#190](https://github.com/andr-ca/agentharness/issues/190).
