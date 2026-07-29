@@ -6,6 +6,8 @@ section into a tagged version.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-29
+
 ### Added
 - **First-run bootstrap surface.** `agentharness bootstrap plan`
   inventories what a project already configures (linting, tests, type
