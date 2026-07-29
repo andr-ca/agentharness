@@ -592,6 +592,16 @@ unreleased policy core, documented the current workaround as
 `harness-link.sh plan/init` plus conversational assessment, and logged upstream
 as [#187](https://github.com/andr-ca/agentharness/issues/187).
 
+**Resolved 2026-07-29** by [#189](https://github.com/andr-ca/agentharness/pull/189):
+`agentharness bootstrap plan|apply` and the `project-bootstrap` skill now ship,
+so the workaround above is no longer the answer. Recorded rather than edited
+away — this entry is what the repository actually looked like on 2026-07-28,
+and the gap it describes is why the surface got built. Note the fix also had to
+cover something this entry could not see: the npm launcher forwarded every
+argument to `harness-link.sh` and never reached the Python core at all, so the
+command would have been unreachable from an install even once it existed. Not
+yet on npm — published is 0.3.0, and this needs a `v0.4.0` tag.
+
 ## 2026-07-28 – Agent locks are isolated between linked worktrees
 
 **Recurrence key:** `agent-lock-worktree-shared-state`
