@@ -166,3 +166,54 @@ js_gates = [g for g in d["gates_passed"] + d["gates_failed"]
 assert len(js_gates) == 0, f"Unexpected JS gates: {js_gates}"
 PYEOF
 }
+
+# ---------------------------------------------------------------------------
+# The gate's whole job is to be the last word before declaring work done, and
+# new files are the one class of mistake it structurally could not see: a
+# never-`git add`-ed file is not a tracked file, so `git diff HEAD` misses it
+# while every other gate passes against the working tree that contains it.
+# Observed live — a required skill symlink stayed untracked and the gate still
+# reported can_declare_complete: true.
+# ---------------------------------------------------------------------------
+
+@test "check-completion: an untracked file fails git-clean" {
+    proj="$(_make_minimal_project)"
+    printf 'print("new")\n' > "$proj/brand_new_file.py"
+    output=$(cd "$proj" && bash tools/check-completion.sh 2>/dev/null || true)
+    rm -rf "$proj"
+    python3 - <<PYEOF
+import json, sys
+d = json.loads('''$output''')
+assert d["can_declare_complete"] is False, d
+assert any("git-clean" in g for g in d["gates_failed"]), d
+PYEOF
+}
+
+@test "check-completion: a gitignored file does not fail git-clean" {
+    # Genuinely transient output belongs in .gitignore, and the check must
+    # respect that or it becomes noise everyone learns to ignore.
+    proj="$(_make_minimal_project)"
+    printf 'scratch/\n' > "$proj/.gitignore"
+    git -C "$proj" add .gitignore
+    git -C "$proj" -c user.email=t@e.com -c user.name=t commit -q -m gitignore
+    mkdir -p "$proj/scratch" && printf 'junk\n' > "$proj/scratch/out.txt"
+    output=$(cd "$proj" && bash tools/check-completion.sh 2>/dev/null || true)
+    rm -rf "$proj"
+    python3 - <<PYEOF
+import json
+d = json.loads('''$output''')
+assert not any("git-clean" in g for g in d["gates_failed"]), d
+PYEOF
+}
+
+@test "check-completion: a modified tracked file still fails git-clean" {
+    proj="$(_make_minimal_project)"
+    printf 'import sys\nsys.exit(1)\n' > "$proj/tools/verify-content-quality.py"
+    output=$(cd "$proj" && bash tools/check-completion.sh 2>/dev/null || true)
+    rm -rf "$proj"
+    python3 - <<PYEOF
+import json
+d = json.loads('''$output''')
+assert any("git-clean" in g for g in d["gates_failed"]), d
+PYEOF
+}

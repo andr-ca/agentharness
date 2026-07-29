@@ -171,15 +171,27 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Gate 6: Git status — no uncommitted changes to tracked files
+# Gate 6: Git status — no uncommitted or untracked changes
 # ---------------------------------------------------------------------------
 # Guard against unborn HEAD (fresh repo with no commits)
 if git rev-parse --verify HEAD >/dev/null 2>&1; then
-    uncommitted=$(git diff --name-only HEAD 2>/dev/null | wc -l | tr -d ' ')
+    # --porcelain --untracked-files=all, not `git diff HEAD`: a file that
+    # was never `git add`-ed is not a tracked file, so `git diff` cannot
+    # see it — while every other gate passes, because the working tree it
+    # checks does contain the file. New files were therefore the one class
+    # of mistake this gate structurally could not catch, and adding a
+    # skill/fixture/generated artifact is exactly when that happens.
+    # Observed live: a required skill symlink stayed untracked and the
+    # gate still reported can_declare_complete: true.
+    #
+    # Ignored paths are excluded by --porcelain's own rules, so genuinely
+    # transient output stays silent as long as it is in .gitignore —
+    # which is where it belongs anyway.
+    uncommitted=$(git status --porcelain --untracked-files=all 2>/dev/null | wc -l | tr -d ' ')
     if [ "$uncommitted" -eq 0 ]; then
         gates_passed+=("git-clean")
     else
-        gates_failed+=("git-clean: $uncommitted uncommitted change(s) — commit before declaring complete")
+        gates_failed+=("git-clean: $uncommitted uncommitted or untracked change(s) — commit (or gitignore) before declaring complete")
     fi
 else
     # No commits yet — nothing to compare against, treat as clean
