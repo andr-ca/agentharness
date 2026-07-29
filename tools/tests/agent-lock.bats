@@ -671,3 +671,89 @@ JSON
     [ "$status" -eq 0 ]
     [[ ! "$output" =~ "not an ancestor" ]]
 }
+
+# ---------------------------------------------------------------------------
+# Shared lock store across linked worktrees. LOCKS_DIR used to derive from the
+# script's own checkout path, and every linked worktree has its own copy of the
+# script — so a lock taken in the primary checkout was invisible to check,
+# check-branch, list, renew, release, and the pre-push hook when run from a
+# worktree, and vice versa. Two agents in different worktrees could each see
+# the same branch as free. Worktree isolation is the protocol's recommended way
+# to avoid collisions; isolating the coordination state along with the working
+# tree defeated the coordination itself.
+# ---------------------------------------------------------------------------
+
+_make_repo_with_worktree() {
+    # Echoes "<primary> <linked>"; both have the real script available.
+    local primary linked
+    primary="$(mktemp -d)/primary"
+    mkdir -p "$primary/tools"
+    git init -q "$primary"
+    git -C "$primary" config user.email t@e.com
+    git -C "$primary" config user.name t
+    cp "$LOCK_SCRIPT" "$primary/tools/agent-lock.sh"
+    git -C "$primary" add -A
+    git -C "$primary" commit -q -m init
+    linked="$(dirname "$primary")/linked"
+    git -C "$primary" worktree add -q "$linked" -b wt-branch
+    echo "$primary $linked"
+}
+
+@test "worktree: a lock taken in the primary checkout is visible from a linked worktree" {
+    read -r primary linked <<< "$(_make_repo_with_worktree)"
+    (cd "$primary" && env -u AGENTHARNESS_ROOT AGENT_LOCK_PID=$$ bash tools/agent-lock.sh acquire "shared-feat" "feat/shared" >/dev/null 2>&1)
+    run bash -c "cd '$linked' && env -u AGENTHARNESS_ROOT bash tools/agent-lock.sh check 'shared-feat' 2>&1"
+    rm -rf "$(dirname "$primary")"
+    [[ "$output" =~ "LOCKED" ]]
+}
+
+@test "worktree: a lock taken in a linked worktree is visible from the primary checkout" {
+    read -r primary linked <<< "$(_make_repo_with_worktree)"
+    (cd "$linked" && env -u AGENTHARNESS_ROOT AGENT_LOCK_PID=$$ bash tools/agent-lock.sh acquire "wt-feat" "feat/wt" >/dev/null 2>&1)
+    run bash -c "cd '$primary' && env -u AGENTHARNESS_ROOT bash tools/agent-lock.sh check 'wt-feat' 2>&1"
+    rm -rf "$(dirname "$primary")"
+    [[ "$output" =~ "LOCKED" ]]
+}
+
+@test "worktree: the owner can release from the other checkout" {
+    read -r primary linked <<< "$(_make_repo_with_worktree)"
+    id="$(cd "$primary" && env -u AGENTHARNESS_ROOT AGENT_LOCK_PID=$$ bash tools/agent-lock.sh acquire "rel-feat" "feat/rel" 2>/dev/null | tail -1)"
+    run bash -c "cd '$linked' && env -u AGENTHARNESS_ROOT bash tools/agent-lock.sh release 'rel-feat' '$id' 2>&1"
+    rm -rf "$(dirname "$primary")"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "RELEASED" ]]
+}
+
+@test "worktree: check-branch blocks a branch locked from a different worktree" {
+    # The push gate is the reason this matters — it must see foreign locks.
+    read -r primary linked <<< "$(_make_repo_with_worktree)"
+    sleep 60 &
+    other=$!
+    (cd "$primary" && env -u AGENTHARNESS_ROOT AGENT_LOCK_PID=$other bash tools/agent-lock.sh acquire "gate-feat" "feat/gate" >/dev/null 2>&1)
+    run bash -c "cd '$linked' && env -u AGENTHARNESS_AGENT_ID -u AGENTHARNESS_ROOT bash tools/agent-lock.sh check-branch 'feat/gate' 2>&1"
+    kill "$other" 2>/dev/null || true
+    rm -rf "$(dirname "$primary")"
+    [ "$status" -eq 1 ]
+    [[ "$output" =~ "LOCKED" ]]
+}
+
+@test "worktree: list reports the same records from either checkout" {
+    read -r primary linked <<< "$(_make_repo_with_worktree)"
+    (cd "$primary" && env -u AGENTHARNESS_ROOT AGENT_LOCK_PID=$$ bash tools/agent-lock.sh acquire "list-feat" "feat/list" >/dev/null 2>&1)
+    run bash -c "cd '$linked' && env -u AGENTHARNESS_ROOT bash tools/agent-lock.sh list 2>&1"
+    rm -rf "$(dirname "$primary")"
+    [[ "$output" =~ "list-feat" ]]
+}
+
+@test "worktree: the session marker stays per-checkout, unlike the locks" {
+    # Locks are repo-wide; the session marker proves "this checkout's own
+    # session" to hook processes and must NOT leak across worktrees, or a
+    # foreign worktree's session would pass the ownership check.
+    read -r primary linked <<< "$(_make_repo_with_worktree)"
+    (cd "$primary" && env -u AGENTHARNESS_ROOT AGENT_LOCK_PID=$$ bash tools/agent-lock.sh acquire "marker-feat" "feat/marker" >/dev/null 2>&1)
+    primary_marker=$(find "$primary" -name '.session-ids' | wc -l)
+    linked_marker=$(find "$linked" -name '.session-ids' | wc -l)
+    rm -rf "$(dirname "$primary")"
+    [ "$primary_marker" -eq 1 ]
+    [ "$linked_marker" -eq 0 ]
+}

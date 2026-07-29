@@ -17,7 +17,48 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${AGENTHARNESS_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
-LOCKS_DIR="$REPO_ROOT/.agentharness-locks"
+
+# Feature locks are REPO-WIDE and must resolve to one store from every
+# checkout of the same repository. Deriving the store from the script's own
+# path made it per-worktree, and every linked worktree has its own copy of
+# this script — so a lock held in the primary checkout was invisible to
+# check/check-branch/list/renew/release and the pre-push hook when run from
+# a worktree, and vice versa. Two agents in different worktrees each saw the
+# same branch as free. Worktree isolation is the protocol's recommended way
+# to avoid working-tree collisions; isolating the coordination state along
+# with it defeated the coordination.
+#
+# `git rev-parse --git-common-dir` resolves to the SAME absolute path from
+# the primary checkout and every linked worktree, which is exactly the
+# canonical repository identity needed here. Its parent is the primary
+# checkout root.
+_canonical_root() {
+    # An explicit AGENTHARNESS_ROOT always wins — tests and embedded uses
+    # set it deliberately, and it must not be second-guessed by git.
+    if [[ -n "${AGENTHARNESS_ROOT:-}" ]]; then
+        echo "$AGENTHARNESS_ROOT"
+        return 0
+    fi
+    local common
+    if common="$(git -C "$REPO_ROOT" rev-parse --git-common-dir 2>/dev/null)" &&
+        [[ -n "$common" ]]; then
+        # --git-common-dir is relative (".git") in the primary checkout and
+        # absolute in a linked worktree; resolve both the same way.
+        ( cd "$REPO_ROOT" && cd "$common/.." && pwd ) && return 0
+    fi
+    # Not a git repo (or git unavailable): keep the original behaviour
+    # rather than failing a command that used to work.
+    echo "$REPO_ROOT"
+}
+
+LOCKS_DIR="$(_canonical_root)/.agentharness-locks"
+
+# The session marker is deliberately NOT shared. It proves "this checkout's
+# own session" to hook processes that cannot see an inline-exported
+# AGENTHARNESS_AGENT_ID; sharing it across worktrees would let a foreign
+# worktree's session pass the ownership check, which is the opposite of
+# what it is for. It stays beside the current checkout, not the canonical one.
+SESSION_DIR="$REPO_ROOT/.agentharness-locks"
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -136,7 +177,7 @@ _is_stale() {
 }
 
 _session_marker() {
-    echo "$LOCKS_DIR/.session-ids"
+    echo "$SESSION_DIR/.session-ids"
 }
 
 _session_marker_has() {
@@ -161,6 +202,7 @@ _session_marker_add() {
     local marker
     marker="$(_session_marker)"
     _session_marker_has "$agent_id" && return 0
+    mkdir -p "$SESSION_DIR"
     printf '%s\n' "$agent_id" >> "$marker"
 }
 
@@ -170,7 +212,7 @@ _session_marker_remove() {
     marker="$(_session_marker)"
     [[ -f "$marker" ]] || return 0
     local tmp
-    tmp="$(mktemp "$LOCKS_DIR/.tmp-marker-XXXXXX")"
+    tmp="$(mktemp "$SESSION_DIR/.tmp-marker-XXXXXX")"
     grep -Fxv "$agent_id" "$marker" > "$tmp" 2>/dev/null || true
     mv "$tmp" "$marker"
 }
