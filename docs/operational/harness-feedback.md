@@ -12,6 +12,50 @@ impact → what agentharness should change → corrective action taken. In
 consuming projects this file lives at the same path; entries here are the
 self-hosted (dogfood) case.
 
+## 2026-07-30 – a PreToolUse hook cannot be live-verified in the session that adds it
+
+**Recurrence key:** `hook-not-active-until-next-session`
+
+**Harness version:** 7a1deb6
+
+**What happened:** After adding `.github/hooks/claude-pr-merge-guard.sh` and wiring
+it into `.claude/settings.json`, I live-tested it the obvious way — ran
+`gh pr merge 999999`, expecting the guard to block the tool call. It did not.
+The command ran and reached GitHub (failing only because the PR does not exist).
+
+**Root cause:** Claude Code loads `PreToolUse` hooks at session start. A hook
+added part-way through a session is on disk and correctly wired, but not
+registered with the running session, so it cannot fire until the next one. The
+observable result — "my new guard did not block anything" — is indistinguishable
+from "my new guard is broken".
+
+**Impact:** the misleading signal points the wrong way, and the natural responses
+are both bad. An agent may waste time debugging a hook that is already correct,
+or "fix" a working guard until it does something visible. Worse, an agent that
+concludes the guard does not work may skip wiring it at all, or disable it — so
+a correct safety control gets removed because of a session-lifecycle artifact.
+The repo's own mandate to live-verify externally-triggered behaviour actively
+pushes toward this test, which is what makes the trap likely rather than
+incidental.
+
+**What agentharness should change:** say so where hooks are documented — a
+`PreToolUse` hook is not testable in the session that introduces it, and the
+substitute is to pipe the exact tool payload through the script directly plus
+read back the `.claude/settings.json` wiring. That is a complete verification of
+the hook's logic and its registration; only the session-lifecycle step remains,
+and it closes on the next session's first matching tool call. Worth stating in
+the harness-feedback and live-verification guidance so the disclosure is
+recognised as sufficient rather than treated as a skipped check.
+
+**Corrective action taken:** verified by piping the exact payload Claude Code
+sends for `gh pr merge 999999` through the hook (blocked, exit 2) and the
+`safe-pr-merge.sh` form (allowed, exit 0), and by reading back the settings
+wiring. Disclosed the limitation explicitly in PR #207 rather than implying
+end-to-end confirmation, and recorded that first real firing will be the next
+session's first merge attempt. Not filed as a separate upstream issue for the
+reason recorded in the `safe-pr-merge-arg-passthrough` entry: this is the
+upstream repo and the finding is recorded here.
+
 ## 2026-07-29 – completion gate reports success with a required file left untracked
 
 **Recurrence key:** `completion-gate-untracked-blindspot`
