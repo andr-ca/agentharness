@@ -185,10 +185,36 @@ that narrowed the numeric check, in a new shape. **Recommendation: fix
 instances as found; build the detector when a second one appears.** One
 real case justifies a fix, not a mechanism.
 
-### Step 5 — Lifecycle tooling, if still wanted
+### Step 5 — Lifecycle tooling: investigated, not warranted yet
 
 The task/project halves of Slice 4 as plain cleanup tooling. Durable
 knowledge stays blocked behind I-06's scope decision.
+
+**Investigated 2026-07-29. No actionable work today** — recorded so the
+next session does not rebuild this reasoning.
+
+The declared workflow does exist and is unenforced.
+`docs/operational/README.md` describes an `archives/` destination and a
+quarterly review policy. That directory has never been created, and 26
+documents have accumulated with nothing archived. So far this looks like a
+gap.
+
+It is not one yet, because the README's own archiving criterion is *"no
+longer actively referenced"* — and **every operational document is still
+referenced.** Measured inbound reference counts across the 17 review
+documents: 1 to 9 each, none orphaned. By the repo's own stated criterion,
+nothing currently qualifies. The quarterly review is also not due on a
+repository roughly a month old.
+
+A flagging tool built now would report zero candidates. The objective
+signal it would need — old *and* unreferenced — has no instances, and the
+remaining criteria (*"valuable historical context"*, *"no reference
+value"*) are judgements a tool cannot make and should not pretend to.
+
+**Revisit when a document actually goes unreferenced.** That is the
+trigger: an orphaned doc is the first real instance, and one signal with
+instances beats a tool with none. Accumulation alone is not the problem —
+accumulation of material nobody links to is.
 
 ## 6. What completeness should mean here
 
@@ -205,8 +231,14 @@ it, or the epic has no finish line:
 By that definition the harness was 2/5 when this was written. Steps 1 and
 2 shipped the same day, taking it to **4/5** — criterion 1 (measured and
 growth-gated) and criterion 3 (machine-readable precedence). Criterion 2
-was already largely true. What remains is criterion 4 (every rule in one
-canonical location, checkably) and criterion 5 (declared lifetimes).
+was already largely true. Criterion 4 is now partially mechanised — narrowly, for the
+force-push rule, which had four real instances across two documents.
+Criterion 5 was investigated and has no actionable work yet (see step 5).
+
+So: **4/5, with the fifth deliberately unbuilt** rather than pending. The
+harness is as complete on this axis as the current evidence supports, and
+the two remaining items each have a stated trigger rather than a backlog
+position.
 
 ## 7. Risks
 
