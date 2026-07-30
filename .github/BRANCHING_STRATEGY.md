@@ -113,6 +113,13 @@ cd repo-mirror.git
 bfg --delete-files .env
 
 # 3. Clean up and push the rewritten history to every branch
+#
+# agentharness:force-push-exception — purging a secret from history
+# REQUIRES rewriting it, so this is the one place a force-push is correct.
+# It will still be rejected until an admin temporarily disables the
+# no-force-push-any-branch ruleset: do that immediately before this step
+# and re-enable it immediately after. Discovering the block mid-incident
+# is the worst possible time to learn about it.
 git reflog expire --expire=now --all && git gc --prune=now --aggressive
 git push --force
 
@@ -124,6 +131,8 @@ git push --force
 replacement for `filter-branch`, which is slow and easy to misuse):
 
 ```bash
+# agentharness:force-push-exception — same as above: this rewrites
+# history to purge a secret, and needs the ruleset temporarily disabled.
 git filter-repo --path .env --invert-paths
 git push --force
 ```
