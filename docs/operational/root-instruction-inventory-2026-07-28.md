@@ -112,10 +112,39 @@ checklist") would plausibly have been followed *less* literally.
 4. **The higher-value alternative to thinning is gating.** Every section
    in the "No" column could be moved to the "Yes" column by adding
    enforcement. A `PreToolUse` hook on `gh pr merge` that requires
-   `safe-pr-merge.sh` would make ~60 lines compressible *and* close the
-   gap where an agent skips the checklist entirely. That is a smaller,
-   testable change than a router redesign, and it attacks the same
-   context cost from the safe end.
+   `safe-pr-merge.sh` would close the gap where an agent skips the
+   checklist entirely. That is a smaller, testable change than a router
+   redesign, and it attacks the same context cost from the safe end.
+
+   **Correction, 2026-07-30 — gating does not license compression,
+   because gating is per-client and the prose is shared.** That hook was
+   built (PR #207), and the obvious next step looked like compressing the
+   ~60 lines it now enforces. It is not safe, for a reason worth stating
+   plainly before someone else reaches the same conclusion:
+
+   - `CLAUDE.md` is the single source; `AGENTS.md`, `GEMINI.md`,
+     `.github/copilot-instructions.md` and `.kilo/rules/agentharness.md`
+     are all generated from it, and the checklist appears in every one.
+   - The `PreToolUse` hook exists **only for Claude Code**. Codex,
+     Gemini, Copilot, Kilo and Cursor have no equivalent pre-tool gate.
+
+   So compressing the source would remove the prose from every client
+   while replacing it for exactly one. Those users would be left with
+   neither hook nor guidance — strictly worse than today, and invisible
+   from inside a Claude Code session, which is where the change would be
+   made and tested.
+
+   **What would actually make it safe**, either:
+   (a) hook parity — an equivalent pre-tool gate on every client that
+       supports one, so the enforcement travels with the compression; or
+   (b) routing the procedure into a skill, which *is* cross-client and
+       on-demand — accepting that for clients without a hook this trades
+       a guarantee for a retrieval hope, which is the same trade this
+       document warned about in the first place.
+
+   The general form is worth carrying: **"it is enforced now" is a claim
+   about one client until the enforcement is as portable as the text it
+   is supposed to replace.**
 
 ## What this does not establish
 
