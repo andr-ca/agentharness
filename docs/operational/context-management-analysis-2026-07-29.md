@@ -193,10 +193,11 @@ knowledge stays blocked behind I-06's scope decision.
 **Investigated 2026-07-29. No actionable work today** — recorded so the
 next session does not rebuild this reasoning.
 
-The declared workflow does exist and is unenforced:
+The declared workflow does exist and is unenforced.
 `docs/operational/README.md` describes an `archives/` destination and a
-quarterly review policy, that directory has never been created, and 26
-documents have accumulated with nothing archived. That looks like a gap.
+quarterly review policy. That directory has never been created, and 26
+documents have accumulated with nothing archived. So far this looks like a
+gap.
 
 It is not one yet, because the README's own archiving criterion is *"no
 longer actively referenced"* — and **every operational document is still
