@@ -116,3 +116,43 @@ _cmd_payload() {
         "printf '%s' '$(_cmd_payload 'gh pr merge 42')' | bash '$GUARD'"
     [ "$status" -eq 0 ]
 }
+
+# --- quoting: mention vs instruction ------------------------------------
+#
+# The first implementation stripped quoted spans with a regex, which got
+# escapes wrong and false-positive blocked a command that only mentioned
+# the phrase. Tokenizing with the shell's own rules (shlex) fixes the
+# class; these lock the behaviour in.
+
+@test "pr-merge guard: allows an escaped-quote mention" {
+    run _run_guard "$(_cmd_payload 'echo "never run \"gh pr merge\" directly"')"
+    [ "$status" -eq 0 ]
+}
+
+@test "pr-merge guard: allows the exact input that broke the regex version" {
+    # Stripped the wrong span and left an exposed `gh pr merge`.
+    run _run_guard "$(_cmd_payload 'echo "a\" gh pr merge "')"
+    [ "$status" -eq 0 ]
+}
+
+@test "pr-merge guard: allows a single-quoted mention" {
+    run _run_guard "$(_cmd_payload "echo 'do not gh pr merge by hand'")"
+    [ "$status" -eq 0 ]
+}
+
+@test "pr-merge guard: allows a mention inside a gh pr comment body" {
+    # The realistic case: replying to a review comment about this rule.
+    run _run_guard "$(_cmd_payload 'gh pr comment 42 --body "use safe-pr-merge, not gh pr merge"')"
+    [ "$status" -eq 0 ]
+}
+
+@test "pr-merge guard: still blocks when the command follows a quoted string" {
+    # Quoting elsewhere must not become a bypass.
+    run _run_guard "$(_cmd_payload 'echo "about to merge" && gh pr merge 42')"
+    [ "$status" -eq 2 ]
+}
+
+@test "pr-merge guard: unbalanced quotes fail open" {
+    run _run_guard "$(_cmd_payload 'echo "unterminated')"
+    [ "$status" -eq 0 ]
+}

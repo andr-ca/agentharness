@@ -52,23 +52,35 @@ print(data.get('tool_input', {}).get('command', ''))
 
 [ -n "$cmd" ] || exit 0
 
-# Strip quoted spans before matching, so discussing the rule in an echo or
-# a commit message does not trip it — the same principle the force-push
-# documentation check follows. Without this, replying to a review comment
-# about `gh pr merge` would be blocked.
-unquoted="$(printf '%s' "$cmd" | python3 -c "
-import re, sys
+# Tokenize with the shell's own quoting rules rather than stripping
+# quotes with a regex. The regex version was subtly wrong: on input like
+#   echo "a\" gh pr merge "
+# it stripped the wrong span and left an exposed `gh pr merge`, blocking a
+# command that only mentions the phrase. shlex knows about escapes,
+# nesting and adjacency, and gets the whole class right at once.
+#
+# The match is then "three CONSECUTIVE tokens", which is exactly the
+# instruction-vs-mention distinction wanted:
+#   gh pr merge 42              -> ['gh','pr','merge','42']         match
+#   echo hi && gh pr merge 42   -> [...,'gh','pr','merge','42']     match
+#   echo "run gh pr merge"      -> ['echo','run gh pr merge']       no match
+#     (the phrase lives inside ONE token, so it is text, not a command)
+if printf '%s' "$cmd" | python3 -c "
+import shlex, sys
 text = sys.stdin.read()
-text = re.sub(r'\"[^\"]*\"', ' ', text)
-text = re.sub(r\"'[^']*'\", ' ', text)
-print(text)
-" 2>/dev/null || printf '%s' "$cmd")"
-
-# Word-boundary match on the subcommand, so 'gh pr merge' is caught
-# anywhere in a compound command while 'gh pr view'/'checks'/'comment'
-# are not. safe-pr-merge.sh's own internal call runs in a separate
-# process and never passes through this hook.
-if printf '%s' "$unquoted" | grep -qE '(^|[;&|[:space:]])gh[[:space:]]+pr[[:space:]]+merge([[:space:]]|$)'; then
+try:
+    tokens = shlex.split(text)
+except ValueError:
+    # Unbalanced quotes: not something we can reason about. Fail OPEN,
+    # consistent with the rest of this guard.
+    sys.exit(1)
+target = ['gh', 'pr', 'merge']
+hit = any(
+    tokens[i:i + len(target)] == target
+    for i in range(len(tokens) - len(target) + 1)
+)
+sys.exit(0 if hit else 1)
+" 2>/dev/null; then
     cat >&2 <<'MSG'
 Blocked: `gh pr merge` bypasses the PR-merge checklist.
 
