@@ -624,6 +624,65 @@ _KIND_ROOTS = {
 }
 
 
+_FORCE_PUSH_RE = re.compile(r"git\s+push\b[^\n]*--force(-with-lease)?\b")
+
+# Declared inside a fence to mark a deliberate, documented exception —
+# history rewriting to purge a leaked secret is the real one. Declaring it
+# beats allowlisting a path: the justification lives next to the command,
+# and a new exception cannot appear without saying so.
+FORCE_PUSH_EXCEPTION_MARKER = "agentharness:force-push-exception"
+
+
+def check_no_force_push_instructions(scan_root: Path = REPO_ROOT) -> list[str]:
+    """Flag docs that *instruct* a reader to force-push.
+
+    The repo-wide `no-force-push-any-branch` ruleset has no bypass actors,
+    so a non-fast-forward push is rejected on every branch —
+    `--force-with-lease` included, since its lease check protects against
+    clobbering someone else's work but does not make the push
+    fast-forward. Any doc telling a reader to do it is advice that cannot
+    work, and they discover that only when the push fails.
+
+    Deliberately narrow, in the same spirit as DUPLICATE_POLICY_REGISTRY:
+    one targeted rule with real instances, not a general same-rule-drift
+    detector. A general one would need per-rule exclusions for the rule's
+    own statement, tests, and changelog history — rivalling the rule count.
+
+    Only commands inside fenced blocks count, and commented lines do not.
+    Prose explaining *why* force-pushing is blocked must not trip the
+    check, or fixing a violation would itself be a violation.
+
+    Genuine exceptions exist — purging a leaked secret from history
+    requires rewriting it — and are declared with the marker below inside
+    the fence. Declaring rather than path-allowlisting keeps every
+    exception visible and self-justifying in the doc that needs it, and
+    means a new one cannot appear silently.
+    """
+    errors: list[str] = []
+    for path in _find_markdown_files(scan_root):
+        rel = path.relative_to(scan_root).as_posix()
+        if rel.startswith(("docs/operational/", "CHANGELOG")):
+            continue  # historical records, not live instruction
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        for fence in ANY_FENCE_RE.findall(text):
+            if FORCE_PUSH_EXCEPTION_MARKER in fence:
+                continue
+            for line in fence.splitlines():
+                stripped = line.strip()
+                if stripped.startswith("#"):
+                    continue  # a comment is explanation, not instruction
+                if _FORCE_PUSH_RE.search(stripped):
+                    errors.append(
+                        f"{rel}: instructs a force-push (`{stripped}`), which the "
+                        "no-force-push-any-branch ruleset rejects on every branch "
+                        "— recommend fetch + rebase instead"
+                    )
+    return errors
+
+
 def check_precedence_matches_docs(scan_root: Path = REPO_ROOT) -> list[str]:
     """Assert the prose precedence ladders still match precedence.yaml.
 
@@ -820,6 +879,7 @@ def main() -> int:
     errors += check_duplicate_policy_numbers()
     errors += check_absence_claims_match_manifest()
     errors += check_precedence_matches_docs()
+    errors += check_no_force_push_instructions()
     errors += check_agents_md_sync()
     errors += check_manifest_md_sync()
     errors += check_gemini_md_sync()

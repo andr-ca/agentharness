@@ -480,3 +480,83 @@ def test_absence_check_survives_a_directory_named_like_the_manifest(tmp_path):
 
     # Must not raise; a malformed layout is not this check's to report.
     assert vcq.check_absence_claims_match_manifest(scan_root=tmp_path) == []
+
+
+# ---------------------------------------------------------------------------
+# check_no_force_push_instructions: the repo-wide no-force-push-any-branch
+# ruleset has no bypass actors, so any doc telling a reader to force-push is
+# advice that cannot work. Two such instructions existed in
+# COMMITTING_GUIDELINES.md alone. Narrow and targeted, like the numeric
+# policy registry — not a general same-rule-drift detector, which would
+# need per-rule exclusions rivalling the rule count.
+# ---------------------------------------------------------------------------
+
+
+def test_flags_a_force_push_command_in_a_fenced_block(tmp_path):
+    (tmp_path / "guide.md").write_text(
+        "Push it:\n\n```bash\ngit push --force-with-lease\n```\n", encoding="utf-8"
+    )
+
+    errors = vcq.check_no_force_push_instructions(scan_root=tmp_path)
+
+    assert len(errors) == 1
+    assert "guide.md" in errors[0]
+
+
+def test_flags_plain_force_too(tmp_path):
+    (tmp_path / "guide.md").write_text(
+        "```bash\ngit push --force\n```\n", encoding="utf-8"
+    )
+
+    assert len(vcq.check_no_force_push_instructions(scan_root=tmp_path)) == 1
+
+
+def test_does_not_flag_prose_explaining_that_force_push_is_blocked(tmp_path):
+    # The rule's own explanation must not trip its own check, or the fix
+    # for a violation becomes a violation.
+    (tmp_path / "guide.md").write_text(
+        "`--force-with-lease` does not help: the push is still "
+        "non-fast-forward and the ruleset rejects it.\n",
+        encoding="utf-8",
+    )
+
+    assert vcq.check_no_force_push_instructions(scan_root=tmp_path) == []
+
+
+def test_does_not_flag_a_commented_out_line_in_a_fence(tmp_path):
+    # A commented line inside a fence is explanation, not instruction.
+    (tmp_path / "guide.md").write_text(
+        "```bash\n# git push --force-with-lease does not work here\ngit push\n```\n",
+        encoding="utf-8",
+    )
+
+    assert vcq.check_no_force_push_instructions(scan_root=tmp_path) == []
+
+
+def test_the_real_repo_has_no_force_push_instructions():
+    assert vcq.check_no_force_push_instructions() == []
+
+
+def test_a_declared_exception_is_allowed(tmp_path):
+    (tmp_path / "guide.md").write_text(
+        "```bash\n# agentharness:force-push-exception — purging a secret\n"
+        "git push --force\n```\n",
+        encoding="utf-8",
+    )
+
+    assert vcq.check_no_force_push_instructions(scan_root=tmp_path) == []
+
+
+def test_an_exception_in_one_fence_does_not_excuse_another(tmp_path):
+    # Scoped per fence, not per file — otherwise one legitimate exception
+    # would silently license every force-push in the same document.
+    (tmp_path / "guide.md").write_text(
+        "```bash\n# agentharness:force-push-exception\ngit push --force\n```\n"
+        "\nUnrelated:\n\n```bash\ngit push --force-with-lease\n```\n",
+        encoding="utf-8",
+    )
+
+    errors = vcq.check_no_force_push_instructions(scan_root=tmp_path)
+
+    assert len(errors) == 1
+    assert "force-with-lease" in errors[0]

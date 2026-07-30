@@ -134,16 +134,23 @@ Fix the tests or the code. Don't commit broken code with a promise to fix it lat
 
 ### Amending Commits
 
-**Only amend unpushed commits** to your personal branch.
+**Only amend unpushed commits** — and in this repo that is not merely
+advice, it is the only thing that works. Amending a commit you have
+already pushed requires a non-fast-forward push, which the repo-wide
+`no-force-push-any-branch` ruleset rejects on every branch with no bypass
+actors. `--force-with-lease` does not help: its lease check protects
+against clobbering someone else's work, but the push is still
+non-fast-forward.
 
 ```bash
-# Fix last commit
+# Fix the last commit — BEFORE pushing it
 git add <files>
 git commit --amend
-
-# Push amended commit
-git push --force-with-lease  # Safer than --force
+git push            # ordinary push; fast-forward, so it is accepted
 ```
+
+If the commit is already pushed, add a follow-up commit instead of
+amending. There is no force-push escape hatch here.
 
 **Never amend commits that are:**
 - Already pushed to main/master
