@@ -159,6 +159,32 @@ restated differently in two prose files is not. That is the narrow, real
 gap identified when [#139](https://github.com/andr-ca/agentharness/issues/139)
 was renarrowed.
 
+**Investigated 2026-07-29, and the finding changes the recommendation.**
+Searching for actual instances rather than assuming them:
+
+- The *numeric* case is already covered — `check_duplicate_policy_numbers`
+  reports nothing today, and its own design notes record that a broader
+  "flag any restatement" version was rejected after producing ~15 false
+  positives.
+- One **genuine** non-numeric contradiction exists:
+  `.github/COMMITTING_GUIDELINES.md` recommended
+  `git push --force-with-lease` under "Safer force push", while
+  `CLAUDE.md` says never force-push because a repo-wide ruleset with no
+  bypass actors rejects every non-fast-forward push. `--force-with-lease`
+  is still a non-fast-forward push, so the advice could not work — a
+  reader following it gets rejected. Fixed directly.
+- Probing three other candidate rules (`.env.sample` vs `.env.example`,
+  the coverage floor, trunk protection) found **no** contradictions. Every
+  apparent hit was the rule's own statement, a deliberate test fixture, or
+  a CHANGELOG entry.
+
+So the gap is real but currently has **one** instance, not a pattern. A
+general detector would need per-rule exclusions for the rule's own
+statement, tests, and changelog history — the same false-positive problem
+that narrowed the numeric check, in a new shape. **Recommendation: fix
+instances as found; build the detector when a second one appears.** One
+real case justifies a fix, not a mechanism.
+
 ### Step 5 — Lifecycle tooling, if still wanted
 
 The task/project halves of Slice 4 as plain cleanup tooling. Durable
@@ -176,8 +202,11 @@ it, or the epic has no finish line:
 4. Every rule resolves to **one canonical location**, checkably.
 5. Persistent state has a **declared lifetime** and a way to expire.
 
-By that definition the harness is roughly 2/5 complete, and step 1 above
-moves it to 3/5 for a fraction of the epic's cost.
+By that definition the harness was 2/5 when this was written. Steps 1 and
+2 shipped the same day, taking it to **4/5** — criterion 1 (measured and
+growth-gated) and criterion 3 (machine-readable precedence). Criterion 2
+was already largely true. What remains is criterion 4 (every rule in one
+canonical location, checkably) and criterion 5 (declared lifetimes).
 
 ## 7. Risks
 

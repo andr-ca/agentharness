@@ -246,8 +246,15 @@ git log --oneline -20
 # See what you're about to commit
 git diff --cached
 
-# Safer force push
-git push --force-with-lease
+# NOTE: force-pushing does not work in this repo, not even the
+# --force-with-lease variant. A repo-wide GitHub ruleset
+# (no-force-push-any-branch, no bypass actors) rejects every
+# non-fast-forward push on every branch, and --force-with-lease is
+# still a non-fast-forward push — its lease check only protects
+# against clobbering someone else's work, it does not make the push
+# fast-forward. When a push is rejected, fetch and rebase:
+git fetch origin
+git rebase origin/main
 ```
 
 ## CI/CD Implications
