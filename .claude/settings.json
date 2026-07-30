@@ -17,6 +17,10 @@
           {
             "type": "command",
             "command": "bash .github/hooks/claude-push-lock-guard.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash .github/hooks/claude-pr-merge-guard.sh"
           }
         ]
       },

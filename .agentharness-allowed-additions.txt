@@ -50,3 +50,5 @@ tools/context-budget.py
 tools/tests/test_context_budget.py
 docs/operational/context-budget-baseline.json
 precedence.yaml
+.github/hooks/claude-pr-merge-guard.sh
+.github/hooks/tests/claude-pr-merge-guard.bats
