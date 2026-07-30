@@ -40,8 +40,13 @@ through a PR on GitHub, never bypass it with a local merge commit.
 **Never merge a PR on CI status alone — wait for review comments, then
 address them, before merging.** A green CI run says nothing about
 feedback left on the diff itself (human or automated, e.g. GitHub
-Copilot's code review). Use `tools/safe-pr-merge.sh <n>` to enforce this
-checklist automatically. Before merging:
+Copilot's code review). **Use `tools/safe-pr-merge.sh <n>` — a
+`PreToolUse` hook (`.github/hooks/claude-pr-merge-guard.sh`) blocks a
+direct `gh pr merge` for Claude Code sessions, so this is enforced, not
+just asked for.** `AGENTHARNESS_PR_MERGE_BYPASS=1` overrides it when the
+wrapper itself is broken; say why in the PR. The checklist below is what
+the wrapper does — read it when diagnosing a refusal, or when merging
+from a client the hook does not cover:
 1. Give automated review time to post (its own check, separate from CI,
    e.g. "Copilot Code Review") — don't merge the instant CI turns green.
    Concretely: Check whether an automated reviewer is configured on this
