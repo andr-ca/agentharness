@@ -82,9 +82,9 @@ only refuse to let the session finish. A `Stop` hook cannot prevent a
 |---|---|---|---|
 | Claude Code | ✅ `PreToolUse` via `.claude/settings.json` | ✅ `Stop` | ✅ 3 `PreToolUse` guards + `Stop` completion gate, tested in `.github/hooks/tests/` |
 | GitHub Copilot | ❓ unverified | ✅ `Stop` | ✅ completion gate (`.github/hooks/completion-gate.json`) |
-| Codex CLI | ❓ unverified | ❓ unverified | ❌ none |
+| Codex CLI | ✅ `PreToolUse` — `<repo>/.codex/hooks.json` or `[[hooks.PreToolUse]]` in `.codex/config.toml`; `matcher` + `command`, a blocking hook prevents the tool running | ❓ unverified | ❌ none — surface exists, nothing configured |
 | OpenCode | ❓ unverified | ❓ unverified | ❌ none |
-| Gemini CLI | ❓ unverified | ❓ unverified | ❌ none |
+| Gemini CLI | ✅ **`BeforeTool`** (not `PreToolUse`) — `hooks` object in `.gemini/settings.json`; blocks via exit code 2 with `stderr` as the reason, or `{"decision":"deny","reason":…}` on stdout | ❓ unverified | ❌ none — surface exists, nothing configured |
 | Antigravity | ❓ unverified | ❓ unverified | ❌ none |
 | Cursor | ❓ unverified | ❓ unverified | ❌ none |
 | Zed | ❓ unverified | ❓ unverified | ❌ none |
@@ -96,6 +96,22 @@ would be a guess, and this table exists so the next person does not have
 to trust one. Settling a row needs the same evidence the other tables
 here rest on: a documented config surface, plus a hook that demonstrably
 fires in a live session of that client.
+
+**Codex and Gemini rows are half-settled (researched 2026-07-31):** both
+vendors document a project-local pre-tool hook that can block a call, so
+the *config surface* half is established from primary sources. Neither
+has been fired in a live session from this repo, so the second half is
+still open — which is why the "configured here" column says none rather
+than a checkmark.
+
+**The two are not drop-in compatible with Claude Code's, or each
+other's.** Claude Code uses `PreToolUse` in `.claude/settings.json`;
+Codex uses `PreToolUse` in `.codex/hooks.json` or `config.toml`; Gemini
+calls the event **`BeforeTool`** in `.gemini/settings.json`. Blocking
+semantics differ too — Gemini documents both an exit-code-2 path and a
+`{"decision":"deny"}` JSON path. A port is three config formats and one
+shared script, not a copied file; the existing guards read their payload
+from stdin as JSON, which is the part that does transfer.
 
 **Consequence today:** every *pre-tool* guard this repo has is
 Claude-Code-only. Copilot shares the completion gate, but a `Stop` hook
