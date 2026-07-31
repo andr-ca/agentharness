@@ -44,10 +44,14 @@ try:
 except Exception:
     print('')
     sys.exit(0)
-if data.get('tool_name') != 'Bash':
-    print('')
-    sys.exit(0)
-print(data.get('tool_input', {}).get('command', ''))
+# Keyed on the PRESENCE of tool_input.command, not on a tool-name
+# allowlist. Claude Code calls its shell tool 'Bash', Gemini CLI calls
+# it 'run_shell_command', and a name check written against one client
+# silently allows everything on the others — the guard would look
+# installed and do nothing. Every client that runs a shell command
+# passes it as tool_input.command, so that is the portable signal.
+command = data.get('tool_input', {}).get('command', '')
+print(command if isinstance(command, str) else '')
 " 2>/dev/null || true)"
 
 [ -n "$cmd" ] || exit 0

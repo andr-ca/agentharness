@@ -1,0 +1,20 @@
+{
+  "_comment": "UNVERIFIED \u2014 see docs/CLIENT_COMPATIBILITY.md. Codex CLI's PreToolUse hook surface is documented by OpenAI (learn.chatgpt.com/docs/config-file/config-advanced), but this file has never been fired in a live Codex session from this repo. Treat it as a proposed port, not a demonstrated guard: if you run Codex here, verify it blocks a `gh pr merge` before relying on it, and update the CLIENT_COMPATIBILITY hooks table.",
+  "_shared_script": "Runs the same .github/hooks/claude-pr-merge-guard.sh that Claude Code uses. The script reads its payload as JSON on stdin and keys on tool_input.command rather than a tool-name allowlist, which is what makes it portable across clients. Exit 2 blocks.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .github/hooks/claude-pr-merge-guard.sh",
+            "timeout": 30,
+            "statusMessage": "Checking for a direct gh pr merge"
+          }
+        ]
+      }
+    ]
+  },
+  "_matcher_note": "matcher is '.*' on purpose. Pinning it to a shell tool name (^Bash$) would reintroduce per-client tool-name enumeration at the config layer: if Codex's shell tool is named differently, or is renamed, the hook never fires and the guard looks installed while doing nothing. Matching every tool and letting the script decide from tool_input.command keeps the decision in one place. Non-shell tools have no command field and are allowed immediately."
+}

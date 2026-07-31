@@ -82,9 +82,9 @@ only refuse to let the session finish. A `Stop` hook cannot prevent a
 |---|---|---|---|
 | Claude Code | ✅ `PreToolUse` via `.claude/settings.json` | ✅ `Stop` | ✅ 3 `PreToolUse` guards + `Stop` completion gate, tested in `.github/hooks/tests/` |
 | GitHub Copilot | ❓ unverified | ✅ `Stop` | ✅ completion gate (`.github/hooks/completion-gate.json`) |
-| Codex CLI | ✅ `PreToolUse` — `<repo>/.codex/hooks.json` or `[[hooks.PreToolUse]]` in `.codex/config.toml`; `matcher` + `command`, a blocking hook prevents the tool running | ❓ unverified | ❌ none — surface exists, nothing configured |
+| Codex CLI | ✅ `PreToolUse` — `<repo>/.codex/hooks.json` or `[[hooks.PreToolUse]]` in `.codex/config.toml`; `matcher` + `command`, a blocking hook prevents the tool running | ❓ unverified | ⚠️ `.codex/hooks.json` written, **never fired** — proposed port, not a demonstrated guard |
 | OpenCode | ❓ unverified | ❓ unverified | ❌ none |
-| Gemini CLI | ✅ **`BeforeTool`** (not `PreToolUse`) — `hooks` object in `.gemini/settings.json`; blocks via exit code 2 with `stderr` as the reason, or `{"decision":"deny","reason":…}` on stdout | ❓ unverified | ❌ none — surface exists, nothing configured |
+| Gemini CLI | ✅ **`BeforeTool`** (not `PreToolUse`) — `hooks` object in `.gemini/settings.json`; blocks via exit code 2 with `stderr` as the reason, or `{"decision":"deny","reason":…}` on stdout | ❓ unverified | ⚠️ `.gemini/settings.json` written, **never fired** — proposed port, not a demonstrated guard |
 | Antigravity | ❓ unverified | ❓ unverified | ❌ none |
 | Cursor | ❓ unverified | ❓ unverified | ❌ none |
 | Zed | ❓ unverified | ❓ unverified | ❌ none |
@@ -101,11 +101,26 @@ fires in a live session of that client.
 vendors document a project-local pre-tool hook that can block a call, so
 the *config surface* half is established from primary sources. Neither
 has been fired in a live session from this repo, so the second half is
-still open — which is why the "configured here" column says none rather
+still open — which is why the "configured here" column carries ⚠️ rather
 than a checkmark.
 
-**The two are not drop-in compatible with Claude Code's, or each
-other's.** Claude Code uses `PreToolUse` in `.claude/settings.json`;
+**Ported 2026-07-31, unverified.** `.codex/hooks.json` and
+`.gemini/settings.json` now wire both clients to the same
+`.github/hooks/claude-pr-merge-guard.sh` Claude Code uses. Neither has run
+in a live session of its client, so the table says ⚠️ rather than ✅ — a
+config file is not a guard until something has watched it refuse
+something. If you run Codex or Gemini CLI against this repo, try a
+`gh pr merge` and update the relevant row.
+
+Porting surfaced one bug worth recording: the guard originally keyed on
+`tool_name == "Bash"`, which is Claude Code's name for the shell tool.
+Gemini calls it `run_shell_command`. A name check written against one
+client silently allows everything on the others — the guard would look
+installed and do nothing, which is worse than absent because it reads as
+covered. It now keys on the presence of `tool_input.command`, which every
+client supplies and no non-shell tool does.
+
+**The three are not drop-in compatible with each other.** Claude Code uses `PreToolUse` in `.claude/settings.json`;
 Codex uses `PreToolUse` in `.codex/hooks.json` or `.codex/config.toml`;
 Gemini calls the event **`BeforeTool`** in `.gemini/settings.json`. Blocking
 semantics differ too — Gemini documents both an exit-code-2 path and a

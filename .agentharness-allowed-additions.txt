@@ -52,3 +52,5 @@ docs/operational/context-budget-baseline.json
 precedence.yaml
 .github/hooks/claude-pr-merge-guard.sh
 .github/hooks/tests/claude-pr-merge-guard.bats
+.codex/hooks.json
+.gemini/settings.json
