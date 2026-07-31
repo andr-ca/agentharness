@@ -156,3 +156,31 @@ _cmd_payload() {
     run _run_guard "$(_cmd_payload 'echo "unterminated')"
     [ "$status" -eq 0 ]
 }
+
+# --- cross-client portability -------------------------------------------
+#
+# The guard originally keyed on tool_name == 'Bash', which is Claude Code's
+# name for the shell tool. Gemini CLI calls it run_shell_command and Codex
+# uses its own naming, so a name check written against one client would
+# silently allow everything on the others — installed, and doing nothing.
+# Keying on the presence of tool_input.command is client-agnostic.
+
+@test "pr-merge guard: blocks under Gemini's run_shell_command tool name" {
+    run _run_guard '{"tool_name":"run_shell_command","tool_input":{"command":"gh pr merge 42"}}'
+    [ "$status" -eq 2 ]
+}
+
+@test "pr-merge guard: blocks regardless of tool name when a command is present" {
+    run _run_guard '{"tool_name":"some_future_shell","tool_input":{"command":"gh pr merge 42"}}'
+    [ "$status" -eq 2 ]
+}
+
+@test "pr-merge guard: allows a tool call with no command field" {
+    run _run_guard '{"tool_name":"read_file","tool_input":{"file_path":"/tmp/x"}}'
+    [ "$status" -eq 0 ]
+}
+
+@test "pr-merge guard: a non-string command does not crash the guard" {
+    run _run_guard '{"tool_name":"Bash","tool_input":{"command":{"nested":"object"}}}'
+    [ "$status" -eq 0 ]
+}

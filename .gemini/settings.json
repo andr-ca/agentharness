@@ -1,0 +1,21 @@
+{
+  "_comment": "UNVERIFIED — see docs/CLIENT_COMPATIBILITY.md. Gemini CLI's BeforeTool hook surface is documented in the gemini-cli repo (docs/hooks/reference.md), but this file has never been fired in a live Gemini session from this repo. Treat it as a proposed port, not a demonstrated guard: if you run Gemini CLI here, verify it blocks a `gh pr merge` before relying on it, and update the CLIENT_COMPATIBILITY hooks table.",
+  "_naming_note": "Gemini calls the pre-tool event BeforeTool, not PreToolUse, and its shell tool run_shell_command, not Bash. Both differ from Claude Code and Codex, which is why this is a separate config rather than a copied one.",
+  "_timeout_note": "timeout is milliseconds here, unlike Claude Code and Codex where it is seconds. 30000 = 30s, matching the other two.",
+  "hooks": {
+    "BeforeTool": [
+      {
+        "matcher": "run_shell_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .github/hooks/claude-pr-merge-guard.sh",
+            "name": "pr-merge-guard",
+            "timeout": 30000,
+            "description": "Require tools/safe-pr-merge.sh instead of a direct gh pr merge"
+          }
+        ]
+      }
+    ]
+  }
+}
