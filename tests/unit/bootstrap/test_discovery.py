@@ -87,3 +87,46 @@ def test_missing_root_does_not_raise(tmp_path):
     inventory = discover(tmp_path / "does-not-exist")
 
     assert all(not c.present for c in inventory.capabilities)
+
+
+# ---------------------------------------------------------------------------
+# `detect_logging` returns STDLIB as a FALLBACK — it is what you get when no
+# logging library is declared, not evidence that logging is configured.
+# Reporting it as present made discovery claim "you have logging" for a
+# project with none, contradicting this module's own "verified, not guessed"
+# contract. Found by running the published package against a real consumer
+# project, which is the only place the false positive was visible.
+# ---------------------------------------------------------------------------
+
+
+def test_a_bare_pyproject_does_not_count_as_configured_logging(tmp_path):
+    _write(tmp_path, "pyproject.toml", '[project]\nname = "demo"\n')
+
+    logging = discover(tmp_path).capability("logging")
+
+    assert not logging.present
+    assert logging.evidence == ()
+
+
+def test_a_declared_logging_library_does_count(tmp_path):
+    # structlog/loguru come from a real declaration, so they are findings.
+    _write(
+        tmp_path,
+        "pyproject.toml",
+        '[project]\nname = "demo"\ndependencies = ["structlog>=24"]\n',
+    )
+
+    logging = discover(tmp_path).capability("logging")
+
+    assert logging.present
+    assert "structlog" in logging.detail.lower()
+
+
+def test_loguru_also_counts(tmp_path):
+    _write(
+        tmp_path,
+        "pyproject.toml",
+        '[project]\nname = "demo"\ndependencies = ["loguru"]\n',
+    )
+
+    assert discover(tmp_path).capability("logging").present
