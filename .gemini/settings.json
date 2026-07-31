@@ -1,11 +1,11 @@
 {
-  "_comment": "UNVERIFIED — see docs/CLIENT_COMPATIBILITY.md. Gemini CLI's BeforeTool hook surface is documented in the gemini-cli repo (docs/hooks/reference.md), but this file has never been fired in a live Gemini session from this repo. Treat it as a proposed port, not a demonstrated guard: if you run Gemini CLI here, verify it blocks a `gh pr merge` before relying on it, and update the CLIENT_COMPATIBILITY hooks table.",
+  "_comment": "UNVERIFIED \u2014 see docs/CLIENT_COMPATIBILITY.md. Gemini CLI's BeforeTool hook surface is documented in the gemini-cli repo (docs/hooks/reference.md), but this file has never been fired in a live Gemini session from this repo. Treat it as a proposed port, not a demonstrated guard: if you run Gemini CLI here, verify it blocks a `gh pr merge` before relying on it, and update the CLIENT_COMPATIBILITY hooks table.",
   "_naming_note": "Gemini calls the pre-tool event BeforeTool, not PreToolUse, and its shell tool run_shell_command, not Bash. Both differ from Claude Code and Codex, which is why this is a separate config rather than a copied one.",
   "_timeout_note": "timeout is milliseconds here, unlike Claude Code and Codex where it is seconds. 30000 = 30s, matching the other two.",
   "hooks": {
     "BeforeTool": [
       {
-        "matcher": "run_shell_command",
+        "matcher": ".*",
         "hooks": [
           {
             "type": "command",
@@ -17,5 +17,6 @@
         ]
       }
     ]
-  }
+  },
+  "_matcher_note": "matcher is '.*' on purpose \u2014 see the same note in .codex/hooks.json. Pinning it to run_shell_command would break silently if Gemini adds or renames a shell tool; the script's tool_input.command check is the single place that decides."
 }

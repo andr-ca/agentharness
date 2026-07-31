@@ -101,7 +101,7 @@ fires in a live session of that client.
 vendors document a project-local pre-tool hook that can block a call, so
 the *config surface* half is established from primary sources. Neither
 has been fired in a live session from this repo, so the second half is
-still open — which is why the "configured here" column says none rather
+still open — which is why the "configured here" column carries ⚠️ rather
 than a checkmark.
 
 **Ported 2026-07-31, unverified.** `.codex/hooks.json` and
