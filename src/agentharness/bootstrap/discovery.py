@@ -136,8 +136,23 @@ def _detect_singleton(
     return True, kind, ()
 
 
+# `detect_logging` returns STDLIB as its FALLBACK — the value you get when
+# no logging library is declared, not evidence that logging is configured.
+# Counting it as present made discovery report "you have logging" for a
+# project with none, which contradicts this module's verified-not-guessed
+# contract and is exactly the false confidence that discredits an
+# inventory. Only an explicitly declared library (structlog, loguru) is a
+# finding. Handled here rather than in the plugin: "stdlib is always
+# available in Python" may be a reasonable thing for other callers to
+# hear — it just is not a configuration this tool should report as found.
+_LOGGING_FALLBACK_KINDS = frozenset({"stdlib"})
+
+
 def _detect_logging(root: Path) -> tuple[bool, str, tuple[str, ...]]:
-    return _detect_singleton(detect_logging(root), "logging")
+    detection = detect_logging(root)
+    if str(getattr(detection, "kind", _ABSENT)) in _LOGGING_FALLBACK_KINDS:
+        return False, "No logging library declared", ()
+    return _detect_singleton(detection, "logging")
 
 
 def _detect_docs(root: Path) -> tuple[bool, str, tuple[str, ...]]:
