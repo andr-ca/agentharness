@@ -106,8 +106,8 @@ than a checkmark.
 
 **The two are not drop-in compatible with Claude Code's, or each
 other's.** Claude Code uses `PreToolUse` in `.claude/settings.json`;
-Codex uses `PreToolUse` in `.codex/hooks.json` or `config.toml`; Gemini
-calls the event **`BeforeTool`** in `.gemini/settings.json`. Blocking
+Codex uses `PreToolUse` in `.codex/hooks.json` or `.codex/config.toml`;
+Gemini calls the event **`BeforeTool`** in `.gemini/settings.json`. Blocking
 semantics differ too — Gemini documents both an exit-code-2 path and a
 `{"decision":"deny"}` JSON path. A port is three config formats and one
 shared script, not a copied file; the existing guards read their payload
