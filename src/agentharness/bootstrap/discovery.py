@@ -151,7 +151,12 @@ _LOGGING_FALLBACK_KINDS = frozenset({"stdlib"})
 def _detect_logging(root: Path) -> tuple[bool, str, tuple[str, ...]]:
     detection = detect_logging(root)
     if str(getattr(detection, "kind", _ABSENT)) in _LOGGING_FALLBACK_KINDS:
-        return False, "No logging library declared", ()
+        # Phrased "library declared", not "configuration found", to match
+        # the sibling messages' shape while staying accurate about what
+        # was actually checked: logging is detected from declared
+        # dependencies, not from a config file, and "no configuration
+        # found" would send the owner looking for the wrong thing.
+        return False, "No declared logging library found", ()
     return _detect_singleton(detection, "logging")
 
 
