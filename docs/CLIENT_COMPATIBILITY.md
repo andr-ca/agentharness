@@ -41,7 +41,7 @@ OpenAI and Microsoft, then by 32+ tools by March 2026.
 
 | Tool | Skill directory read | Standard | This repo |
 |---|---|---|---|
-| Claude Code | `.claude/skills/<name>/SKILL.md` | Agent Skills (origin) | ✅ 6 skills, the source of truth |
+| Claude Code | `.claude/skills/<name>/SKILL.md` | Agent Skills (origin) | ✅ the source of truth (see [MANIFEST.md](../MANIFEST.md) for the current list — a count here drifts, the manifest does not) |
 | Codex CLI | `.agents/skills/<name>/SKILL.md` | Agent Skills | ✅ mirrored from `.claude/skills/` by `harness-link.sh` (P0-06) |
 | OpenCode | `.opencode/skills/`, `~/.config/opencode/skills/`, and recognizes `.claude/skills/` + `.agents/skills/` as compatibility paths | Agent Skills | ⚠️ `.agents/skills/` already mirrored; no `.opencode/skills/`-specific install |
 | Gemini CLI | `.gemini/skills/`, `~/.gemini/skills/`, and recognizes `.agents/skills/` as an alias | Agent Skills | ⚠️ `.agents/skills/` already mirrored; no `.gemini/skills/`-specific install |
@@ -56,6 +56,61 @@ done for every consumer project via `harness-link.sh init`/`update`,
 every mode) is the one action with the widest payoff — six tools
 recognize that exact directory as a compatibility path today. Cursor is
 the outlier requiring a genuinely different mechanism.
+
+## Pre-tool hooks (mechanical enforcement)
+
+Hooks are the difference between a rule that is *stated* and one that is
+*enforced*. This repo relies on them: a `PreToolUse` guard blocks a push
+to a branch another session holds, another blocks writes outside the
+repo, a third requires `safe-pr-merge.sh` instead of a bare `gh pr
+merge`, and a `Stop` hook refuses to let a session end before
+`check-completion.sh` passes.
+
+**This axis decides how far always-on prose can shrink.** Instructions
+are generated from one `CLAUDE.md` into every client file, so removing a
+rule's prose removes it for *all* clients — while a hook replaces it for
+*one*. Compressing an enforced section is therefore only safe where the
+enforcement is as portable as the text. See the 2026-07-30 correction in
+`docs/operational/root-instruction-inventory-2026-07-28.md`.
+
+Two hook kinds matter here and they are **not** interchangeable. A
+*pre-tool* gate can refuse an action before it happens; a *stop* gate can
+only refuse to let the session finish. A `Stop` hook cannot prevent a
+`gh pr merge` — the merge has already happened by the time it runs.
+
+| Tool | Pre-tool gate | Stop / completion gate | Configured in this repo |
+|---|---|---|---|
+| Claude Code | ✅ `PreToolUse` via `.claude/settings.json` | ✅ `Stop` | ✅ 3 `PreToolUse` guards + `Stop` completion gate, tested in `.github/hooks/tests/` |
+| GitHub Copilot | ❓ unverified | ✅ `Stop` | ✅ completion gate (`.github/hooks/completion-gate.json`) |
+| Codex CLI | ❓ unverified | ❓ unverified | ❌ none |
+| OpenCode | ❓ unverified | ❓ unverified | ❌ none |
+| Gemini CLI | ❓ unverified | ❓ unverified | ❌ none |
+| Antigravity | ❓ unverified | ❓ unverified | ❌ none |
+| Cursor | ❓ unverified | ❓ unverified | ❌ none |
+| Zed | ❓ unverified | ❓ unverified | ❌ none |
+| Kilo Code | ❓ unverified | ❓ unverified | ❌ none |
+
+**`❓ unverified` means exactly that — not "unsupported".** No claim is
+made either way, because none has been checked. Marking them unsupported
+would be a guess, and this table exists so the next person does not have
+to trust one. Settling a row needs the same evidence the other tables
+here rest on: a documented config surface, plus a hook that demonstrably
+fires in a live session of that client.
+
+**Consequence today:** every *pre-tool* guard this repo has is
+Claude-Code-only. Copilot shares the completion gate, but a `Stop` hook
+fires after the fact — it cannot refuse a merge, only refuse to call the
+session done afterwards. So for the rules that must be caught *before* an
+action, sessions on the other eight clients are governed by prose alone.
+That is not an argument for deleting the prose — it is the reason the
+prose cannot be deleted.
+
+**Git hooks are the portable half.** `.github/hooks/pre-push`,
+`pre-commit` and `prevent-trunk-commit` fire for every client, because
+git enforces them rather than the agent runtime. Where a rule can be
+expressed as a git hook it already covers everyone; the gap is only for
+rules that must be caught *before* a tool call, which is what
+`PreToolUse` exists for.
 
 ## Custom agents / sub-agent delegation
 
