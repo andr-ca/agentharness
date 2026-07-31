@@ -73,17 +73,22 @@ rule's prose removes it for *all* clients — while a hook replaces it for
 enforcement is as portable as the text. See the 2026-07-30 correction in
 `docs/operational/root-instruction-inventory-2026-07-28.md`.
 
-| Tool | Pre-tool hook support | This repo |
-|---|---|---|
-| Claude Code | ✅ `PreToolUse`, `Stop`, `SessionStart` via `.claude/settings.json` | ✅ 3 `PreToolUse` guards + a `Stop` completion gate, tested in `.github/hooks/tests/` |
-| Codex CLI | ❓ unverified | ❌ none |
-| OpenCode | ❓ unverified | ❌ none |
-| Gemini CLI | ❓ unverified | ❌ none |
-| Antigravity | ❓ unverified | ❌ none |
-| Cursor | ❓ unverified | ❌ none |
-| GitHub Copilot | ❓ unverified | ❌ none |
-| Zed | ❓ unverified | ❌ none |
-| Kilo Code | ❓ unverified | ❌ none |
+Two hook kinds matter here and they are **not** interchangeable. A
+*pre-tool* gate can refuse an action before it happens; a *stop* gate can
+only refuse to let the session finish. A `Stop` hook cannot prevent a
+`gh pr merge` — the merge has already happened by the time it runs.
+
+| Tool | Pre-tool gate | Stop / completion gate | Configured in this repo |
+|---|---|---|---|
+| Claude Code | ✅ `PreToolUse` via `.claude/settings.json` | ✅ `Stop` | ✅ 3 `PreToolUse` guards + `Stop` completion gate, tested in `.github/hooks/tests/` |
+| GitHub Copilot | ❓ unverified | ✅ `Stop` | ✅ completion gate (`.github/hooks/completion-gate.json`) |
+| Codex CLI | ❓ unverified | ❓ unverified | ❌ none |
+| OpenCode | ❓ unverified | ❓ unverified | ❌ none |
+| Gemini CLI | ❓ unverified | ❓ unverified | ❌ none |
+| Antigravity | ❓ unverified | ❓ unverified | ❌ none |
+| Cursor | ❓ unverified | ❓ unverified | ❌ none |
+| Zed | ❓ unverified | ❓ unverified | ❌ none |
+| Kilo Code | ❓ unverified | ❓ unverified | ❌ none |
 
 **`❓ unverified` means exactly that — not "unsupported".** No claim is
 made either way, because none has been checked. Marking them unsupported
@@ -92,10 +97,13 @@ to trust one. Settling a row needs the same evidence the other tables
 here rest on: a documented config surface, plus a hook that demonstrably
 fires in a live session of that client.
 
-**Consequence today:** every mechanical guard this repo has is
-Claude-Code-only. Sessions on the other eight clients are governed by
-prose alone. That is not an argument for deleting the prose — it is the
-reason the prose cannot be deleted.
+**Consequence today:** every *pre-tool* guard this repo has is
+Claude-Code-only. Copilot shares the completion gate, but a `Stop` hook
+fires after the fact — it cannot refuse a merge, only refuse to call the
+session done afterwards. So for the rules that must be caught *before* an
+action, sessions on the other eight clients are governed by prose alone.
+That is not an argument for deleting the prose — it is the reason the
+prose cannot be deleted.
 
 **Git hooks are the portable half.** `.github/hooks/pre-push`,
 `pre-commit` and `prevent-trunk-commit` fire for every client, because
