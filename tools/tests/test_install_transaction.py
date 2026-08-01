@@ -691,3 +691,135 @@ def test_uninstall_all_leaves_edited_file_and_warns(tmp_path: Any) -> None:
     log = it.uninstall_all(state, base_dir=tmp_path)
     assert rule.read_text() == "edited after install\n"
     assert any("edited" in line for line in log)
+
+
+# ---------------------------------------------------------------------------
+# uninstall must not leave 0-byte husks. When install CREATES an instructions
+# file, that file holds nothing but the managed block; stripping the block
+# leaves an empty CLAUDE.md/AGENTS.md/GEMINI.md behind, which reads as
+# "configured" to a human and to some tools. Found by running a full
+# install -> update -> uninstall journey against a real project.
+#
+# Emptiness alone is NOT a safe discriminator, which the first version of
+# this fix got wrong: a user can have a pre-existing EMPTY instructions file
+# (touch CLAUDE.md as a placeholder), and deleting it on uninstall is data
+# loss. Deletion is therefore gated on recorded provenance —
+# created_by_harness, captured at install time — with emptiness as a second
+# condition, and anything unknown left in place.
+# ---------------------------------------------------------------------------
+
+
+def _block(body: str = "harness content") -> str:
+    # Real marker syntax, per block_installer's _BEGIN_RE/_END_RE. An
+    # invented one would make remove_block a no-op and these tests would
+    # pass or fail for reasons unrelated to what they name.
+    return (
+        "<!-- agentharness:begin id=core-instructions version=abc123 -->\n"
+        f"{body}\n"
+        "<!-- agentharness:end id=core-instructions -->\n"
+    )
+
+
+def _state(file_name: str, created: bool | None = True) -> dict:
+    entry: dict = {"file": file_name, "block_id": "core-instructions"}
+    if created is not None:
+        entry["created_by_harness"] = created
+    return {"managed_blocks": [entry], "overwritten_files": []}
+
+
+def test_uninstall_removes_a_file_that_held_only_the_block(tmp_path):
+    path = tmp_path / "CLAUDE.md"
+    path.write_text(_block())
+
+    log = it.uninstall_all(_state("CLAUDE.md"), tmp_path)
+
+    assert not path.exists(), "an install-created file must not survive as a husk"
+    assert any("removed" in line for line in log)
+
+
+def test_uninstall_keeps_a_file_the_user_already_had(tmp_path):
+    # The load-bearing counter-case: their content must survive.
+    path = tmp_path / "CLAUDE.md"
+    path.write_text("# My own project rules\n\n" + _block())
+
+    it.uninstall_all(_state("CLAUDE.md"), tmp_path)
+
+    assert path.exists()
+    assert "My own project rules" in path.read_text()
+    assert "harness content" not in path.read_text()
+
+
+def test_uninstall_removes_a_file_left_with_only_whitespace(tmp_path):
+    # Block removal can leave stray newlines; whitespace is still empty.
+    path = tmp_path / "AGENTS.md"
+    path.write_text("\n\n" + _block() + "\n")
+
+    it.uninstall_all(_state("AGENTS.md"), tmp_path)
+
+    assert not path.exists()
+
+
+def test_uninstall_leaves_an_untouched_file_alone(tmp_path):
+    # No block present: nothing was ours, so nothing is removed.
+    path = tmp_path / "CLAUDE.md"
+    path.write_text("# Not ours\n")
+
+    it.uninstall_all(_state("CLAUDE.md"), tmp_path)
+
+    assert path.exists()
+    assert path.read_text() == "# Not ours\n"
+
+
+def test_uninstall_keeps_a_preexisting_empty_file(tmp_path):
+    # The data-loss case the emptiness-only rule missed: the user touched
+    # CLAUDE.md as a placeholder, install added its block. Their file is
+    # still theirs, however little is in it.
+    path = tmp_path / "CLAUDE.md"
+    path.write_text(_block())
+
+    it.uninstall_all(_state("CLAUDE.md", created=False), tmp_path)
+
+    assert path.exists(), "a file the user created must never be deleted"
+    assert path.read_text().strip() == ""
+
+
+def test_uninstall_keeps_a_file_with_no_recorded_provenance(tmp_path):
+    # State written before provenance existed. Unknown must mean "leave
+    # it" — an old install must not become a delete on upgrade.
+    path = tmp_path / "CLAUDE.md"
+    path.write_text(_block())
+
+    it.uninstall_all(_state("CLAUDE.md", created=None), tmp_path)
+
+    assert path.exists()
+
+
+def test_uninstall_deletes_only_when_provenance_says_we_made_it(tmp_path):
+    path = tmp_path / "AGENTS.md"
+    path.write_text(_block())
+
+    it.uninstall_all(_state("AGENTS.md", created=True), tmp_path)
+
+    assert not path.exists()
+
+
+def test_uninstall_survives_the_file_vanishing_mid_run(tmp_path):
+    # Concurrent cleanup between the read and the unlink must not crash
+    # the whole uninstall and strand the remaining entries.
+    path = tmp_path / "AGENTS.md"
+    path.write_text(_block())
+    state = _state("AGENTS.md", created=True)
+
+    original_unlink = Path.unlink
+
+    def vanishing_unlink(self, **kwargs):
+        original_unlink(self, **kwargs)
+        return original_unlink(self, **kwargs)  # second call: already gone
+
+    Path.unlink = vanishing_unlink
+    try:
+        it.uninstall_all(state, tmp_path)
+    finally:
+        Path.unlink = original_unlink
+
+    assert not path.exists()

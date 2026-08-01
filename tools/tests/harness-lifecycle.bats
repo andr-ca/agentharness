@@ -1583,3 +1583,36 @@ PYEOF
     [ "$status" -ne 0 ]  # require_state fails: no state file left — expected message, not a crash
     [[ "$output" =~ "no .agentharness-state.json" ]] || [[ "$output" =~ "init" ]]
 }
+
+@test "uninstall: a pre-existing EMPTY instructions file is never deleted" {
+    # Data-loss regression. Provenance was first computed from whether the
+    # file's CONTENT was empty, which cannot tell a missing file from a
+    # 0-byte one the user touched as a placeholder — so uninstall deleted
+    # their file. Unit tests missed it because they set the provenance flag
+    # directly instead of exercising install's computation of it; only a
+    # real install/uninstall cycle showed the loss.
+    : > "$TEST_PROJECT/GEMINI.md"
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+    [ -f "$TEST_PROJECT/GEMINI.md" ]
+}
+
+@test "uninstall: an instructions file the harness created is removed, not left empty" {
+    # The other half: no husk for a file that only ever held our block.
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    [ -f "$TEST_PROJECT/AGENTS.md" ]
+    run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+    [ ! -f "$TEST_PROJECT/AGENTS.md" ]
+}
+
+@test "uninstall: provenance survives an update, so a created file is still removed" {
+    # update rewrites managed_blocks while the file now exists; recomputing
+    # provenance there would flip "ours" to "theirs" and strand it forever.
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    bash "$SCRIPT" update "$TEST_PROJECT" --yes
+    run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+    [ ! -f "$TEST_PROJECT/AGENTS.md" ]
+}

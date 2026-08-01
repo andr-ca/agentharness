@@ -301,10 +301,13 @@ def apply_plan(
         rel_path = _rel(surface.path, base_dir)
 
         if action.kind == "upsert_block":
+            # Captured BEFORE any write, and keyed on EXISTENCE rather than
+            # emptiness. `existing == ""` cannot tell a missing file from a
+            # 0-byte one the user touched as a placeholder — and treating
+            # the latter as ours means uninstall deletes their file.
+            path_existed = surface.path.exists()
             surface.path.parent.mkdir(parents=True, exist_ok=True)
-            existing = (
-                surface.path.read_text() if surface.path.exists() else ""
-            )
+            existing = surface.path.read_text() if path_existed else ""
             rendered = bi.upsert_block(
                 existing,
                 surface.block_id,
@@ -319,6 +322,24 @@ def apply_plan(
                     surface.block_body,
                 ).encode()
             )
+            # Whether WE brought this file into existence, captured from
+            # `existing` above (read before the write). uninstall needs it
+            # to tell "delete the file we created" from "strip our block
+            # out of the user's file" — emptiness alone cannot, because a
+            # user may legitimately have an empty placeholder.
+            #
+            # A prior recording wins: on update/re-install the file always
+            # exists by then, so recomputing would silently flip a
+            # harness-created file to "pre-existed" and strand it forever.
+            prior = next(
+                (b for b in state["managed_blocks"] if b["file"] == rel_path),
+                None,
+            )
+            created_by_harness = (
+                prior.get("created_by_harness")
+                if prior and "created_by_harness" in prior
+                else not path_existed
+            )
             state["managed_blocks"] = [
                 b for b in state["managed_blocks"] if b["file"] != rel_path
             ] + [{
@@ -326,6 +347,7 @@ def apply_plan(
                 "block_id": surface.block_id,
                 "rendered_version": surface.block_version,
                 "rendered_sha256": block_hash,
+                "created_by_harness": created_by_harness,
             }]
 
         elif action.kind == "create":
@@ -395,8 +417,26 @@ def uninstall_all(state: dict[str, Any], base_dir: Path) -> list[str]:
         content = path.read_text()
         removed = bi.remove_block(content, entry["block_id"])
         if removed != content:
-            bi.atomic_write(path, removed)
-            log.append(f"{entry['file']}: removed managed block")
+            # Delete only what we created AND that is now empty. Both
+            # conditions are needed: emptiness alone would delete a user's
+            # pre-existing empty placeholder, and provenance alone would
+            # delete a file they had since put content into. Provenance
+            # missing (state written before it was recorded) counts as
+            # "not ours" — an old install must not become a delete on
+            # upgrade.
+            harness_made_it = entry.get("created_by_harness") is True
+            if removed.strip() or not harness_made_it:
+                bi.atomic_write(path, removed)
+                log.append(f"{entry['file']}: removed managed block")
+            else:
+                # missing_ok: the file can vanish between the read above
+                # and here (concurrent cleanup), and that must not strand
+                # the entries still to process.
+                path.unlink(missing_ok=True)
+                log.append(
+                    f"{entry['file']}: removed managed block and the file, "
+                    "which we created and which held nothing else"
+                )
         else:
             log.append(f"{entry['file']}: block not found, nothing to remove")
 
