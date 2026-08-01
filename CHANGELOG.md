@@ -6,6 +6,58 @@ section into a tagged version.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-01
+
+MINOR rather than PATCH: several fixes change consumer-visible behaviour,
+so a pinned consumer should read this before updating. Nothing was
+renamed or removed, so it is not breaking by this repo's definition.
+
+### Fixed
+- **`bootstrap` no longer offers Python scaffolds to non-Python
+  projects.** Every detector and scaffold is Python-specific and they were
+  applied unconditionally, so a Go project holding `*_test.go` files was
+  told it had no test framework and, on `apply`, received `ruff.toml`,
+  `pytest.ini` and `mypy.ini`. Non-Python projects now get the baseline
+  questions only, and an `adopt.*` answer is rejected rather than silently
+  ignored. Go/TypeScript detection remains unimplemented — reporting
+  honestly that they are unsupported is the correct behaviour until then.
+- **`bootstrap` no longer reports stdlib logging as configured.**
+  `detect_logging` returns `stdlib` as a *fallback* — it means no logging
+  library was declared, not that logging is set up — so a project with
+  none was told it had it. Only an explicitly declared library
+  (`structlog`, `loguru`) counts now.
+- **`uninstall` no longer leaves empty instruction files behind.** When
+  `init` created `CLAUDE.md`/`AGENTS.md`/`GEMINI.md`, stripping the
+  managed block left a 0-byte husk that reads as "configured". Files the
+  harness created are now removed. **Deletion is gated on provenance
+  recorded at install time** (`created_by_harness`), never on emptiness
+  alone — a pre-existing *empty* placeholder is a user-owned file and is
+  always preserved. State written before this field existed counts as "not
+  ours", so upgrading never turns an old install into a delete.
+- `verify-content-quality.py` no longer crashes when a config path is a
+  directory or is unreadable; it reports the problem instead.
+
+### Added
+- **Always-on context budget.** `tools/context-budget.py` measures the
+  context every session is handed (currently ~41.8k tokens across six
+  surfaces) and CI fails on *growth* beyond tolerance rather than against
+  an absolute threshold — deliberately, so the gate cannot pressure
+  removal of prose that is still the only enforcement for a rule.
+- **Machine-readable precedence.** `precedence.yaml` declares both
+  "which rule wins" ladders, and the prose is checked against it —
+  including ordering, since order is the substance of a precedence rule.
+- **A `gh pr merge` guard.** A `PreToolUse` hook requires
+  `tools/safe-pr-merge.sh`, which enforces the review-wait, comment-reply
+  and post-merge-CI checklist a direct merge skips.
+  `AGENTHARNESS_PR_MERGE_BYPASS=1` overrides it.
+- Ported that guard to Codex (`.codex/hooks.json`) and Gemini
+  (`.gemini/settings.json`). **Both are unverified** — neither has fired
+  in a live session of its client, and `docs/CLIENT_COMPATIBILITY.md`
+  marks them ⚠️ rather than ✅.
+- A check that no document instructs a force-push the repo-wide ruleset
+  will reject, with an explicit exception marker for the secrets-removal
+  procedure that legitimately needs one.
+
 ## [0.4.0] - 2026-07-29
 
 ### Added
