@@ -281,8 +281,10 @@ def execute_bootstrap_apply(
         content = action.content
         destination = root / action.path
         # Re-check at write time, not just at plan time: the file may have
-        # appeared between planning and applying.
-        if destination.exists():
+        # appeared between planning and applying. Actions that declare
+        # overwrite are exempt — replacing the file IS the change they
+        # describe, and it was shown and hash-confirmed as such.
+        if destination.exists() and not action.overwrite:
             continue
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(content, encoding="utf-8")

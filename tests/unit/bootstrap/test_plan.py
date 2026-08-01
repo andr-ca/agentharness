@@ -288,12 +288,57 @@ def test_an_existing_profile_answers_the_question(tmp_path):
 
 def test_an_explicit_answer_overrides_what_is_on_disk(tmp_path):
     # Reading from disk must not make a decision unchangeable.
+    #
+    # The first cut of this test asserted only that the ANSWER changed,
+    # which it did — while no action was produced, so the file kept its
+    # old tier and nothing actually changed. Asserting the outcome, not
+    # the intermediate state, is what makes this test mean anything.
     _py(tmp_path)
     (tmp_path / ".agentharness-profile").write_text("prototype\n", encoding="utf-8")
 
     plan = build_plan(tmp_path, answers={"rigor.tier": "production"})
 
     assert plan.answers["rigor.tier"] == "production"
+    profile = [a for a in plan.actions if a.path == ".agentharness-profile"]
+    assert profile, "the tier could be answered but never actually changed"
+    assert profile[0].content.strip() == "production"
+    assert profile[0].overwrite
+
+
+def test_a_malformed_profile_can_be_repaired(tmp_path):
+    # Keying the action on existence alone meant a corrupt profile was
+    # permanent: the question re-opened, the answer was accepted, the plan
+    # resolved, and no action was ever proposed to fix the file.
+    _py(tmp_path)
+    (tmp_path / ".agentharness-profile").write_text("banana\n", encoding="utf-8")
+
+    plan = build_plan(tmp_path, answers={"rigor.tier": "production"})
+
+    profile = [a for a in plan.actions if a.path == ".agentharness-profile"]
+    assert profile
+    assert "banana" in profile[0].rationale  # says what it is replacing
+
+
+def test_a_profile_that_already_matches_proposes_nothing(tmp_path):
+    # The complement: convergence must survive the overwrite path.
+    _py(tmp_path)
+    (tmp_path / ".agentharness-profile").write_text("production\n", encoding="utf-8")
+
+    plan = build_plan(tmp_path, answers={"rigor.tier": "production"})
+
+    assert not [a for a in plan.actions if a.path == ".agentharness-profile"]
+
+
+def test_scaffolds_never_overwrite(tmp_path):
+    # The overwrite exemption is for harness-owned decision files only.
+    # An unrecognised ruff.toml must still be left alone.
+    _py(tmp_path)
+    plan = build_plan(
+        tmp_path, answers={**_BASELINE, "adopt.lint": "yes"}
+    )
+    lint = [a for a in plan.actions if a.path == "ruff.toml"]
+    assert lint
+    assert not lint[0].overwrite
 
 
 def test_publish_grant_is_written_only_when_granted(tmp_path):

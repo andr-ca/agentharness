@@ -104,6 +104,14 @@ class PlanAction:
     summary: str
     rationale: str
     content: str = ""
+    # Whether this action may replace a file that already exists. Scaffolds
+    # never may — discovery only recognises config it knows, so an
+    # unrecognised file at the same path would be silently clobbered. The
+    # harness's own decision files are different: they have a known, tiny
+    # format that the harness itself owns, and refusing to rewrite them
+    # made a recorded decision permanent — a malformed profile could not
+    # be repaired and a chosen tier could not be changed.
+    overwrite: bool = False
 
     def to_dict(self) -> dict[str, str]:
         return {
@@ -243,19 +251,37 @@ def _decision_actions(root: Path, supplied: dict[str, str]) -> list[PlanAction]:
     actions: list[PlanAction] = []
 
     tier = supplied.get("rigor.tier", "").strip().lower()
-    if tier and not (root / PROFILE_PATH).exists():
-        actions.append(
-            PlanAction(
-                capability="rigor",
-                path=PROFILE_PATH,
-                summary=f"Create {PROFILE_PATH} ({tier})",
-                rationale=(
-                    f"You chose the {tier} rigor tier; this is the file "
-                    f"enforce-profile reads to apply it."
-                ),
-                content=f"{tier}\n",
-            )
+    if tier:
+        profile = root / PROFILE_PATH
+        current = (
+            profile.read_text(encoding="utf-8", errors="replace").strip().lower()
+            if profile.is_file()
+            else None
         )
+        # Propose a write whenever the file does not already say what was
+        # chosen. Keying only on existence meant a malformed profile could
+        # never be repaired and an existing tier could never be changed:
+        # the answer was accepted, the plan resolved, and nothing happened.
+        if current != tier:
+            verb = "Update" if current is not None else "Create"
+            rationale = (
+                f"You chose the {tier} rigor tier; this is the file "
+                f"enforce-profile reads to apply it."
+            )
+            if current is not None:
+                rationale = (
+                    f"{rationale} The file currently reads {current!r}."
+                )
+            actions.append(
+                PlanAction(
+                    capability="rigor",
+                    path=PROFILE_PATH,
+                    summary=f"{verb} {PROFILE_PATH} ({tier})",
+                    rationale=rationale,
+                    content=f"{tier}\n",
+                    overwrite=True,
+                )
+            )
 
     publish = supplied.get("authority.publish", "").strip().lower()
     if publish == "publish" and not (root / PUBLISH_MODE_PATH).exists():
