@@ -253,3 +253,116 @@ assert failed, d
 assert "1 uncommitted" in failed[0], failed
 PYEOF
 }
+
+# ---------------------------------------------------------------------------
+# The shellcheck gate must see COMMITTED changes.
+#
+# It compared only the working tree and the index, so a .sh file already
+# committed was invisible — and the workflow this gate serves commits
+# before running it, so on the mandated path shellcheck ran on nothing.
+# A clean tree containing a demonstrably broken committed script reported
+# "shellcheck (no .sh files changed)" and can_declare_complete: true.
+# ---------------------------------------------------------------------------
+
+_make_branch_project() {
+    # A project with a real main branch and a feature branch, so the gate
+    # has a merge-base to compare against — the situation every branch
+    # this gate runs on is actually in.
+    local dir
+    dir="$(mktemp -d)"
+    git -C "$dir" init -q -b main
+    git -C "$dir" config user.email "test@example.com"
+    git -C "$dir" config user.name "Test"
+    mkdir -p "$dir/tools"
+    cp "$SCRIPT" "$dir/tools/check-completion.sh"
+    printf 'import sys\nsys.exit(0)\n' > "$dir/tools/verify-content-quality.py"
+    git -C "$dir" add .
+    git -C "$dir" commit -q -m "initial"
+    git -C "$dir" checkout -q -b feature
+    echo "$dir"
+}
+
+_stub_shellcheck() {
+    # A stub that always reports problems, so the assertion is about
+    # WHETHER shellcheck was consulted, not about any real finding.
+    local dir="$1"
+    mkdir -p "$dir/stubbin"
+    printf '#!/usr/bin/env bash\nexit 1\n' > "$dir/stubbin/shellcheck"
+    chmod +x "$dir/stubbin/shellcheck"
+}
+
+@test "check-completion: shellcheck runs on a .sh committed on this branch" {
+    proj="$(_make_branch_project)"
+    _stub_shellcheck "$proj"
+    printf '#!/usr/bin/env bash\necho committed\n' > "$proj/tools/thing.sh"
+    git -C "$proj" add . && git -C "$proj" commit -q -m "add a script"
+    # The tree is CLEAN — this is exactly the state the old gate skipped.
+    [ -z "$(git -C "$proj" status --porcelain)" ]
+
+    output=$(cd "$proj" && PATH="$proj/stubbin:$PATH" \
+        bash tools/check-completion.sh 2>/dev/null || true)
+    rm -rf "$proj"
+
+    python3 - <<PYEOF
+import json
+d = json.loads('''$output''')
+failed = " ".join(d.get("gates_failed", []))
+passed = " ".join(d.get("gates_passed", []))
+assert "no .sh files changed" not in passed, (
+    "gate skipped a committed script: " + passed
+)
+assert "shellcheck" in failed, d
+PYEOF
+}
+
+@test "check-completion: shellcheck runs on an untracked .sh" {
+    proj="$(_make_branch_project)"
+    _stub_shellcheck "$proj"
+    printf '#!/usr/bin/env bash\necho untracked\n' > "$proj/tools/loose.sh"
+
+    output=$(cd "$proj" && PATH="$proj/stubbin:$PATH" \
+        bash tools/check-completion.sh 2>/dev/null || true)
+    rm -rf "$proj"
+
+    python3 - <<PYEOF
+import json
+d = json.loads('''$output''')
+assert "shellcheck" in " ".join(d.get("gates_failed", [])), d
+PYEOF
+}
+
+@test "check-completion: a .sh deleted on this branch does not fail the gate" {
+    # shellcheck cannot read a deleted file; failing for one that is
+    # correctly gone would make the gate impossible to satisfy.
+    proj="$(_make_branch_project)"
+    printf '#!/usr/bin/env bash\necho doomed\n' > "$proj/tools/doomed.sh"
+    git -C "$proj" add . && git -C "$proj" commit -q -m "add"
+    git -C "$proj" rm -q "tools/doomed.sh"
+    git -C "$proj" commit -q -m "remove it"
+
+    output=$(cd "$proj" && bash tools/check-completion.sh 2>/dev/null || true)
+    rm -rf "$proj"
+
+    python3 - <<PYEOF
+import json
+d = json.loads('''$output''')
+assert not [f for f in d.get("gates_failed", []) if f.startswith("shellcheck")], d
+PYEOF
+}
+
+@test "check-completion: a clean branch with no .sh changes still reports so" {
+    # The complement — the fix must not make every run claim it checked
+    # something, which would hide a genuinely skipped gate.
+    proj="$(_make_branch_project)"
+
+    output=$(cd "$proj" && bash tools/check-completion.sh 2>/dev/null || true)
+    rm -rf "$proj"
+
+    python3 - <<PYEOF
+import json
+d = json.loads('''$output''')
+assert any(
+    "no .sh files changed" in g for g in d.get("gates_passed", [])
+), d
+PYEOF
+}
