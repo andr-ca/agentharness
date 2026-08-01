@@ -180,6 +180,7 @@ _DETECTORS: dict[str, Callable[[Path], tuple[bool, str, tuple[str, ...]]]] = {
 
 
 NOT_PYTHON_DETAIL = "Not applicable — not a Python project"
+MISSING_ROOT_DETAIL = "Path does not exist"
 
 
 def is_python_project(root: Path) -> bool:
@@ -207,6 +208,18 @@ def discover(root: Path | str) -> RepoInventory:
     root_path = Path(root)
     findings: list[CapabilityFinding] = []
 
+    if not root_path.is_dir():
+        # Distinct from "not a Python project": a first run can legitimately
+        # point at a path that does not exist yet, and saying it is not
+        # Python would describe a directory rather than explain its absence.
+        return RepoInventory(
+            root=str(root_path),
+            capabilities=tuple(
+                CapabilityFinding(c, False, MISSING_ROOT_DETAIL, ())
+                for c in CAPABILITIES
+            ),
+        )
+
     if not is_python_project(root_path):
         # Report inapplicability rather than absence. "No linter
         # configured" is not a true statement about a Go repo — it is a
@@ -221,21 +234,17 @@ def discover(root: Path | str) -> RepoInventory:
 
     for capability in CAPABILITIES:
         detector = _DETECTORS[capability]
+        # Both early returns above guarantee a real directory here, so no
+        # existence check is needed in this loop.
         present: bool
         detail: str
         evidence: tuple[str, ...]
-        if not root_path.is_dir():
-            # A first run can legitimately point at a path that does not
-            # exist yet. Report everything absent instead of raising —
-            # "nothing here" is a valid, useful answer for bootstrap.
-            present, detail, evidence = False, "Path does not exist", ()
-        else:
-            try:
-                present, detail, evidence = detector(root_path)
-            except Exception as exc:  # noqa: BLE001 - one bad detector must
-                # not abort the whole inventory; report it as absent with
-                # the reason, so the owner still gets every other finding.
-                present, detail, evidence = False, f"Detection failed: {exc}", ()
+        try:
+            present, detail, evidence = detector(root_path)
+        except Exception as exc:  # noqa: BLE001 - one bad detector must not
+            # abort the whole inventory; report it as absent with the
+            # reason, so the owner still gets every other finding.
+            present, detail, evidence = False, f"Detection failed: {exc}", ()
         findings.append(
             CapabilityFinding(
                 capability=capability,
