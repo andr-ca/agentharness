@@ -134,6 +134,17 @@ def test_every_remediation_command_is_actually_registered():
 BASELINE = ["--answer", "rigor.tier=production", "--answer", "authority.publish=stage"]
 
 
+def _python_project(root):
+    """Minimal Python marker.
+
+    bootstrap only offers adoption to Python projects, so an empty tmp_path
+    would take the non-Python path and these tests would assert against a
+    plan with no adoption questions at all.
+    """
+    (root / "pyproject.toml").write_text('[project]\nname = "demo"\n')
+    return root
+
+
 def _plan_hash(target, extra):
     import io
     import json as _json
@@ -162,6 +173,7 @@ def test_bootstrap_apply_refuses_an_unresolved_plan(tmp_path, capsys):
 
 
 def test_bootstrap_apply_refuses_without_a_confirmation_hash(tmp_path, capsys):
+    _python_project(tmp_path)
     answers = [*BASELINE, "--answer", "adopt.lint=no", "--answer",
                "adopt.test=no", "--answer", "adopt.types=no"]
 
@@ -172,6 +184,7 @@ def test_bootstrap_apply_refuses_without_a_confirmation_hash(tmp_path, capsys):
 
 
 def test_bootstrap_apply_refuses_a_stale_confirmation_hash(tmp_path, capsys):
+    _python_project(tmp_path)
     answers = [*BASELINE, "--answer", "adopt.lint=yes", "--answer",
                "adopt.test=no", "--answer", "adopt.types=no"]
 
@@ -182,10 +195,12 @@ def test_bootstrap_apply_refuses_a_stale_confirmation_hash(tmp_path, capsys):
 
     assert exit_code == 1
     assert "does not match" in capsys.readouterr().out
-    assert list(tmp_path.iterdir()) == []
+    # Only the marker remains: apply created nothing.
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["pyproject.toml"]
 
 
 def test_bootstrap_apply_writes_only_what_was_confirmed(tmp_path, capsys):
+    _python_project(tmp_path)
     answers = [*BASELINE, "--answer", "adopt.lint=yes", "--answer",
                "adopt.test=no", "--answer", "adopt.types=no"]
     digest = _plan_hash(tmp_path, answers)
@@ -196,8 +211,10 @@ def test_bootstrap_apply_writes_only_what_was_confirmed(tmp_path, capsys):
     ])
 
     assert exit_code == 0
-    written = sorted(p.name for p in tmp_path.iterdir())
-    assert written == ["ruff.toml"]  # declined capabilities produce nothing
+    created = sorted(
+        p.name for p in tmp_path.iterdir() if p.name != "pyproject.toml"
+    )
+    assert created == ["ruff.toml"]  # declined capabilities produce nothing
 
 
 def test_bootstrap_apply_closes_the_loop(tmp_path):
@@ -206,6 +223,7 @@ def test_bootstrap_apply_closes_the_loop(tmp_path):
     import io
     import json as _json
 
+    _python_project(tmp_path)
     answers = [*BASELINE, "--answer", "adopt.lint=yes", "--answer",
                "adopt.test=yes", "--answer", "adopt.types=yes"]
     main(["bootstrap", "apply", "--target-dir", str(tmp_path), *answers,
