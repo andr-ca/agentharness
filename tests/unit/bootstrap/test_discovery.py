@@ -87,6 +87,10 @@ def test_missing_root_does_not_raise(tmp_path):
     inventory = discover(tmp_path / "does-not-exist")
 
     assert all(not c.present for c in inventory.capabilities)
+    # Distinct from the non-Python message: a missing path is a different
+    # situation from a directory that exists and holds another language,
+    # and conflating them would describe a directory that is not there.
+    assert all(c.detail == "Path does not exist" for c in inventory.capabilities)
 
 
 # ---------------------------------------------------------------------------

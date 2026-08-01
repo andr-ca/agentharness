@@ -28,6 +28,7 @@ from typing import Any
 
 from agentharness.bootstrap.discovery import (
     CAPABILITY_LABELS,
+    NOT_PYTHON_DETAIL,
     RepoInventory,
     discover,
 )
@@ -169,6 +170,9 @@ class BootstrapPlan:
 
 def _adoption_questions(inventory: RepoInventory) -> tuple[Question, ...]:
     """One question per absent capability that we can actually scaffold."""
+    # Nothing to adopt when the scaffolds do not apply to this project.
+    if any(c.detail == NOT_PYTHON_DETAIL for c in inventory.capabilities):
+        return ()
     return tuple(
         Question(
             id=f"adopt.{capability}",
