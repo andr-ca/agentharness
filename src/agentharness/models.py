@@ -114,6 +114,7 @@ class ResultCode(StrEnum):
     BOOTSTRAP_PLANNED = "bootstrap_planned"
     BOOTSTRAP_APPLIED = "bootstrap_applied"
     BOOTSTRAP_REJECTED = "bootstrap_rejected"
+    HELP_SHOWN = "help_shown"
     INVALID_COMMAND = "invalid_command"
 
 

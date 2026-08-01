@@ -1,7 +1,7 @@
 import argparse
 import json
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Never, TextIO
 
@@ -187,8 +187,8 @@ def execute_bootstrap_plan(
             outcome=Outcome.ERROR,
             summary=str(exc),
             remediation=(
-                "Run 'agentharness bootstrap plan' to list the valid "
-                "question ids."
+                "Run 'agentharness bootstrap plan' to see the findings "
+                "and the valid question ids."
             ),
         )
 
@@ -225,7 +225,7 @@ def execute_bootstrap_apply(
     confirm: str | None,
 ) -> CommandResult:
     """Apply a resolved, hash-confirmed plan through the bootstrap transaction."""
-    from agentharness.bootstrap.plan import _SCAFFOLDS, build_plan
+    from agentharness.bootstrap.plan import build_plan
 
     try:
         plan = build_plan(target_dir, answers=_parse_answers(raw_answers))
@@ -275,11 +275,16 @@ def execute_bootstrap_apply(
     written: list[str] = []
     root = Path(target_dir)
     for action in plan.actions:
-        _, content = _SCAFFOLDS[action.capability]
+        # Content comes from the action. Looking it up by capability could
+        # only ever express scaffolded capabilities, so the two baseline
+        # decisions had nowhere to be written and were silently dropped.
+        content = action.content
         destination = root / action.path
         # Re-check at write time, not just at plan time: the file may have
-        # appeared between planning and applying.
-        if destination.exists():
+        # appeared between planning and applying. Actions that declare
+        # overwrite are exempt — replacing the file IS the change they
+        # describe, and it was shown and hash-confirmed as such.
+        if destination.exists() and not action.overwrite:
             continue
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(content, encoding="utf-8")
@@ -914,12 +919,202 @@ def render_json(result: CommandResult) -> str:
     return json.dumps(result_to_dict(result), allow_nan=False, sort_keys=True)
 
 
+def _render_bootstrap_plan_detail(details: Mapping[str, object]) -> list[str]:
+    """The findings and open questions of a bootstrap plan, for humans.
+
+    Without this, `bootstrap plan` printed a one-line count and told the
+    user to "answer the open questions" — while never saying what they
+    were. The questions existed only in --json, and every form of --help
+    errored, so the interview the command exists to drive was
+    unreachable from the command itself.
+    """
+    lines: list[str] = []
+
+    detected = details.get("detected")
+    if isinstance(detected, Sequence) and not isinstance(detected, str):
+        lines.append("")
+        lines.append("Findings:")
+        for finding in detected:
+            if not isinstance(finding, Mapping):
+                continue
+            mark = "+" if finding.get("present") else "-"
+            label = finding.get("label", finding.get("capability", "?"))
+            lines.append(f"  {mark} {label}: {finding.get('detail', '')}")
+            evidence = finding.get("evidence")
+            if isinstance(evidence, Sequence) and not isinstance(evidence, str):
+                for item in evidence:
+                    lines.append(f"      {item}")
+
+    actions = details.get("actions")
+    if isinstance(actions, Sequence) and not isinstance(actions, str) and actions:
+        lines.append("")
+        lines.append("Proposed changes:")
+        for action in actions:
+            if isinstance(action, Mapping):
+                # Show the action's own summary and rationale. An earlier
+                # cut invented a `kind` key that does not exist and fell
+                # back to a generic "change:" label, discarding the
+                # justification the plan already carried — the user was
+                # asked to approve writes with no stated reason.
+                lines.append(f"  {action.get('summary', action.get('path', ''))}")
+                rationale = action.get("rationale")
+                if rationale:
+                    lines.append(f"      {rationale}")
+            else:
+                lines.append(f"  {action}")
+
+    questions = details.get("questions")
+    if isinstance(questions, Sequence) and not isinstance(questions, str):
+        # Answered questions are shown too, with the answer: a user
+        # supplying them one at a time needs to see what is already
+        # settled, not just what remains.
+        open_questions = [
+            q for q in questions
+            if isinstance(q, Mapping) and q.get("answered") is None
+        ]
+        answered = [
+            q for q in questions
+            if isinstance(q, Mapping) and q.get("answered") is not None
+        ]
+        if answered:
+            lines.append("")
+            lines.append("Answered:")
+            for question in answered:
+                lines.append(f"  {question.get('id')} = {question.get('answered')}")
+        if open_questions:
+            lines.append("")
+            lines.append(f"Open questions ({len(open_questions)}):")
+            for question in open_questions:
+                lines.append("")
+                lines.append(f"  {question.get('id')}")
+                lines.append(f"    {question.get('prompt', '')}")
+                default = question.get("default")
+                if default is not None:
+                    lines.append(f"    default: {default}")
+
+    return lines
+
+
+# Human-readable detail bodies, keyed by result code. Keeping this in the
+# presentation layer rather than adding a field to CommandResult means the
+# JSON contract and result schema are untouched — the detail was always
+# in `details`, it simply had no way to reach a human reader.
+_DETAIL_RENDERERS: dict[ResultCode, Callable[[Mapping[str, object]], list[str]]] = {
+    ResultCode.BOOTSTRAP_PLANNED: _render_bootstrap_plan_detail,
+}
+
+
 def render_human(result: CommandResult) -> str:
-    return f"{result.outcome.value}: {result.summary}\nNext: {result.remediation}"
+    # Help is the one result whose summary IS the message; prefixing it
+    # with "success:" would frame documentation as a status report.
+    if result.code is ResultCode.HELP_SHOWN:
+        return f"{result.summary}\n\nNext: {result.remediation}"
+    lines = [f"{result.outcome.value}: {result.summary}"]
+    renderer = _DETAIL_RENDERERS.get(result.code)
+    if renderer is not None:
+        lines.extend(renderer(result.details))
+    lines.append(f"Next: {result.remediation}")
+    return "\n".join(lines)
+
+
+# Help text for the Python-served commands, keyed by command path.
+#
+# These parsers are all built with add_help=False, deliberately: argparse's
+# built-in help prints straight to stdout and raises SystemExit, which
+# bypasses the CommandResult contract every other output here goes through
+# (and so would never honour --json). The cost was that `--help` did not
+# merely lack detail, it ERRORED — on `bootstrap`, `bootstrap plan`, and
+# `-h` alike. For a command whose entire job is to interview the user,
+# the one affordance a stuck user reaches for first returned
+# "error: The command is invalid."
+_HELP_TOPICS: dict[tuple[str, ...], str] = {
+    (): (
+        "agentharness — project bootstrap and runtime commands.\n"
+        "\n"
+        "  bootstrap plan    Inventory the project; report findings and\n"
+        "                    the questions to answer. Read-only.\n"
+        "  bootstrap apply   Apply a resolved, hash-confirmed plan.\n"
+        "  status            Report the installed harness state.\n"
+        "\n"
+        "Run 'agentharness <command> --help' for detail. Setup commands\n"
+        "(init, doctor, audit, update, uninstall) are served separately;\n"
+        "run 'agentharness' with no arguments to list them."
+    ),
+    ("bootstrap",): (
+        "agentharness bootstrap — first-run setup for a project.\n"
+        "\n"
+        "  plan     Inventory the project and report findings plus the\n"
+        "           decisions to make. Writes nothing.\n"
+        "  apply    Apply a fully answered plan, confirmed by hash.\n"
+        "\n"
+        "Typical flow:\n"
+        "  agentharness bootstrap plan\n"
+        "  agentharness bootstrap plan --answer rigor.tier=production ...\n"
+        "  agentharness bootstrap apply --answer ... --confirm <plan-hash>"
+    ),
+    ("bootstrap", "plan"): (
+        "agentharness bootstrap plan — inventory a project. Read-only.\n"
+        "\n"
+        "  --target-dir DIR    Project to inspect (default: .)\n"
+        "  --answer KEY=VALUE  Answer one question; repeatable\n"
+        "  --json              Machine-readable output\n"
+        "\n"
+        "Prints what was detected and every question still open, with\n"
+        "its default. A plan is 'resolved' once no questions remain; only\n"
+        "then can it be applied."
+    ),
+    ("bootstrap", "apply"): (
+        "agentharness bootstrap apply — apply a resolved plan.\n"
+        "\n"
+        "  --target-dir DIR    Project to modify (default: .)\n"
+        "  --answer KEY=VALUE  Answer one question; repeatable\n"
+        "  --confirm HASH      The plan hash being approved (required)\n"
+        "  --json              Machine-readable output\n"
+        "\n"
+        "Refuses to run on an unresolved plan, without --confirm, or when\n"
+        "the hash no longer matches — so it can never apply a plan other\n"
+        "than the one that was reviewed."
+    ),
+}
+
+_HELP_FLAGS = frozenset({"-h", "--help"})
+
+
+def _help_result(argv: Sequence[str]) -> CommandResult | None:
+    """A help result when *argv* asks for help, else None.
+
+    Returned as a CommandResult rather than printed, so help obeys the
+    same output contract as everything else.
+    """
+    if not any(arg in _HELP_FLAGS for arg in argv):
+        return None
+    path = tuple(arg for arg in argv if not arg.startswith("-"))
+    # Fall back toward the most specific topic that exists, so
+    # `bootstrap plan --json --help` and an unknown subcommand both land
+    # somewhere useful instead of erroring.
+    while path and path not in _HELP_TOPICS:
+        path = path[:-1]
+    return CommandResult(
+        code=ResultCode.HELP_SHOWN,
+        outcome=Outcome.SUCCESS,
+        summary=_HELP_TOPICS[path],
+        remediation=(
+            "Run 'agentharness bootstrap plan' to inventory this project."
+        ),
+    )
 
 
 def main(argv: Sequence[str] | None = None, output: TextIO | None = None) -> int:
     destination = output if output is not None else sys.stdout
+    effective_argv = list(sys.argv[1:] if argv is None else argv)
+    help_result = _help_result(effective_argv)
+    if help_result is not None:
+        as_json = "--json" in effective_argv
+        print(
+            render_json(help_result) if as_json else render_human(help_result),
+            file=destination,
+        )
+        return 0
     try:
         arguments = create_parser().parse_args(argv)
         if arguments.command == "status":

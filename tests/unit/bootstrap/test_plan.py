@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from agentharness.bootstrap.plan import build_plan
 
 
@@ -182,7 +184,14 @@ def test_a_go_project_gets_no_actions_even_when_answers_are_forced(tmp_path):
     # the test would pass without exercising anything.
     plan = build_plan(tmp_path, answers={"rigor.tier": "production"})
 
-    assert plan.actions == ()
+    # Narrowed to what this test actually guards, per its own comment: no
+    # PYTHON config may land here. The rigor tier is a harness-level
+    # decision and is language-agnostic, so recording it in a Go repo is
+    # correct — asserting no actions at all would forbid that too.
+    assert not [
+        a for a in plan.actions
+        if a.path in ("ruff.toml", "pytest.ini", "mypy.ini")
+    ]
     # And an adoption answer must be rejected outright, not silently ignored:
     # the question does not exist for this project.
     try:
@@ -216,8 +225,19 @@ def test_a_go_project_does_not_claim_python_capabilities_are_absent(tmp_path):
 def test_an_empty_directory_is_treated_as_non_python(tmp_path):
     plan = build_plan(tmp_path, answers={"rigor.tier": "production"})
 
-    assert plan.actions == ()
+    assert not [
+        a for a in plan.actions
+        if a.path in ("ruff.toml", "pytest.ini", "mypy.ini")
+    ]
     assert not [q for q in plan.questions.questions if q.id.startswith("adopt.")]
+
+
+def test_a_non_python_project_can_still_record_its_rigor_tier(tmp_path):
+    # The complement of the two tests above: language-agnostic decisions
+    # must remain available to projects the Python scaffolds do not fit.
+    plan = build_plan(tmp_path, answers={"rigor.tier": "production"})
+
+    assert [a for a in plan.actions if a.path == ".agentharness-profile"]
 
 
 def test_a_python_project_is_unaffected(tmp_path):
@@ -226,3 +246,143 @@ def test_a_python_project_is_unaffected(tmp_path):
     ids = {q.id for q in build_plan(tmp_path).questions.questions}
 
     assert "adopt.lint" in ids
+
+
+# ---------------------------------------------------------------------------
+# The two baseline decisions have to survive the run that asks them.
+#
+# rigor.tier and authority.publish were asked, blocked plan resolution, and
+# were then discarded: neither produced an action, nothing reached disk, and
+# the next `bootstrap plan` asked again. The interview could never converge.
+# Found running the published npm package against a fresh project.
+# ---------------------------------------------------------------------------
+
+_BASELINE = {"rigor.tier": "production", "authority.publish": "stage"}
+
+
+def _py(root: Path) -> None:
+    (root / "pyproject.toml").write_text(
+        '[project]\nname = "w"\nversion = "0.1.0"\n', encoding="utf-8"
+    )
+
+
+def test_rigor_tier_answer_produces_a_file_to_write(tmp_path):
+    _py(tmp_path)
+    plan = build_plan(tmp_path, answers=dict(_BASELINE))
+
+    profile = [a for a in plan.actions if a.path == ".agentharness-profile"]
+    assert profile, "the chosen rigor tier was discarded"
+    assert profile[0].content.strip() == "production"
+
+
+def test_an_existing_profile_answers_the_question(tmp_path):
+    # Convergence: a settled decision must not be re-asked forever.
+    _py(tmp_path)
+    (tmp_path / ".agentharness-profile").write_text("prototype\n", encoding="utf-8")
+
+    plan = build_plan(tmp_path)
+
+    assert plan.answers.get("rigor.tier") == "prototype"
+    assert not [a for a in plan.actions if a.path == ".agentharness-profile"]
+
+
+def test_an_explicit_answer_overrides_what_is_on_disk(tmp_path):
+    # Reading from disk must not make a decision unchangeable.
+    #
+    # The first cut of this test asserted only that the ANSWER changed,
+    # which it did — while no action was produced, so the file kept its
+    # old tier and nothing actually changed. Asserting the outcome, not
+    # the intermediate state, is what makes this test mean anything.
+    _py(tmp_path)
+    (tmp_path / ".agentharness-profile").write_text("prototype\n", encoding="utf-8")
+
+    plan = build_plan(tmp_path, answers={"rigor.tier": "production"})
+
+    assert plan.answers["rigor.tier"] == "production"
+    profile = [a for a in plan.actions if a.path == ".agentharness-profile"]
+    assert profile, "the tier could be answered but never actually changed"
+    assert profile[0].content.strip() == "production"
+    assert profile[0].overwrite
+
+
+def test_a_malformed_profile_can_be_repaired(tmp_path):
+    # Keying the action on existence alone meant a corrupt profile was
+    # permanent: the question re-opened, the answer was accepted, the plan
+    # resolved, and no action was ever proposed to fix the file.
+    _py(tmp_path)
+    (tmp_path / ".agentharness-profile").write_text("banana\n", encoding="utf-8")
+
+    plan = build_plan(tmp_path, answers={"rigor.tier": "production"})
+
+    profile = [a for a in plan.actions if a.path == ".agentharness-profile"]
+    assert profile
+    assert "banana" in profile[0].rationale  # says what it is replacing
+
+
+def test_a_profile_that_already_matches_proposes_nothing(tmp_path):
+    # The complement: convergence must survive the overwrite path.
+    _py(tmp_path)
+    (tmp_path / ".agentharness-profile").write_text("production\n", encoding="utf-8")
+
+    plan = build_plan(tmp_path, answers={"rigor.tier": "production"})
+
+    assert not [a for a in plan.actions if a.path == ".agentharness-profile"]
+
+
+def test_scaffolds_never_overwrite(tmp_path):
+    # The overwrite exemption is for harness-owned decision files only.
+    # An unrecognised ruff.toml must still be left alone.
+    _py(tmp_path)
+    plan = build_plan(
+        tmp_path, answers={**_BASELINE, "adopt.lint": "yes"}
+    )
+    lint = [a for a in plan.actions if a.path == "ruff.toml"]
+    assert lint
+    assert not lint[0].overwrite
+
+
+def test_publish_grant_is_written_only_when_granted(tmp_path):
+    _py(tmp_path)
+
+    granted = build_plan(
+        tmp_path, answers={**_BASELINE, "authority.publish": "publish"}
+    )
+    staged = build_plan(tmp_path, answers=dict(_BASELINE))
+
+    assert [a for a in granted.actions if a.path == ".agentharness-publish-mode"]
+    # 'stage' is the safe default and is represented by the flag's ABSENCE:
+    # answering it must never create the file that grants authority.
+    assert not [a for a in staged.actions if a.path == ".agentharness-publish-mode"]
+
+
+def test_an_existing_publish_flag_answers_the_question(tmp_path):
+    _py(tmp_path)
+    (tmp_path / ".agentharness-publish-mode").touch()
+
+    plan = build_plan(tmp_path)
+
+    assert plan.answers.get("authority.publish") == "publish"
+
+
+def test_an_invalid_rigor_tier_is_rejected(tmp_path):
+    # The answer is now written to a file enforce-profile reads, so an
+    # unvalidated value would produce a config no tool can interpret.
+    _py(tmp_path)
+    with pytest.raises(ValueError, match="invalid value for rigor.tier"):
+        build_plan(tmp_path, answers={"rigor.tier": "banana"})
+
+
+def test_an_invalid_publish_answer_is_rejected(tmp_path):
+    _py(tmp_path)
+    with pytest.raises(ValueError, match="invalid value for authority.publish"):
+        build_plan(tmp_path, answers={"authority.publish": "sometimes"})
+
+
+def test_a_malformed_profile_on_disk_does_not_answer_the_question(tmp_path):
+    # A corrupt file must re-open the question, not silently adopt junk.
+    _py(tmp_path)
+    (tmp_path / ".agentharness-profile").write_text("banana\n", encoding="utf-8")
+
+    plan = build_plan(tmp_path)
+
+    assert "rigor.tier" not in plan.answers

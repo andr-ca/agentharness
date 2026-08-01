@@ -183,7 +183,28 @@ if [ -f tools/context-budget.py ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Gate 6: Git status — no uncommitted or untracked changes
+# Gate 6: Packaged runtime matches source
+# ---------------------------------------------------------------------------
+# dist/agentharness.pyz.sha512 is tracked, and the zipapp is rebuilt during
+# npm prepack — so any change to src/agentharness/ that is not accompanied
+# by a rebuilt checksum leaves the committed artifact stale.
+#
+# Every other gate passed on exactly that state: the whole suite was green,
+# the tree was clean, and CI then failed on "Working tree must be unchanged
+# after prepack/postpack". A gate whose job is to authorise "this work is
+# done" must not be able to pass while the packaged artifact disagrees with
+# the source it was built from.
+#
+# The build is reproducible (--check-reproducible), so running it here is
+# safe: an already-current checksum leaves the tree untouched, and the
+# git-clean gate below is what reports a stale one.
+if [ -f dist/agentharness.pyz.sha512 ] && [ -f tools/runtime/build-zipapp.py ]; then
+    run_gate "runtime-artifact" \
+        python3 tools/runtime/build-zipapp.py --check-reproducible
+fi
+
+# ---------------------------------------------------------------------------
+# Gate 7: Git status — no uncommitted or untracked changes
 # ---------------------------------------------------------------------------
 # `git status --porcelain`, not `git diff HEAD`: a file that was never
 # `git add`-ed is not a tracked file, so `git diff` cannot see it — while

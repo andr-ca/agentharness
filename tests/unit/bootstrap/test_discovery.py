@@ -3,9 +3,13 @@
 Discovery answers one question per capability: does this repository
 already do X, and what is the evidence? It composes the existing
 read-only plugin detectors — it must not reimplement detection, and it
-must never report a capability as present without a config file backing
+must never report a capability as present without file evidence backing
 it, because the whole first-run flow rests on telling the owner what is
 verified versus what is only recommended.
+
+For `test` that evidence is configuration OR an actual test suite:
+pytest needs no config to run, so requiring config there reported
+working, tested projects as untested.
 """
 
 from __future__ import annotations
@@ -134,3 +138,71 @@ def test_loguru_also_counts(tmp_path):
     )
 
     assert discover(tmp_path).capability("logging").present
+
+
+# --------------------------------------------------------------------------
+# Testing is the one capability where configuration is the wrong signal.
+# pytest runs with no config at all, so the most common shape of a working
+# Python project — tests/ directory, pytest in requirements.txt, no
+# [tool.pytest] section — was reported "No test framework configuration
+# found" with empty evidence, and bootstrap offered to scaffold a
+# pytest.ini it did not need. Found on a real consumer project whose
+# tests/test_core.py was present and passing.
+# --------------------------------------------------------------------------
+
+
+def _python_project(root: Path) -> None:
+    _write(root, "pyproject.toml", '[project]\nname = "w"\nversion = "0.1.0"\n')
+
+
+def test_a_test_suite_without_config_counts_as_testing(tmp_path):
+    _python_project(tmp_path)
+    _write(tmp_path, "tests/test_core.py", "def test_x():\n    assert True\n")
+
+    test = discover(tmp_path).capability("test")
+
+    assert test.present
+    assert "tests/test_core.py" in test.evidence
+
+
+def test_a_project_with_no_tests_is_still_reported_absent(tmp_path):
+    # The complement: the fix must not make every project look tested.
+    _python_project(tmp_path)
+    _write(tmp_path, "src/widget/core.py", "def build():\n    return 1\n")
+
+    test = discover(tmp_path).capability("test")
+
+    assert not test.present
+    assert test.evidence == ()
+
+
+def test_configuration_is_preferred_over_file_evidence(tmp_path):
+    # Config names the framework; a filename only shows a convention.
+    _write(tmp_path, "pyproject.toml", "[tool.pytest.ini_options]\n")
+    _write(tmp_path, "tests/test_core.py", "def test_x():\n    assert True\n")
+
+    test = discover(tmp_path).capability("test")
+
+    assert test.present
+    assert "pyproject.toml" in test.evidence
+
+
+def test_root_level_test_files_are_found(tmp_path):
+    # Not every project uses a tests/ directory.
+    _python_project(tmp_path)
+    _write(tmp_path, "test_core.py", "def test_x():\n    assert True\n")
+
+    assert discover(tmp_path).capability("test").present
+
+
+def test_evidence_is_capped_but_the_count_is_reported(tmp_path):
+    # A large suite must not dump hundreds of paths into the interview.
+    _python_project(tmp_path)
+    for i in range(12):
+        _write(tmp_path, f"tests/test_{i}.py", "def test_x():\n    assert True\n")
+
+    test = discover(tmp_path).capability("test")
+
+    assert test.present
+    assert len(test.evidence) <= 4  # 3 paths + the "... and N more" marker
+    assert "12" in test.detail

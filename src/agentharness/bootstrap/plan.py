@@ -88,12 +88,30 @@ _AFFIRMATIVE = {"yes", "y", "true", "1"}
 
 @dataclass(frozen=True)
 class PlanAction:
-    """One file the plan would create, and why."""
+    """One file the plan would create, and why.
+
+    `content` travels with the action rather than being looked up by
+    capability at write time. The lookup form could only express files
+    that map to a scaffolded capability, which is why the two baseline
+    decisions — rigor tier and publish authority — produced no action at
+    all: they were asked, they blocked resolution, and then they were
+    discarded. It is deliberately not part of `to_dict`; the JSON
+    contract describes what will change and why, not file bodies.
+    """
 
     capability: str
     path: str
     summary: str
     rationale: str
+    content: str = ""
+    # Whether this action may replace a file that already exists. Scaffolds
+    # never may — discovery only recognises config it knows, so an
+    # unrecognised file at the same path would be silently clobbered. The
+    # harness's own decision files are different: they have a known, tiny
+    # format that the harness itself owns, and refusing to rewrite them
+    # made a recorded decision permanent — a malformed profile could not
+    # be repaired and a chosen tier could not be changed.
+    overwrite: bool = False
 
     def to_dict(self) -> dict[str, str]:
         return {
@@ -168,6 +186,123 @@ class BootstrapPlan:
         }
 
 
+# Where the two baseline decisions are recorded, and what a valid answer
+# to each one is. These files are what the rest of the harness actually
+# reads: enforce-profile reads .agentharness-profile, and publish
+# authority resolves against .agentharness-publish-mode.
+PROFILE_PATH = ".agentharness-profile"
+PUBLISH_MODE_PATH = ".agentharness-publish-mode"
+
+# The tiers that exist as patterns/profiles/*.yaml. Validated because the
+# answer is now written to disk: an unvalidated value produced a
+# .agentharness-profile that enforce-profile could not read.
+VALID_TIERS: tuple[str, ...] = ("prototype", "production", "internal")
+VALID_PUBLISH: tuple[str, ...] = ("stage", "publish")
+
+_BASELINE_VALID: dict[str, tuple[str, ...]] = {
+    "rigor.tier": VALID_TIERS,
+    "authority.publish": VALID_PUBLISH,
+}
+
+
+def _validate_baseline(supplied: dict[str, str]) -> None:
+    """Reject a baseline answer that is not one of the allowed values.
+
+    Previously any string was accepted, because nothing consumed it.
+    Now that these answers are written to files the harness reads, a
+    typo would produce a config no tool can interpret.
+    """
+    for key, allowed in _BASELINE_VALID.items():
+        value = supplied.get(key)
+        if value is None:
+            continue
+        if value.strip().lower() not in allowed:
+            raise ValueError(
+                f"invalid value for {key}: {value!r} — "
+                f"valid values are: {', '.join(allowed)}"
+            )
+
+
+def _answers_from_disk(root: Path, supplied: dict[str, str]) -> dict[str, str]:
+    """Pre-answer baseline questions already settled on disk.
+
+    Without this the interview never converges: a project that had been
+    bootstrapped was asked the same two questions on every subsequent
+    run, because the answers were only ever held in argv. An explicit
+    --answer still wins, so a run can change a decision.
+    """
+    resolved = dict(supplied)
+
+    profile = root / PROFILE_PATH
+    if "rigor.tier" not in resolved and profile.is_file():
+        existing = profile.read_text(encoding="utf-8", errors="replace").strip()
+        if existing.lower() in VALID_TIERS:
+            resolved["rigor.tier"] = existing.lower()
+
+    if "authority.publish" not in resolved and (root / PUBLISH_MODE_PATH).exists():
+        # The flag's presence IS the grant, so its presence is the answer.
+        resolved["authority.publish"] = "publish"
+
+    return resolved
+
+
+def _decision_actions(root: Path, supplied: dict[str, str]) -> list[PlanAction]:
+    """Files that record the baseline decisions."""
+    actions: list[PlanAction] = []
+
+    tier = supplied.get("rigor.tier", "").strip().lower()
+    if tier:
+        profile = root / PROFILE_PATH
+        current = (
+            profile.read_text(encoding="utf-8", errors="replace").strip().lower()
+            if profile.is_file()
+            else None
+        )
+        # Propose a write whenever the file does not already say what was
+        # chosen. Keying only on existence meant a malformed profile could
+        # never be repaired and an existing tier could never be changed:
+        # the answer was accepted, the plan resolved, and nothing happened.
+        if current != tier:
+            verb = "Update" if current is not None else "Create"
+            rationale = (
+                f"You chose the {tier} rigor tier; this is the file "
+                f"enforce-profile reads to apply it."
+            )
+            if current is not None:
+                rationale = (
+                    f"{rationale} The file currently reads {current!r}."
+                )
+            actions.append(
+                PlanAction(
+                    capability="rigor",
+                    path=PROFILE_PATH,
+                    summary=f"{verb} {PROFILE_PATH} ({tier})",
+                    rationale=rationale,
+                    content=f"{tier}\n",
+                    overwrite=True,
+                )
+            )
+
+    publish = supplied.get("authority.publish", "").strip().lower()
+    if publish == "publish" and not (root / PUBLISH_MODE_PATH).exists():
+        actions.append(
+            PlanAction(
+                capability="authority",
+                path=PUBLISH_MODE_PATH,
+                summary=f"Create {PUBLISH_MODE_PATH}",
+                rationale=(
+                    "You granted agents standing authority to push and open "
+                    "PRs. Delete this file to revoke it."
+                ),
+                # Empty, matching the `touch` the docs describe: the flag's
+                # presence is the grant, and nothing reads its contents.
+                content="",
+            )
+        )
+
+    return actions
+
+
 def _adoption_questions(inventory: RepoInventory) -> tuple[Question, ...]:
     """One question per absent capability that we can actually scaffold."""
     # Nothing to adopt when the scaffolds do not apply to this project.
@@ -199,6 +334,8 @@ def build_plan(
     """
     root_path = Path(root)
     supplied = dict(answers or {})
+    _validate_baseline(supplied)
+    supplied = _answers_from_disk(root_path, supplied)
     inventory = discover(root_path)
 
     questions = BASELINE_QUESTIONS + _adoption_questions(inventory)
@@ -215,13 +352,13 @@ def build_plan(
         if question.id in supplied:
             question_set = question_set.answer(question, supplied[question.id])
 
-    actions: list[PlanAction] = []
+    actions: list[PlanAction] = _decision_actions(root_path, supplied)
     for capability in inventory.absent:
         if capability not in _SCAFFOLDS:
             continue
         if supplied.get(f"adopt.{capability}", "").strip().lower() not in _AFFIRMATIVE:
             continue
-        rel_path, _ = _SCAFFOLDS[capability]
+        rel_path, scaffold_content = _SCAFFOLDS[capability]
         # Never propose overwriting something already on disk. Discovery
         # only reads config it recognises, so an unrecognised file at the
         # same path would otherwise be silently clobbered.
@@ -236,6 +373,7 @@ def build_plan(
                     f"{CAPABILITY_LABELS.get(capability, capability)} was not "
                     f"detected and you asked to adopt it."
                 ),
+                content=scaffold_content,
             )
         )
 

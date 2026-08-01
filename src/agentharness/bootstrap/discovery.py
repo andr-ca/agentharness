@@ -60,10 +60,12 @@ CAPABILITY_LABELS: dict[str, str] = {
 class CapabilityFinding:
     """What was found for one capability.
 
-    `present` is true only with config-file evidence. `evidence` lists the
-    files that establish it, and is empty whenever `present` is false —
-    absent capabilities must not carry partial evidence that could read
-    as a weak positive.
+    `present` requires file evidence — configuration for most
+    capabilities, and for `test` either configuration or an actual test
+    suite (see `_detect_test` for why config alone is the wrong signal
+    there). `evidence` lists the files that establish it, and is empty
+    whenever `present` is false — absent capabilities must not carry
+    partial evidence that could read as a weak positive.
     """
 
     capability: str
@@ -115,8 +117,70 @@ def _detect_lint(root: Path) -> tuple[bool, str, tuple[str, ...]]:
     return _from_tool_list(detect_lint_tools(root), "linter")
 
 
+# How many test files to cite as evidence. The point is to show the user
+# what was found, not to enumerate a suite that may run to thousands.
+_TEST_EVIDENCE_LIMIT = 3
+
+# Conventional pytest/unittest discovery patterns, in the order a reader
+# would expect to see them cited.
+_TEST_FILE_GLOBS: tuple[str, ...] = (
+    "tests/**/test_*.py",
+    "tests/**/*_test.py",
+    "test_*.py",
+    "*_test.py",
+)
+
+
+def _detect_test_files(root: Path) -> tuple[str, ...]:
+    """Test files present in *root*, by convention. Read-only."""
+    found: list[str] = []
+    for pattern in _TEST_FILE_GLOBS:
+        for path in sorted(root.glob(pattern)):
+            if path.is_file():
+                found.append(path.relative_to(root).as_posix())
+    # Deduplicate while keeping the order above: the globs overlap (a file
+    # named tests/test_x.py matches only one, but tests/a/x_test.py can be
+    # reached by more than one pattern as they grow).
+    return tuple(dict.fromkeys(found))
+
+
 def _detect_test(root: Path) -> tuple[bool, str, tuple[str, ...]]:
-    return _from_tool_list(detect_test_frameworks(root), "test framework")
+    """Detect testing, from configuration OR from an actual test suite.
+
+    Configuration alone is the wrong signal for this one capability.
+    pytest requires no config to run, so the overwhelmingly common shape
+    of a working Python project — a tests/ directory, pytest in
+    requirements.txt, no [tool.pytest] section — was reported as "No test
+    framework configuration found" with no evidence at all, and bootstrap
+    then offered to scaffold a pytest.ini the project did not need.
+
+    Observed on a real consumer project: tests/test_core.py present and
+    passing, reported absent.
+
+    A test file that exists is stronger evidence of testing than a config
+    section that merely could exist, so it is treated as such. Config is
+    still preferred when present, because it names the framework, whereas
+    a file only shows the convention being followed.
+    """
+    present, detail, evidence = _from_tool_list(
+        detect_test_frameworks(root), "test framework"
+    )
+    if present:
+        return present, detail, evidence
+
+    test_files = _detect_test_files(root)
+    if not test_files:
+        return present, detail, evidence
+
+    shown = test_files[:_TEST_EVIDENCE_LIMIT]
+    extra = len(test_files) - len(shown)
+    detail = (
+        f"test files present, no framework configuration"
+        f" ({len(test_files)} file{'s' if len(test_files) != 1 else ''})"
+    )
+    if extra:
+        shown = (*shown, f"... and {extra} more")
+    return True, detail, shown
 
 
 def _detect_types(root: Path) -> tuple[bool, str, tuple[str, ...]]:

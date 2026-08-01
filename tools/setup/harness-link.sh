@@ -103,6 +103,12 @@ Usage: $(basename "$0") <subcommand> [target-project-dir] [OPTIONS]
 
 Subcommands: init, plan, status, doctor, audit, audit-prs, enforce-profile, generate-clients, update, uninstall
 
+Also available (served by the packaged Python core, not this script):
+  bootstrap plan               Inventory a project and report the setup
+                                decisions to make. Read-only.
+  bootstrap apply              Apply a resolved, hash-confirmed plan.
+  Run 'agentharness bootstrap --help' for detail.
+
 init options:
   --mode link|copy|submodule|npm
                                 Install mode (default: copy; the npm/npx
