@@ -32,6 +32,28 @@ A rename/removal like this should have a deprecation note in
 `CHANGELOG.md`'s `Unreleased` section before it ships, so consumers
 running `harness-link.sh audit` see it coming.
 
+### `package.json` and the Python core's `__version__` are independent
+
+They look like they should match. They must not be aligned casually.
+
+- `package.json`'s `version` is the **distribution** version — what a
+  consumer pins and what the tag must equal.
+- `src/agentharness/__init__.py`'s `__version__` is the **experimental
+  Python core's own** version, and the runtime-lock protocol pins against
+  it: `runtime_upgrade.py` rejects a consumer's lock unless
+  `package.version`, `zipapp.core_version` and
+  `compatibility_provider_version` all equal `__version__`.
+
+Bumping `__version__` to match a release would therefore invalidate every
+consumer lock written against the old value, failing with *"trusted base
+lock does not match the running base runtime"*. It has stayed `0.1.0`
+across v0.3.0 and v0.4.0 for that reason.
+
+Changing it is a lockstep operation requiring every consumer lock to be
+regenerated, and belongs to whenever the Python core stops being
+experimental — not to an ordinary release cut. **Do not "fix" the
+mismatch as tidy-up.**
+
 ## Release Checklist
 
 1. `main`'s latest CI run is green — check with
