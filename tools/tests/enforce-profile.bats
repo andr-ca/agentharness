@@ -381,3 +381,60 @@ EOF
     run bash "$SCRIPT" enforce-profile "$TEST_PROJECT" --strict
     [ "$status" -eq 0 ]
 }
+
+# ---------------------------------------------------------------------------
+# Coverage must measure the code under test, not the tests. --cov=$target
+# covered the whole project root, and test files are ~100% covered by
+# definition, so they padded the denominator: a project whose SOURCE sat at
+# 75% reported 86% and passed an 80% floor. The harness measures its own
+# coverage as --cov=src/agentharness; consumers were handed the padded form.
+# ---------------------------------------------------------------------------
+
+write_src_layout_project() {
+    # Source at 75% (one uncovered branch), tests fully covered. Combined
+    # they exceed 80%; the source alone does not.
+    cat > "$TEST_PROJECT/requirements.txt" <<'EOF'
+pytest
+EOF
+    printf 'production\n' > "$TEST_PROJECT/.agentharness-profile"
+    mkdir -p "$TEST_PROJECT/src" "$TEST_PROJECT/tests"
+    cat > "$TEST_PROJECT/src/calc.py" <<'EOF'
+def add(a, b):
+    return a + b
+
+
+def unused(a, b):
+    return a - b
+EOF
+    cat > "$TEST_PROJECT/tests/test_calc.py" <<'EOF'
+from src.calc import add
+
+
+def test_add():
+    assert add(1, 2) == 3
+EOF
+}
+
+@test "enforce-profile: coverage measures src/, not the tests that pad it" {
+    write_src_layout_project
+    run bash "$SCRIPT" enforce-profile "$TEST_PROJECT"
+    # Source is 75%, below the production floor. Including tests/ would
+    # lift the figure over 80% and let this pass, which is the bug.
+    [ "$status" -ne 0 ]
+}
+
+@test "enforce-profile: a genuinely covered src/ project still passes" {
+    write_src_layout_project
+    # Cover the remaining function, so source alone clears the floor.
+    cat >> "$TEST_PROJECT/tests/test_calc.py" <<'EOF'
+
+
+from src.calc import unused
+
+
+def test_unused():
+    assert unused(3, 1) == 2
+EOF
+    run bash "$SCRIPT" enforce-profile "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+}

@@ -2219,7 +2219,27 @@ cmd_enforce_profile() {
         echo "  Python project detected; tests.required: true, coverage_min: ${coverage_min:-none}"
         local pytest_args=(-q)
         if [ -n "$coverage_min" ]; then
-            pytest_args+=("--cov=$target" "--cov-branch" "--cov-fail-under=$coverage_min")
+            # Measure the code under test, NOT the tests. Covering the whole
+            # project root pads the denominator: test files are ~100%
+            # covered by definition, so they lift the figure and a project
+            # whose source sits below the floor can still pass. Observed: a
+            # src/ at 75% reported 86% against an 80% floor and passed.
+            # This harness measures its own coverage as --cov=src/agentharness
+            # for exactly that reason; consumers were getting the padded form.
+            local cov_target="$target"
+            if [ -d "$target/src" ]; then
+                cov_target="$target/src"
+            fi
+            if [ "$cov_target" = "$target" ]; then
+                echo "  Note: no src/ directory — measuring the whole project," \
+                     "so test files count toward coverage and the figure will" \
+                     "read higher than your source alone."
+            else
+                echo "  Coverage measured over src/ (tests excluded)"
+            fi
+            pytest_args+=(
+                "--cov=$cov_target" "--cov-branch" "--cov-fail-under=$coverage_min"
+            )
         fi
         (cd "$target" && python3 -m pytest "${pytest_args[@]}")
         return
