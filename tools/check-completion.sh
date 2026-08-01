@@ -152,10 +152,57 @@ fi
 # ---------------------------------------------------------------------------
 # Gate 5: Shellcheck on changed/added .sh files
 # ---------------------------------------------------------------------------
+# "Changed" must mean changed BY THIS WORK, not merely uncommitted.
+#
+# This gate compared only the working tree and the index, so a .sh file
+# that had been committed was invisible to it. That is not an edge case:
+# the workflow this gate serves says to commit first and then run the
+# gate, so on the mandated path shellcheck ran on nothing at all.
+#
+# Demonstrated: committed a shell script with real shellcheck warnings,
+# left the tree clean, and the gate reported
+#   "shellcheck (no .sh files changed)" ... can_declare_complete: true
+#
+# Same root cause as the git-clean gate above — reasoning about
+# uncommitted state in a workflow that commits before checking — so the
+# comparison is against the merge-base with the default branch, which
+# covers everything this branch has done however it is staged.
 if command -v shellcheck >/dev/null 2>&1; then
+    # Fall back to HEAD when there is no upstream to compare against (a
+    # fresh clone, a detached checkout, or main itself). Falling back to
+    # the old working-tree-only behaviour is a narrower check, never a
+    # silent pass on something unexamined.
+    base_ref=""
+    for candidate in origin/main origin/master main master; do
+        if git rev-parse --verify --quiet "$candidate" >/dev/null 2>&1; then
+            base_ref="$(git merge-base "$candidate" HEAD 2>/dev/null || true)"
+            [ -n "$base_ref" ] && break
+        fi
+    done
+
+    committed_sh=""
+    if [ -n "$base_ref" ]; then
+        committed_sh=$(git diff --name-only "$base_ref"...HEAD 2>/dev/null \
+            | grep '\.sh$' || true)
+    fi
     changed_sh=$(git diff --name-only HEAD 2>/dev/null | grep '\.sh$' || true)
     new_sh=$(git diff --cached --name-only --diff-filter=A 2>/dev/null | grep '\.sh$' || true)
-    sh_files=$(printf '%s\n%s' "$changed_sh" "$new_sh" | grep -v '^$' | sort -u || true)
+    # Untracked scripts count too: a brand-new .sh that was never staged
+    # is exactly the case the git-clean gate was fixed to catch.
+    untracked_sh=$(git ls-files --others --exclude-standard 2>/dev/null \
+        | grep '\.sh$' || true)
+    sh_files=$(printf '%s\n%s\n%s\n%s' \
+        "$committed_sh" "$changed_sh" "$new_sh" "$untracked_sh" \
+        | grep -v '^$' | sort -u || true)
+    # Drop paths deleted by this branch — shellcheck cannot read them and
+    # would fail the gate for a file that is correctly gone.
+    if [ -n "$sh_files" ]; then
+        existing_sh=""
+        while IFS= read -r candidate_file; do
+            [ -f "$candidate_file" ] && existing_sh="${existing_sh}${candidate_file}"$'\n'
+        done <<< "$sh_files"
+        sh_files=$(printf '%s' "$existing_sh" | grep -v '^$' || true)
+    fi
     if [ -n "$sh_files" ]; then
         # shellcheck disable=SC2086
         if echo "$sh_files" | xargs shellcheck -S warning 2>/dev/null; then
