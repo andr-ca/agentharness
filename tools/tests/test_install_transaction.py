@@ -691,3 +691,77 @@ def test_uninstall_all_leaves_edited_file_and_warns(tmp_path: Any) -> None:
     log = it.uninstall_all(state, base_dir=tmp_path)
     assert rule.read_text() == "edited after install\n"
     assert any("edited" in line for line in log)
+
+
+# ---------------------------------------------------------------------------
+# uninstall must not leave 0-byte husks. When install CREATES an instructions
+# file, that file holds nothing but the managed block; stripping the block
+# leaves an empty CLAUDE.md/AGENTS.md/GEMINI.md behind, which reads as
+# "configured" to a human and to some tools. Found by running a full
+# install -> update -> uninstall journey against a real project.
+#
+# Emptiness is the safe discriminator, and needs no state-schema change: a
+# file the user already had keeps their content after block removal, so an
+# empty result means the block was all the file ever was.
+# ---------------------------------------------------------------------------
+
+
+def _block(body: str = "harness content") -> str:
+    # Real marker syntax, per block_installer's _BEGIN_RE/_END_RE. An
+    # invented one would make remove_block a no-op and these tests would
+    # pass or fail for reasons unrelated to what they name.
+    return (
+        "<!-- agentharness:begin id=core-instructions version=abc123 -->\n"
+        f"{body}\n"
+        "<!-- agentharness:end id=core-instructions -->\n"
+    )
+
+
+def _state(file_name: str) -> dict:
+    return {
+        "managed_blocks": [{"file": file_name, "block_id": "core-instructions"}],
+        "overwritten_files": [],
+    }
+
+
+def test_uninstall_removes_a_file_that_held_only_the_block(tmp_path):
+    path = tmp_path / "CLAUDE.md"
+    path.write_text(_block())
+
+    log = it.uninstall_all(_state("CLAUDE.md"), tmp_path)
+
+    assert not path.exists(), "an install-created file must not survive as a husk"
+    assert any("removed" in line for line in log)
+
+
+def test_uninstall_keeps_a_file_the_user_already_had(tmp_path):
+    # The load-bearing counter-case: their content must survive.
+    path = tmp_path / "CLAUDE.md"
+    path.write_text("# My own project rules\n\n" + _block())
+
+    it.uninstall_all(_state("CLAUDE.md"), tmp_path)
+
+    assert path.exists()
+    assert "My own project rules" in path.read_text()
+    assert "harness content" not in path.read_text()
+
+
+def test_uninstall_removes_a_file_left_with_only_whitespace(tmp_path):
+    # Block removal can leave stray newlines; whitespace is still empty.
+    path = tmp_path / "AGENTS.md"
+    path.write_text("\n\n" + _block() + "\n")
+
+    it.uninstall_all(_state("AGENTS.md"), tmp_path)
+
+    assert not path.exists()
+
+
+def test_uninstall_leaves_an_untouched_file_alone(tmp_path):
+    # No block present: nothing was ours, so nothing is removed.
+    path = tmp_path / "CLAUDE.md"
+    path.write_text("# Not ours\n")
+
+    it.uninstall_all(_state("CLAUDE.md"), tmp_path)
+
+    assert path.exists()
+    assert path.read_text() == "# Not ours\n"

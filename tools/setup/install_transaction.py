@@ -395,8 +395,22 @@ def uninstall_all(state: dict[str, Any], base_dir: Path) -> list[str]:
         content = path.read_text()
         removed = bi.remove_block(content, entry["block_id"])
         if removed != content:
-            bi.atomic_write(path, removed)
-            log.append(f"{entry['file']}: removed managed block")
+            if removed.strip():
+                bi.atomic_write(path, removed)
+                log.append(f"{entry['file']}: removed managed block")
+            else:
+                # Nothing but the block was ever in this file, so install
+                # created it — leaving a 0-byte CLAUDE.md/AGENTS.md behind
+                # reads as "configured" to a human and to some tools.
+                # Emptiness is a safe discriminator and needs no extra
+                # state: a file the user already had keeps their content
+                # after block removal, so an empty result means the block
+                # was all the file ever was.
+                path.unlink()
+                log.append(
+                    f"{entry['file']}: removed managed block and the file, "
+                    "which held nothing else"
+                )
         else:
             log.append(f"{entry['file']}: block not found, nothing to remove")
 
