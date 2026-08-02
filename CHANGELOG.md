@@ -6,6 +6,19 @@ section into a tagged version.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-02
+
+MINOR rather than PATCH: every entry below changes consumer-visible
+behaviour.
+
+**Read this before updating a pinned consumer.** The `enforce-profile`
+coverage fix can fail a gate that previously passed — not because your
+project changed, but because the old measurement was wrong. Coverage was
+computed over the tests as well as the code, and test files are ~100%
+covered by definition, so they inflated the figure. A project reporting
+86% may genuinely be at 75%. That is the number the floor was always meant
+to be applied to.
+
 ### Fixed
 - **`enforce-profile` measured coverage over the tests as well as the
   code.** `--cov` pointed at the project root, and test files are ~100%
@@ -61,6 +74,10 @@ section into a tagged version.
   shellcheck examined nothing. A committed, demonstrably broken script
   reported `can_declare_complete: true`. Now compares against the
   merge-base with the default branch, and covers untracked scripts.
+- **The trunk-protection hook printed its remediation steps as raw escape
+  codes.** The colour variables hold `\033[...m` sequences and the
+  numbered steps used a plain `echo` rather than `echo -e`, so the part of
+  the refusal telling you what to do about it arrived unreadable.
 
 ## [0.5.0] - 2026-08-01
 
