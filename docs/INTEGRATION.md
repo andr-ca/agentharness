@@ -133,11 +133,17 @@ agentharness bootstrap apply --answer rigor.tier=production --confirm "$PLAN_HAS
 
 1. **Inventories the repository, read-only.** Detects linting, test
    framework, type checking, logging, documentation tooling, and mutation
-   testing from configuration files. A capability counts as present only
-   with a config file backing it, and the output names that file as
-   evidence.
+   testing. A capability counts as present only with file evidence, and
+   the output names those files.
+
+   Testing is the exception to "evidence means configuration": pytest
+   runs with no config at all, so an actual test suite counts as well.
+   Requiring configuration reported working, tested projects as untested
+   and offered them a `pytest.ini` they did not need.
 2. **Asks what it cannot detect.** Rigor tier, publish authority, and
-   whether to adopt each capability the project is missing.
+   whether to adopt each capability the project is missing. `plan` prints
+   every open question with its prompt and default, alongside the
+   findings behind them and the rationale for each proposed change.
 3. **Applies only what was answered and confirmed.** `apply` refuses an
    unresolved plan, refuses to run without `--confirm`, and refuses a
    hash that no longer matches — so it can never act on a plan you did
@@ -147,11 +153,46 @@ agentharness bootstrap apply --answer rigor.tier=production --confirm "$PLAN_HAS
 
 | Property | How it is enforced |
 |---|---|
-| `plan` never writes | It only reads config files; verified by test |
+| `plan` never writes | It only reads — config files, and the filenames of an existing test suite; verified by test |
 | Existing setup is preserved | A detected capability is never offered for adoption and never generates an action |
-| No file is clobbered | Actions skip any path that already exists — re-checked at write time, not just at plan time |
+| No file is clobbered | Scaffolds skip any path that already exists — re-checked at write time, not just at plan time |
+| Decisions can be changed | The harness's own decision files (below) are the one exception: they are rewritten when your answer differs from what they say, since otherwise a recorded decision would be permanent and a malformed one unrepairable. The plan shows the value being replaced |
 | Nothing happens by default | Every missing capability is an explicit question; unanswered means no action |
 | Confirmation is meaningful | The hash covers the inventory, every answer, and every action |
+
+### What gets written
+
+Adopting a capability writes its starter config (`ruff.toml`,
+`pytest.ini`, `mypy.ini`). The two baseline decisions are recorded in the
+files the rest of the harness actually reads:
+
+| Answer | File | Effect |
+|---|---|---|
+| `rigor.tier=<tier>` | `.agentharness-profile` | What `enforce-profile` applies. One of `prototype`, `production`, `internal` |
+| `authority.publish=publish` | `.agentharness-publish-mode` | Grants standing push/PR authority. Delete the file to revoke it |
+| `authority.publish=stage` | *(none)* | The safe default is the flag's **absence** — answering it never creates the file that grants authority |
+
+Both appear as ordinary plan actions, so they are shown, hashed, and
+confirmed like any other write.
+
+A decision already on disk pre-answers its question, so a bootstrapped
+project converges: running `bootstrap plan` again proposes nothing and
+asks nothing. An explicit `--answer` still wins, so a decision can be
+changed later.
+
+Because `stage` writes no file, it is not recorded and is asked again on
+the next run. That is a known gap, not a design intent — see
+[ROADMAP.md](../ROADMAP.md).
+
+### Getting help
+
+Every bootstrap command documents itself:
+
+```bash
+agentharness bootstrap --help
+agentharness bootstrap plan --help
+agentharness bootstrap apply --help
+```
 
 ### For agents
 
