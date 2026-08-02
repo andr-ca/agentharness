@@ -6,6 +6,57 @@ section into a tagged version.
 
 ## [Unreleased]
 
+### Fixed
+- **`enforce-profile` measured coverage over the tests as well as the
+  code.** `--cov` pointed at the project root, and test files are ~100%
+  covered by definition, so they padded the denominator: a project whose
+  source sat at 75% reported 86% and passed an 80% floor. Worse than an
+  inaccurate number — the metric improved as you added test code whether
+  or not it covered anything. Now prefers `src/` when present; where there
+  is no `src/` the behaviour is unchanged but the run says so explicitly
+  rather than reporting an inflated figure silently.
+- **`bootstrap plan` never showed the questions it told you to answer.**
+  It printed a one-line count and said "answer the open questions"; the
+  questions existed only under `--json`. Human output now prints the
+  findings, the proposed changes with their rationale, answers already
+  given, and every open question with its prompt and default.
+- **`bootstrap --help` errored.** Every form of it — `bootstrap --help`,
+  `bootstrap plan --help`, `-h` — returned "The command is invalid", and
+  `bootstrap` was absent from every other help surface the package had.
+  All bootstrap commands now document themselves, and `--help` honours
+  `--json` like any other result.
+- **`bootstrap` reported a working test suite as absent.** Detection read
+  configuration only, and pytest needs none, so a project with `tests/`
+  and pytest in `requirements.txt` was told it had no test framework and
+  offered a `pytest.ini` it did not need. Testing is now detected from
+  configuration *or* an actual suite.
+- **`bootstrap` discarded the rigor tier and publish authority answers.**
+  Both were asked, both blocked plan resolution, and neither produced an
+  action — so nothing was written and the next run asked again. The
+  interview could never converge. `rigor.tier` now writes
+  `.agentharness-profile` and `authority.publish=publish` writes
+  `.agentharness-publish-mode`, both as ordinary confirmed plan actions;
+  decisions already on disk pre-answer their questions. Baseline answers
+  are also validated now that they reach files the harness reads.
+  `stage` deliberately writes nothing — absence of the flag is the safe
+  default — so that answer is still re-asked; see ROADMAP.
+- **A recorded rigor tier could not be changed or repaired.** The write
+  was proposed only when the file was absent, so a malformed
+  `.agentharness-profile` was permanent and an existing tier could never
+  be changed: the answer was accepted, the plan resolved, and nothing
+  happened. The write is now proposed whenever the file does not already
+  say what was chosen, and the plan names the value being replaced.
+- **The completion gate could pass on a stale packaged runtime.**
+  `dist/agentharness.pyz.sha512` is tracked and rebuilt during npm
+  prepack, but nothing in the gate rebuilt it, so a source change with a
+  clean tree passed every gate and failed CI. The gate now rebuilds it.
+- **The completion gate never ran shellcheck on committed changes.** It
+  compared only the working tree and the index, while the workflow it
+  serves commits *before* running the gate — so on the mandated path
+  shellcheck examined nothing. A committed, demonstrably broken script
+  reported `can_declare_complete: true`. Now compares against the
+  merge-base with the default branch, and covers untracked scripts.
+
 ## [0.5.0] - 2026-08-01
 
 MINOR rather than PATCH: several fixes change consumer-visible behaviour,

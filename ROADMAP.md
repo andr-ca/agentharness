@@ -105,8 +105,21 @@ conflated, which made the state unreadable from this file alone.
   its owner must make; `agentharness bootstrap apply --confirm <hash>`
   creates only what was answered for. The `project-bootstrap` skill
   conducts the interview. `plan` is read-only, `apply` refuses an
-  unresolved or unconfirmed plan, and neither overwrites existing
-  configuration.
+  unresolved or unconfirmed plan, and scaffolds never overwrite existing
+  configuration. The harness's own decision files are the one exception —
+  they are rewritten when an answer differs from what they say, because
+  otherwise a recorded decision was permanent and a malformed one
+  unrepairable.
+- **Known gap:** answering `authority.publish=stage` records nothing.
+  That is correct as far as it goes — the safe default is the absence of
+  `.agentharness-publish-mode`, and answering it must never create the
+  file that grants authority — but it means the answer cannot be
+  distinguished from "never asked", so the question is re-asked on every
+  run while `rigor.tier` converges. Closing it needs somewhere to record
+  "asked and answered", which is a design decision (a small decision
+  record, or reusing the existing `.agentharness-authority.json`
+  contract) rather than an oversight, so it is recorded here rather than
+  resolved unilaterally.
 - **Still experimental:** the remaining gates/profiles/plugins machinery
   under `src/agentharness/` is not wired into the public CLI —
   `MANIFEST.md` records it as such. `tools/setup/harness-link.sh` remains
