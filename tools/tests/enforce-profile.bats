@@ -318,6 +318,10 @@ write_vitest_project() {
 {"name": "fixture", "scripts": {"test": "vitest run"}}
 EOF
     mkdir -p "$TEST_PROJECT/node_modules/.bin"
+    # A real project that enforces coverage has a provider installed —
+    # Vitest does not bundle one — so the fixture must have it too, or it
+    # is not representing a project that could produce coverage at all.
+    mkdir -p "$TEST_PROJECT/node_modules/@vitest/coverage-v8"
     cat > "$TEST_PROJECT/node_modules/.bin/vitest" <<EOF
 #!/usr/bin/env bash
 mkdir -p coverage
@@ -352,6 +356,58 @@ EOF
     echo "production" > "$TEST_PROJECT/.agentharness-profile"
     run bash "$SCRIPT" enforce-profile "$TEST_PROJECT"
     [ "$status" -ne 0 ]
+    # It must fail because the RUN failed, not because a preflight
+    # refused before running. Without this the test passes on any
+    # non-zero exit, including one that never invoked vitest at all.
+    [[ "$output" != *"no Vitest coverage provider is installed"* ]]
+}
+
+# ---------------------------------------------------------------------------
+# Vitest does not bundle a coverage provider. Without one the run aborts
+# with its own bare "MISSING DEPENDENCY  Cannot find dependency
+# '@vitest/coverage-v8'" and nothing else — which reached the consumer
+# through the generated gate as a third-party error with no harness
+# context and no remediation. A useful message existed, but only on the
+# path taken when vitest SUCCEEDS and writes no summary, so the common
+# cause never reached it.
+# ---------------------------------------------------------------------------
+
+@test "enforce-profile (Vitest): a missing coverage provider is named, with the fix" {
+    command -v node >/dev/null || skip "node not installed"
+    write_vitest_project 100
+    rm -rf "$TEST_PROJECT/node_modules/@vitest/coverage-v8"
+    echo "production" > "$TEST_PROJECT/.agentharness-profile"
+
+    run bash "$SCRIPT" enforce-profile "$TEST_PROJECT"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" =~ "no Vitest coverage provider is installed" ]]
+    [[ "$output" =~ "npm install -D @vitest/coverage-v8" ]]
+}
+
+@test "enforce-profile (Vitest): the istanbul provider also satisfies the check" {
+    command -v node >/dev/null || skip "node not installed"
+    write_vitest_project 100
+    rm -rf "$TEST_PROJECT/node_modules/@vitest/coverage-v8"
+    mkdir -p "$TEST_PROJECT/node_modules/@vitest/coverage-istanbul"
+    echo "production" > "$TEST_PROJECT/.agentharness-profile"
+
+    run bash "$SCRIPT" enforce-profile "$TEST_PROJECT"
+
+    [ "$status" -eq 0 ]
+}
+
+@test "enforce-profile (Vitest): no provider is needed when no coverage floor applies" {
+    # prototype does not set coverage_min, so demanding a provider would
+    # block a project that never asked for coverage.
+    command -v node >/dev/null || skip "node not installed"
+    write_vitest_project 100
+    rm -rf "$TEST_PROJECT/node_modules/@vitest/coverage-v8"
+    echo "prototype" > "$TEST_PROJECT/.agentharness-profile"
+
+    run bash "$SCRIPT" enforce-profile "$TEST_PROJECT"
+
+    [ "$status" -eq 0 ]
 }
 
 # --- --strict (P1-02) ------------------------------------------------------

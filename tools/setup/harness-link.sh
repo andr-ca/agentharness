@@ -2019,6 +2019,31 @@ enforce_js_vitest_profile() {
         return 1
     fi
 
+    # Preflight the coverage provider, the same way vitest itself is
+    # preflighted above. Vitest does not ship one: without it the run
+    # aborts with its own bare
+    #     MISSING DEPENDENCY  Cannot find dependency '@vitest/coverage-v8'
+    # and nothing else. That surfaced through the generated gate as a
+    # third-party error with no harness context and no remediation — the
+    # first thing a JS/TS consumer runs after installing, failing with a
+    # message that never mentions coverage, the profile, or how to fix it.
+    #
+    # A useful message already existed for this exact cause, but only on
+    # the path taken when vitest SUCCEEDS and simply writes no summary.
+    # The common case — vitest exiting non-zero — reached the branch below
+    # instead, so the diagnostic was effectively unreachable.
+    #
+    # Either provider satisfies vitest, so accept either and name both.
+    if [ -n "$coverage_min" ] \
+        && [ ! -d "$target/node_modules/@vitest/coverage-v8" ] \
+        && [ ! -d "$target/node_modules/@vitest/coverage-istanbul" ]; then
+        echo "Error: the '$profile_name' tier requires coverage_min=$coverage_min, but no Vitest coverage provider is installed." >&2
+        echo "  Vitest does not bundle one. Install either:" >&2
+        echo "    npm install -D @vitest/coverage-v8" >&2
+        echo "    npm install -D @vitest/coverage-istanbul" >&2
+        return 1
+    fi
+
     local out
     if ! out="$(cd "$target" && "${runner[@]}" run --coverage --coverage.enabled --coverage.reporter=json-summary 2>&1)"; then
         echo "$out"
