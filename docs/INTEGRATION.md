@@ -170,7 +170,7 @@ files the rest of the harness actually reads:
 |---|---|---|
 | `rigor.tier=<tier>` | `.agentharness-profile` | What `enforce-profile` applies. One of `prototype`, `production`, `internal` |
 | `authority.publish=publish` | `.agentharness-publish-mode` | Grants standing push/PR authority. Delete the file to revoke it |
-| `authority.publish=stage` | `.agentharness-authority.json` | An explicit contract granting `commit` and withholding `push`/`pr-create`. It never creates the file that grants authority, and it outranks any publish-mode flag already present |
+| `authority.publish=stage` | `.agentharness-authority.json` | An explicit contract granting `commit` and withholding `push`/`pr-create`. It never creates `.agentharness-publish-mode`, and because a contract outranks that flag, it takes effect even in a repo that already has one |
 
 Both appear as ordinary plan actions, so they are shown, hashed, and
 confirmed like any other write.
@@ -183,8 +183,14 @@ changed later.
 `stage` is recorded as a contract rather than as the absence of a flag,
 because absence could not be distinguished from "never asked". An existing
 contract is never overwritten — it may carry grants you wrote by hand — and
-one that cannot be parsed re-opens the question rather than being read as a
+one that cannot be loaded re-opens the question rather than being read as a
 decision.
+
+A contract already present is read back through the same loader and
+decision logic the harness enforces with, so what the question reports is
+your *effective* authority: a revoked or expired push grant reads as
+`stage`, and a grant scoped to one branch pattern is not treated as
+blanket publish authority.
 
 Adoption questions (`adopt.*`) are re-offered on later runs even after you
 decline: the project still lacks the tool, so the offer stands. Only the

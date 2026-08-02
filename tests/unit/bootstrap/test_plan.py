@@ -516,3 +516,67 @@ def test_answering_publish_still_writes_the_flag(tmp_path):
     paths = {a.path for a in plan.actions}
     assert ".agentharness-publish-mode" in paths
     assert ".agentharness-authority.json" not in paths
+
+
+# ---------------------------------------------------------------------------
+# Reading a contract back must reflect EFFECTIVE authority.
+#
+# The first cut scanned raw grant lists for "push"/"pr-create". That gets
+# the easy case right and every hard one wrong: it ignores `revoked`,
+# reads an expired grant as live, and treats a grant scoped to one branch
+# as blanket authority. decide() is what computes effective authority.
+# ---------------------------------------------------------------------------
+
+
+def _contract(tmp_path: Path, **document: object) -> None:
+    base = {"schema_version": 1, "grants": [], "revoked": []}
+    base.update(document)
+    (tmp_path / ".agentharness-authority.json").write_text(
+        json.dumps(base), encoding="utf-8"
+    )
+
+
+def test_a_revoked_push_grant_reads_back_as_stage(tmp_path):
+    _py(tmp_path)
+    _contract(
+        tmp_path,
+        grants=[{"operations": ["commit", "push"]}],
+        revoked=["push"],
+    )
+
+    assert build_plan(tmp_path).answers.get("authority.publish") == "stage"
+
+
+def test_an_expired_push_grant_reads_back_as_stage(tmp_path):
+    _py(tmp_path)
+    _contract(
+        tmp_path,
+        grants=[{"operations": ["push"], "expires": "2020-01-01T00:00:00Z"}],
+    )
+
+    assert build_plan(tmp_path).answers.get("authority.publish") == "stage"
+
+
+def test_a_branch_scoped_grant_is_not_blanket_publish_authority(tmp_path):
+    # Authority limited to fix/* is not "this project may publish".
+    _py(tmp_path)
+    _contract(tmp_path, grants=[{"operations": ["push"], "target": "fix/*"}])
+
+    assert build_plan(tmp_path).answers.get("authority.publish") == "stage"
+
+
+def test_a_contract_with_malformed_operations_does_not_crash(tmp_path):
+    # set(operations) on a nested list raised TypeError, unguarded, which
+    # would take down the whole plan rather than re-opening the question.
+    _py(tmp_path)
+    _contract(tmp_path, grants=[{"operations": [["push"]]}])
+
+    assert "authority.publish" not in build_plan(tmp_path).answers
+
+
+def test_a_live_unscoped_push_grant_still_reads_as_publish(tmp_path):
+    # The complement: the stricter reading must not deny real authority.
+    _py(tmp_path)
+    _contract(tmp_path, grants=[{"operations": ["push"], "expires": None}])
+
+    assert build_plan(tmp_path).answers.get("authority.publish") == "publish"

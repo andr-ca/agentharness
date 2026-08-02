@@ -26,6 +26,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from agentharness.authority import AuthorityError
+from agentharness.authority.loader import load_contract_text
+from agentharness.authority.operations import decide
 from agentharness.bootstrap.discovery import (
     CAPABILITY_LABELS,
     NOT_PYTHON_DETAIL,
@@ -225,8 +228,8 @@ _STAGE_CONTRACT = """{
 """
 
 # Operations that constitute "publishing" for the purposes of reading a
-# contract back as an answer.
-_PUBLISH_OPERATIONS = frozenset({"push", "pr-create"})
+# contract back as an answer. Ordered so the reported result is stable.
+_PUBLISH_OPERATIONS: tuple[str, ...] = ("push", "pr-create")
 
 # The tiers that exist as patterns/profiles/*.yaml. Validated because the
 # answer is now written to disk: an unvalidated value produced a
@@ -290,27 +293,34 @@ def _answers_from_disk(root: Path, supplied: dict[str, str]) -> dict[str, str]:
 def _publish_answer_from_contract(path: Path) -> str | None:
     """Read an authority contract as a publish answer, or None.
 
-    A contract this cannot parse returns None rather than an answer: an
+    Answers through the contract loader and `decide()`, not by scanning
+    the raw JSON. Scanning grant lists directly gets the easy case right
+    and every hard one wrong: it ignores `revoked`, treats an expired
+    grant as live, and reads a grant scoped to one branch as blanket
+    authority. The answer has to reflect EFFECTIVE authority, which is
+    exactly what `decide()` computes and a field scan cannot.
+
+    A contract this cannot load returns None rather than an answer: an
     unreadable file must re-open the question, never be treated as a
     decision — and least of all as a grant.
     """
     if not path.is_file():
         return None
     try:
-        document = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        contract = load_contract_text(path.read_text(encoding="utf-8"))
+    except (OSError, AuthorityError):
         return None
-    if not isinstance(document, dict):
-        return None
-    grants = document.get("grants")
-    if not isinstance(grants, list):
-        return None
-    for grant in grants:
-        if not isinstance(grant, dict):
-            continue
-        operations = grant.get("operations")
-        if isinstance(operations, list) and _PUBLISH_OPERATIONS & set(operations):
-            return "publish"
+
+    # No target is supplied deliberately. A grant scoped to a branch
+    # pattern is not blanket publish authority, and `decide()` declines it
+    # when no target is given — which is the honest reading of "may this
+    # project publish?" asked without naming a branch.
+    for operation in _PUBLISH_OPERATIONS:
+        try:
+            if decide(contract, operation).allowed:
+                return "publish"
+        except AuthorityError:
+            return None
     return "stage"
 
 
