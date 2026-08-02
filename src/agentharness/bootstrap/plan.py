@@ -192,6 +192,41 @@ class BootstrapPlan:
 # authority resolves against .agentharness-publish-mode.
 PROFILE_PATH = ".agentharness-profile"
 PUBLISH_MODE_PATH = ".agentharness-publish-mode"
+AUTHORITY_PATH = ".agentharness-authority.json"
+
+# Answering "stage" is a real decision, but the safe default is the
+# ABSENCE of a publish grant — so there was nothing on disk to distinguish
+# "chose to stage" from "never asked", and the question was re-asked on
+# every run while rigor.tier converged.
+#
+# Recorded as an explicit contract rather than a new file type, using the
+# scoped-authority mechanism that already exists. decide() is deny-by-
+# default: only an explicit matching grant allows an operation, so a
+# contract granting `commit` alone permits local commits and denies push
+# and pr-create. That is precisely what "verify and stage, then stop"
+# means, and it states the decision instead of implying it from absence.
+#
+# It also resolves a contradiction the flag alone could not: a contract
+# outranks .agentharness-publish-mode (see CLAUDE.md's precedence order),
+# so answering "stage" in a repo that already carries the publish flag now
+# actually takes effect rather than being silently overridden by it.
+_STAGE_CONTRACT = """{
+  "schema_version": 1,
+  "grants": [
+    {
+      "operations": ["commit"],
+      "target": null,
+      "expires": null,
+      "granted_by": "agentharness bootstrap"
+    }
+  ],
+  "revoked": []
+}
+"""
+
+# Operations that constitute "publishing" for the purposes of reading a
+# contract back as an answer.
+_PUBLISH_OPERATIONS = frozenset({"push", "pr-create"})
 
 # The tiers that exist as patterns/profiles/*.yaml. Validated because the
 # answer is now written to disk: an unvalidated value produced a
@@ -239,11 +274,44 @@ def _answers_from_disk(root: Path, supplied: dict[str, str]) -> dict[str, str]:
         if existing.lower() in VALID_TIERS:
             resolved["rigor.tier"] = existing.lower()
 
-    if "authority.publish" not in resolved and (root / PUBLISH_MODE_PATH).exists():
-        # The flag's presence IS the grant, so its presence is the answer.
-        resolved["authority.publish"] = "publish"
+    if "authority.publish" not in resolved:
+        # Contract first: it outranks the bare flag, so reading the flag
+        # first would report authority the contract actually withholds.
+        contract_answer = _publish_answer_from_contract(root / AUTHORITY_PATH)
+        if contract_answer is not None:
+            resolved["authority.publish"] = contract_answer
+        elif (root / PUBLISH_MODE_PATH).exists():
+            # The flag's presence IS the grant, so its presence is the answer.
+            resolved["authority.publish"] = "publish"
 
     return resolved
+
+
+def _publish_answer_from_contract(path: Path) -> str | None:
+    """Read an authority contract as a publish answer, or None.
+
+    A contract this cannot parse returns None rather than an answer: an
+    unreadable file must re-open the question, never be treated as a
+    decision — and least of all as a grant.
+    """
+    if not path.is_file():
+        return None
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(document, dict):
+        return None
+    grants = document.get("grants")
+    if not isinstance(grants, list):
+        return None
+    for grant in grants:
+        if not isinstance(grant, dict):
+            continue
+        operations = grant.get("operations")
+        if isinstance(operations, list) and _PUBLISH_OPERATIONS & set(operations):
+            return "publish"
+    return "stage"
 
 
 def _decision_actions(root: Path, supplied: dict[str, str]) -> list[PlanAction]:
@@ -284,6 +352,26 @@ def _decision_actions(root: Path, supplied: dict[str, str]) -> list[PlanAction]:
             )
 
     publish = supplied.get("authority.publish", "").strip().lower()
+    if publish == "stage" and not (root / AUTHORITY_PATH).exists():
+        # Never overwrite an existing contract — it may carry grants an
+        # operator wrote by hand, and rewriting it to commit-only would
+        # silently discard them. An existing contract already answers the
+        # question, so there is nothing to propose.
+        actions.append(
+            PlanAction(
+                capability="authority",
+                path=AUTHORITY_PATH,
+                summary=f"Create {AUTHORITY_PATH} (stage only)",
+                rationale=(
+                    "You chose to stage rather than publish. This records "
+                    "that decision explicitly — it grants local commits and "
+                    "withholds push and pr-create — so it is not re-asked "
+                    "every run, and it outranks any publish-mode flag."
+                ),
+                content=_STAGE_CONTRACT,
+            )
+        )
+
     if publish == "publish" and not (root / PUBLISH_MODE_PATH).exists():
         actions.append(
             PlanAction(

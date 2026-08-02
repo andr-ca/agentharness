@@ -228,7 +228,11 @@ def test_bootstrap_apply_writes_only_what_was_confirmed(tmp_path, capsys):
     # Declined capabilities produce nothing. The profile file is the rigor
     # tier from BASELINE being recorded, which is the point of asking it —
     # it is not an adoption scaffold.
-    assert created == [".agentharness-profile", "ruff.toml"]
+    assert created == [
+        ".agentharness-authority.json",  # BASELINE answers publish=stage
+        ".agentharness-profile",
+        "ruff.toml",
+    ]
     assert "pytest.ini" not in created
     assert "mypy.ini" not in created
 

@@ -8,6 +8,7 @@ unresolved until every question has an answer — apply is gated on that.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -386,3 +387,132 @@ def test_a_malformed_profile_on_disk_does_not_answer_the_question(tmp_path):
     plan = build_plan(tmp_path)
 
     assert "rigor.tier" not in plan.answers
+
+
+# ---------------------------------------------------------------------------
+# Answering "stage" is a decision and has to be recorded.
+#
+# The safe default is the ABSENCE of a publish grant, so nothing on disk
+# distinguished "chose to stage" from "never asked" and the question was
+# re-asked on every run while rigor.tier converged. Recorded now as an
+# explicit contract using the scoped-authority mechanism that already
+# exists, rather than inventing a new file type.
+# ---------------------------------------------------------------------------
+
+
+def test_stage_is_recorded_as_an_explicit_contract(tmp_path):
+    _py(tmp_path)
+    plan = build_plan(tmp_path, answers={**_BASELINE, "authority.publish": "stage"})
+
+    contract = [a for a in plan.actions if a.path == ".agentharness-authority.json"]
+    assert contract, "answering 'stage' recorded nothing, so it is asked forever"
+
+
+def test_the_stage_contract_denies_publishing(tmp_path):
+    # The whole point: it must grant local commits and withhold push and
+    # pr-create. Checked through the real loader and decider, not by
+    # reading the JSON — a contract that merely parses is not enough.
+    from agentharness.authority.loader import load_contract_text
+    from agentharness.authority.operations import decide
+
+    _py(tmp_path)
+    plan = build_plan(tmp_path, answers={**_BASELINE, "authority.publish": "stage"})
+    action = next(
+        a for a in plan.actions if a.path == ".agentharness-authority.json"
+    )
+
+    contract = load_contract_text(action.content)
+
+    assert decide(contract, "commit").allowed
+    assert not decide(contract, "push").allowed
+    assert not decide(contract, "pr-create").allowed
+    assert not decide(contract, "pr-merge").allowed
+
+
+def test_a_stage_contract_answers_the_question(tmp_path):
+    _py(tmp_path)
+    plan = build_plan(tmp_path, answers={**_BASELINE, "authority.publish": "stage"})
+    action = next(
+        a for a in plan.actions if a.path == ".agentharness-authority.json"
+    )
+    (tmp_path / ".agentharness-authority.json").write_text(
+        action.content, encoding="utf-8"
+    )
+
+    reread = build_plan(tmp_path)
+
+    assert reread.answers.get("authority.publish") == "stage"
+    assert not [
+        a for a in reread.actions if a.path == ".agentharness-authority.json"
+    ]
+
+
+def test_a_contract_granting_push_reads_back_as_publish(tmp_path):
+    _py(tmp_path)
+    (tmp_path / ".agentharness-authority.json").write_text(
+        json.dumps({
+            "schema_version": 1,
+            "grants": [{"operations": ["commit", "push", "pr-create"]}],
+            "revoked": [],
+        }),
+        encoding="utf-8",
+    )
+
+    assert build_plan(tmp_path).answers.get("authority.publish") == "publish"
+
+
+def test_the_contract_outranks_the_publish_flag(tmp_path):
+    # CLAUDE.md's precedence: contract > bare flag. Reading the flag first
+    # would report authority the contract actually withholds — and this is
+    # the contradiction the flag alone could not resolve.
+    _py(tmp_path)
+    (tmp_path / ".agentharness-publish-mode").touch()
+    (tmp_path / ".agentharness-authority.json").write_text(
+        json.dumps({
+            "schema_version": 1,
+            "grants": [{"operations": ["commit"]}],
+            "revoked": [],
+        }),
+        encoding="utf-8",
+    )
+
+    assert build_plan(tmp_path).answers.get("authority.publish") == "stage"
+
+
+def test_an_existing_contract_is_never_overwritten(tmp_path):
+    # It may carry grants an operator wrote by hand; rewriting it to
+    # commit-only would silently discard them.
+    _py(tmp_path)
+    (tmp_path / ".agentharness-authority.json").write_text(
+        json.dumps({
+            "schema_version": 1,
+            "grants": [{"operations": ["commit", "push"], "target": "fix/*"}],
+            "revoked": [],
+        }),
+        encoding="utf-8",
+    )
+
+    plan = build_plan(tmp_path, answers={"authority.publish": "stage"})
+
+    assert not [
+        a for a in plan.actions if a.path == ".agentharness-authority.json"
+    ]
+
+
+def test_an_unreadable_contract_reopens_the_question(tmp_path):
+    # An unparseable file must never be treated as a decision, and least
+    # of all as a grant.
+    _py(tmp_path)
+    (tmp_path / ".agentharness-authority.json").write_text("{ broken", encoding="utf-8")
+
+    assert "authority.publish" not in build_plan(tmp_path).answers
+
+
+def test_answering_publish_still_writes_the_flag(tmp_path):
+    # Unchanged behaviour: 'publish' keeps using the documented flag.
+    _py(tmp_path)
+    plan = build_plan(tmp_path, answers={**_BASELINE, "authority.publish": "publish"})
+
+    paths = {a.path for a in plan.actions}
+    assert ".agentharness-publish-mode" in paths
+    assert ".agentharness-authority.json" not in paths

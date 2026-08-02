@@ -170,7 +170,7 @@ files the rest of the harness actually reads:
 |---|---|---|
 | `rigor.tier=<tier>` | `.agentharness-profile` | What `enforce-profile` applies. One of `prototype`, `production`, `internal` |
 | `authority.publish=publish` | `.agentharness-publish-mode` | Grants standing push/PR authority. Delete the file to revoke it |
-| `authority.publish=stage` | *(none)* | The safe default is the flag's **absence** — answering it never creates the file that grants authority |
+| `authority.publish=stage` | `.agentharness-authority.json` | An explicit contract granting `commit` and withholding `push`/`pr-create`. It never creates the file that grants authority, and it outranks any publish-mode flag already present |
 
 Both appear as ordinary plan actions, so they are shown, hashed, and
 confirmed like any other write.
@@ -180,9 +180,15 @@ project converges: running `bootstrap plan` again proposes nothing and
 asks nothing. An explicit `--answer` still wins, so a decision can be
 changed later.
 
-Because `stage` writes no file, it is not recorded and is asked again on
-the next run. That is a known gap, not a design intent — see
-[ROADMAP.md](../ROADMAP.md).
+`stage` is recorded as a contract rather than as the absence of a flag,
+because absence could not be distinguished from "never asked". An existing
+contract is never overwritten — it may carry grants you wrote by hand — and
+one that cannot be parsed re-opens the question rather than being read as a
+decision.
+
+Adoption questions (`adopt.*`) are re-offered on later runs even after you
+decline: the project still lacks the tool, so the offer stands. Only the
+baseline policy decisions converge.
 
 ### Getting help
 
