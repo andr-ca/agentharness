@@ -716,3 +716,42 @@ canonical checkout.
 primary checkout where it was acquired, verified that store reported the
 feature free, and logged upstream as
 [#190](https://github.com/andr-ca/agentharness/issues/190).
+
+---
+
+## 2026-08-02 — outside-repo write guard blocks the agent's own memory store
+
+**What happened:** Writing a memory file to
+`~/.claude/projects/<project>/memory/<fact>.md` — the store Claude Code
+tells a session to write to directly — was refused by
+`.github/hooks/claude-outside-repo-write-guard.sh`:
+
+> Blocked: … resolves outside any git repository and outside the system
+> temp directory (/tmp).
+
+**Why it matters:** the guard was doing exactly what it was written to do —
+that path is outside every repository. But the effect is that installing
+this harness silently disables the consuming agent's memory. Nothing
+announces it: the write fails, the session continues, and every later
+session starts without the notes it should have had. A guard that
+degrades an unrelated capability without saying so is worse than one that
+refuses loudly, because the cost lands on sessions that never see the
+error.
+
+It is also a scope error rather than a policy question. The guard's stated
+purpose is protecting the *user's* environment — shell rc files, global
+git config, arbitrary home files. A per-project agent memory directory is
+none of those.
+
+**What agentharness should change:** exempt
+`<config-dir>/projects/*/memory/` specifically — not the config directory
+generally. A global `CLAUDE.md` or `settings.json` one level up is exactly
+what the guard exists to protect and must stay blocked.
+
+**Corrective action taken:** fixed in this repo rather than only logged.
+The guard now exempts the per-project memory store, honours a relocated
+`CLAUDE_CONFIG_DIR`, and keeps blocking everything else under the config
+directory. Five tests, including three asserting the non-memory paths are
+still refused. The first cut of the relocated-config test used
+`mktemp -d`, which sits under the already-allowed temp root and so passed
+without exercising the new branch at all — it now uses a path outside both.

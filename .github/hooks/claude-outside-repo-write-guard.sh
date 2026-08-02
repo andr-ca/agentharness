@@ -51,6 +51,35 @@ resolved="$(python3 -c "import os, sys; print(os.path.realpath(sys.argv[1]))" "$
 [ -n "$resolved" ] || exit 0
 
 tmp_root="$(python3 -c "import os, tempfile; print(os.path.realpath(tempfile.gettempdir()))" 2>/dev/null || echo /tmp)"
+# The agent's own per-project memory store. Claude Code tells a session
+# to write memories directly to
+# <config-dir>/projects/<project>/memory/, which lives outside every
+# git repository — so this guard blocked it, and the memory feature
+# silently stopped working. Nothing announces that: writes just fail,
+# and every later session starts without the notes it should have had.
+#
+# Deliberately narrow. It matches only .../projects/*/memory/, NOT the
+# config directory generally: a global CLAUDE.md or settings.json is
+# exactly the kind of user-environment file this guard exists to
+# protect, and one of them sitting a level up must stay blocked.
+memory_ok=0
+case "$resolved" in
+    */.claude/projects/*/memory/*) memory_ok=1 ;;
+esac
+if [ -n "${CLAUDE_CONFIG_DIR:-}" ]; then
+    # Honour a relocated config directory, which need not be named
+    # ".claude" — resolved the same way as the target, so a symlinked
+    # config dir compares correctly.
+    config_root="$(python3 -c "import os, sys; print(os.path.realpath(sys.argv[1]))" \
+        "$CLAUDE_CONFIG_DIR" 2>/dev/null || true)"
+    if [ -n "$config_root" ]; then
+        case "$resolved" in
+            "$config_root"/projects/*/memory/*) memory_ok=1 ;;
+        esac
+    fi
+fi
+[ "$memory_ok" -eq 0 ] || exit 0
+
 case "$resolved" in
     "$tmp_root"/*|"$tmp_root") exit 0 ;;
 esac

@@ -61,3 +61,54 @@ _run_guard() {
     run _run_guard "{\"tool_name\":\"Write\",\"tool_input\":{}}"
     [ "$status" -eq 0 ]
 }
+
+# ---------------------------------------------------------------------------
+# The agent's own memory store must remain writable.
+#
+# Claude Code tells a session to write memories directly to
+# <config-dir>/projects/<project>/memory/, which lives outside every git
+# repository — so this guard blocked it and the memory feature silently
+# stopped working. Nothing announces that: the write just fails, and
+# every later session starts without the notes it should have had.
+# ---------------------------------------------------------------------------
+
+@test "guard: allows a write to the per-project memory store" {
+    run _run_guard '{"tool_name":"Write","tool_input":{"file_path":"/guard-test-home/.claude/projects/some-project/memory/a-fact.md"}}'
+    [ "$status" -eq 0 ]
+}
+
+@test "guard: still blocks the global CLAUDE.md one level up" {
+    # The exemption is for the memory store, not the config directory.
+    # A global CLAUDE.md is exactly what this guard exists to protect.
+    run _run_guard '{"tool_name":"Write","tool_input":{"file_path":"/guard-test-home/.claude/CLAUDE.md"}}'
+    [ "$status" -eq 2 ]
+}
+
+@test "guard: still blocks settings.json in the config directory" {
+    run _run_guard '{"tool_name":"Write","tool_input":{"file_path":"/guard-test-home/.claude/settings.json"}}'
+    [ "$status" -eq 2 ]
+}
+
+@test "guard: still blocks a project directory that is not the memory store" {
+    run _run_guard '{"tool_name":"Write","tool_input":{"file_path":"/guard-test-home/.claude/projects/some-project/history.jsonl"}}'
+    [ "$status" -eq 2 ]
+}
+
+@test "guard: honours a relocated CLAUDE_CONFIG_DIR" {
+    # Deliberately NOT under mktemp: everything below the system temp
+    # directory is already allowed, so a temp path would pass without
+    # the CLAUDE_CONFIG_DIR branch ever running. This path is outside
+    # both the temp root and any repository, so only that branch can
+    # allow it.
+    config="/guard-test-relocated-config"
+    run env CLAUDE_CONFIG_DIR="$config" bash "$GUARD_SCRIPT" <<< \
+        "{\"tool_name\":\"Write\",\"tool_input\":{\"file_path\":\"$config/projects/p/memory/x.md\"}}"
+    [ "$status" -eq 0 ]
+}
+
+@test "guard: a relocated config dir does not exempt its non-memory paths" {
+    config="/guard-test-relocated-config"
+    run env CLAUDE_CONFIG_DIR="$config" bash "$GUARD_SCRIPT" <<< \
+        "{\"tool_name\":\"Write\",\"tool_input\":{\"file_path\":\"$config/settings.json\"}}"
+    [ "$status" -eq 2 ]
+}
