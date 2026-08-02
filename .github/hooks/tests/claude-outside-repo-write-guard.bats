@@ -72,25 +72,44 @@ _run_guard() {
 # every later session starts without the notes it should have had.
 # ---------------------------------------------------------------------------
 
+_run_guard_as_home() {
+    # The exemption is anchored to one config root, so the fixture has to
+    # declare which root it is pretending to be.
+    printf '%s' "$2" | env HOME="$1" bash "$GUARD_SCRIPT"
+}
+
 @test "guard: allows a write to the per-project memory store" {
-    run _run_guard '{"tool_name":"Write","tool_input":{"file_path":"/guard-test-home/.claude/projects/some-project/memory/a-fact.md"}}'
+    run _run_guard_as_home /guard-test-home \
+        '{"tool_name":"Write","tool_input":{"file_path":"/guard-test-home/.claude/projects/some-project/memory/a-fact.md"}}'
     [ "$status" -eq 0 ]
+}
+
+@test "guard: does not exempt another user's .claude tree" {
+    # An unanchored */.claude/projects/*/memory/* pattern would exempt any
+    # such directory anywhere on the filesystem, including someone else's
+    # home — a wider hole than the exemption is worth.
+    run _run_guard_as_home /guard-test-home \
+        '{"tool_name":"Write","tool_input":{"file_path":"/home/otheruser/.claude/projects/p/memory/x.md"}}'
+    [ "$status" -eq 2 ]
 }
 
 @test "guard: still blocks the global CLAUDE.md one level up" {
     # The exemption is for the memory store, not the config directory.
     # A global CLAUDE.md is exactly what this guard exists to protect.
-    run _run_guard '{"tool_name":"Write","tool_input":{"file_path":"/guard-test-home/.claude/CLAUDE.md"}}'
+    run _run_guard_as_home /guard-test-home \
+        '{"tool_name":"Write","tool_input":{"file_path":"/guard-test-home/.claude/CLAUDE.md"}}'
     [ "$status" -eq 2 ]
 }
 
 @test "guard: still blocks settings.json in the config directory" {
-    run _run_guard '{"tool_name":"Write","tool_input":{"file_path":"/guard-test-home/.claude/settings.json"}}'
+    run _run_guard_as_home /guard-test-home \
+        '{"tool_name":"Write","tool_input":{"file_path":"/guard-test-home/.claude/settings.json"}}'
     [ "$status" -eq 2 ]
 }
 
 @test "guard: still blocks a project directory that is not the memory store" {
-    run _run_guard '{"tool_name":"Write","tool_input":{"file_path":"/guard-test-home/.claude/projects/some-project/history.jsonl"}}'
+    run _run_guard_as_home /guard-test-home \
+        '{"tool_name":"Write","tool_input":{"file_path":"/guard-test-home/.claude/projects/some-project/history.jsonl"}}'
     [ "$status" -eq 2 ]
 }
 

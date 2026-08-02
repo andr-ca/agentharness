@@ -62,23 +62,25 @@ tmp_root="$(python3 -c "import os, tempfile; print(os.path.realpath(tempfile.get
 # config directory generally: a global CLAUDE.md or settings.json is
 # exactly the kind of user-environment file this guard exists to
 # protect, and one of them sitting a level up must stay blocked.
-memory_ok=0
-case "$resolved" in
-    */.claude/projects/*/memory/*) memory_ok=1 ;;
-esac
+# Anchored to ONE config root, never a free-floating pattern. Matching
+# */.claude/projects/*/memory/* anywhere on the filesystem would exempt
+# any such tree — including another user's home directory — which is a
+# wider hole than the guard is worth. CLAUDE_CONFIG_DIR when set (it
+# need not be named ".claude"), else ~/.claude. Resolved the same way as
+# the target, so a symlinked config dir still compares correctly.
+config_root=""
 if [ -n "${CLAUDE_CONFIG_DIR:-}" ]; then
-    # Honour a relocated config directory, which need not be named
-    # ".claude" — resolved the same way as the target, so a symlinked
-    # config dir compares correctly.
-    config_root="$(python3 -c "import os, sys; print(os.path.realpath(sys.argv[1]))" \
-        "$CLAUDE_CONFIG_DIR" 2>/dev/null || true)"
-    if [ -n "$config_root" ]; then
-        case "$resolved" in
-            "$config_root"/projects/*/memory/*) memory_ok=1 ;;
-        esac
-    fi
+    config_root="$CLAUDE_CONFIG_DIR"
+elif [ -n "${HOME:-}" ]; then
+    config_root="$HOME/.claude"
 fi
-[ "$memory_ok" -eq 0 ] || exit 0
+if [ -n "$config_root" ]; then
+    config_root="$(python3 -c "import os, sys; print(os.path.realpath(sys.argv[1]))" \
+        "$config_root" 2>/dev/null || true)"
+    case "$resolved" in
+        "$config_root"/projects/*/memory/*) exit 0 ;;
+    esac
+fi
 
 case "$resolved" in
     "$tmp_root"/*|"$tmp_root") exit 0 ;;

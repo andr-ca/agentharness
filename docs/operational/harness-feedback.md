@@ -751,7 +751,10 @@ what the guard exists to protect and must stay blocked.
 **Corrective action taken:** fixed in this repo rather than only logged.
 The guard now exempts the per-project memory store, honours a relocated
 `CLAUDE_CONFIG_DIR`, and keeps blocking everything else under the config
-directory. Five tests, including three asserting the non-memory paths are
+directory. Review caught that the first cut matched
+`*/.claude/projects/*/memory/*` anywhere on the filesystem — including
+another user's home — so it is now anchored to a single resolved config
+root. Five tests, including three asserting the non-memory paths are
 still refused. The first cut of the relocated-config test used
 `mktemp -d`, which sits under the already-allowed temp root and so passed
 without exercising the new branch at all — it now uses a path outside both.
