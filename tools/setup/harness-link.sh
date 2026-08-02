@@ -2044,8 +2044,18 @@ enforce_js_vitest_profile() {
         return 1
     fi
 
+    # Only ask for coverage when a floor actually applies. Passing
+    # --coverage unconditionally made a tier with no coverage_min (e.g.
+    # prototype) fail anyway in a real project, because Vitest still
+    # needs a provider to honour the flag — so the preflight skipped the
+    # requirement and the run then demanded it regardless.
+    local -a coverage_args=()
+    if [ -n "$coverage_min" ]; then
+        coverage_args=(--coverage --coverage.enabled --coverage.reporter=json-summary)
+    fi
+
     local out
-    if ! out="$(cd "$target" && "${runner[@]}" run --coverage --coverage.enabled --coverage.reporter=json-summary 2>&1)"; then
+    if ! out="$(cd "$target" && "${runner[@]}" run "${coverage_args[@]+"${coverage_args[@]}"}" 2>&1)"; then
         echo "$out"
         return 1
     fi

@@ -322,10 +322,27 @@ EOF
     # Vitest does not bundle one — so the fixture must have it too, or it
     # is not representing a project that could produce coverage at all.
     mkdir -p "$TEST_PROJECT/node_modules/@vitest/coverage-v8"
+    # The stub emulates the one Vitest behaviour that matters here:
+    # --coverage without a provider installed is a hard failure. Without
+    # that, a stub happily "produces coverage" for a command the real
+    # binary would refuse, and every test about providers passes whether
+    # or not the code under test gets it right.
     cat > "$TEST_PROJECT/node_modules/.bin/vitest" <<EOF
 #!/usr/bin/env bash
-mkdir -p coverage
-printf '%s' '{"total":{"lines":{"total":10,"covered":$pct,"skipped":0,"pct":$pct}}}' > coverage/coverage-summary.json
+wants_coverage=0
+for arg in "\$@"; do
+    case "\$arg" in --coverage*) wants_coverage=1 ;; esac
+done
+if [ "\$wants_coverage" -eq 1 ] \\
+    && [ ! -d node_modules/@vitest/coverage-v8 ] \\
+    && [ ! -d node_modules/@vitest/coverage-istanbul ]; then
+    echo " MISSING DEPENDENCY  Cannot find dependency '@vitest/coverage-v8'" >&2
+    exit 1
+fi
+if [ "\$wants_coverage" -eq 1 ]; then
+    mkdir -p coverage
+    printf '%s' '{"total":{"lines":{"total":10,"covered":$pct,"skipped":0,"pct":$pct}}}' > coverage/coverage-summary.json
+fi
 exit $exit_code
 EOF
     chmod +x "$TEST_PROJECT/node_modules/.bin/vitest"
@@ -398,16 +415,23 @@ EOF
 }
 
 @test "enforce-profile (Vitest): no provider is needed when no coverage floor applies" {
-    # prototype does not set coverage_min, so demanding a provider would
-    # block a project that never asked for coverage.
+    # The 'internal' tier requires tests but sets no coverage_min, so
+    # vitest IS invoked and must be invoked without --coverage. Demanding
+    # a provider — or passing the flag that needs one — would block a
+    # project that never asked for coverage.
+    #
+    # Deliberately not 'prototype': that tier does not require tests at
+    # all, so vitest is never invoked and the test passes without
+    # exercising the coverage flags in either direction.
     command -v node >/dev/null || skip "node not installed"
     write_vitest_project 100
     rm -rf "$TEST_PROJECT/node_modules/@vitest/coverage-v8"
-    echo "prototype" > "$TEST_PROJECT/.agentharness-profile"
+    echo "internal" > "$TEST_PROJECT/.agentharness-profile"
 
     run bash "$SCRIPT" enforce-profile "$TEST_PROJECT"
 
     [ "$status" -eq 0 ]
+    [[ "$output" != *"MISSING DEPENDENCY"* ]]
 }
 
 # --- --strict (P1-02) ------------------------------------------------------
