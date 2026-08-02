@@ -17,6 +17,12 @@ get changes via PR — create a feature branch, get it reviewed, merge
 back. This is enforced by `.github/hooks/prevent-trunk-commit` (see
 `.github/hooks/README.md`), not just a convention to remember.
 
+Note `release/*` is in that list: it means a long-lived release *line*
+that receives changes by PR, not a working branch. Preparing a release —
+moving the changelog, bumping the version — is ordinary work and belongs
+on `chore/release-vX.Y.Z`. Naming it `release/v1.2.3` is the intuitive
+choice and gets the commit refused, which is correct but surprising.
+
 ## Branch naming convention
 
 Format: `{type}/{description}`, lowercase, hyphens not underscores.

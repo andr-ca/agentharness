@@ -117,3 +117,24 @@ install_hook() {
     [[ "$output" == *"git stash"* ]]
     [[ "$output" != *"git merge --abort"* ]]
 }
+
+@test "the remediation steps render, rather than printing escape codes" {
+    # The colour variables hold raw \033[...m sequences, so a plain
+    # `echo` emits them literally instead of interpreting them. Every
+    # numbered remediation step used plain `echo`, so the most useful
+    # part of the refusal — what to actually do about it — was printed
+    # as visible escape codes.
+    init_repo main
+    install_hook
+    touch file.txt
+    git add file.txt
+    run git commit -m "test"
+
+    [ "$status" -ne 0 ]
+    # A literal backslash-zero-three-three anywhere means an uninterpreted
+    # sequence reached the user.
+    [[ "$output" != *'\033'* ]]
+    # Non-vacuity: the block that carried them must still be present.
+    [[ "$output" == *"Stash your changes"* ]]
+    [[ "$output" == *"git switch -c"* ]]
+}
