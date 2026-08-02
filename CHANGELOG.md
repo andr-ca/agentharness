@@ -38,8 +38,13 @@ section into a tagged version.
   `.agentharness-publish-mode`, both as ordinary confirmed plan actions;
   decisions already on disk pre-answer their questions. Baseline answers
   are also validated now that they reach files the harness reads.
-  `stage` deliberately writes nothing — absence of the flag is the safe
-  default — so that answer is still re-asked; see ROADMAP.
+  Answering `stage` writes an explicit `.agentharness-authority.json`
+  contract (granting `commit`, withholding `push`/`pr-create`) rather than
+  relying on the absence of a flag, which could not be distinguished from
+  "never asked". Since a contract outranks the bare flag, answering
+  "stage" in a repo already carrying `.agentharness-publish-mode` now
+  takes effect instead of being silently overridden by it. An existing
+  contract is never overwritten.
 - **A recorded rigor tier could not be changed or repaired.** The write
   was proposed only when the file was absent, so a malformed
   `.agentharness-profile` was permanent and an existing tier could never

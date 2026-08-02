@@ -110,16 +110,15 @@ conflated, which made the state unreadable from this file alone.
   they are rewritten when an answer differs from what they say, because
   otherwise a recorded decision was permanent and a malformed one
   unrepairable.
-- **Known gap:** answering `authority.publish=stage` records nothing.
-  That is correct as far as it goes — the safe default is the absence of
-  `.agentharness-publish-mode`, and answering it must never create the
-  file that grants authority — but it means the answer cannot be
-  distinguished from "never asked", so the question is re-asked on every
-  run while `rigor.tier` converges. Closing it needs somewhere to record
-  "asked and answered", which is a design decision (a small decision
-  record, or reusing the existing `.agentharness-authority.json`
-  contract) rather than an oversight, so it is recorded here rather than
-  resolved unilaterally.
+- **Closed:** answering `authority.publish=stage` used to record
+  nothing, so the answer could not be distinguished from "never asked"
+  and was re-asked every run. It is now written as an explicit
+  `.agentharness-authority.json` contract granting `commit` and
+  withholding `push`/`pr-create` — reusing the scoped-authority
+  mechanism rather than adding a file type. Because a contract outranks
+  the bare flag, this also resolves a contradiction the flag alone could
+  not: answering "stage" in a repo already carrying
+  `.agentharness-publish-mode` now takes effect.
 - **Still experimental:** the remaining gates/profiles/plugins machinery
   under `src/agentharness/` is not wired into the public CLI —
   `MANIFEST.md` records it as such. `tools/setup/harness-link.sh` remains
