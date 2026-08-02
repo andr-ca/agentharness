@@ -153,7 +153,7 @@ agentharness bootstrap apply --answer rigor.tier=production --confirm "$PLAN_HAS
 
 | Property | How it is enforced |
 |---|---|
-| `plan` never writes | It only reads config files; verified by test |
+| `plan` never writes | It only reads — config files, and the filenames of an existing test suite; verified by test |
 | Existing setup is preserved | A detected capability is never offered for adoption and never generates an action |
 | No file is clobbered | Scaffolds skip any path that already exists — re-checked at write time, not just at plan time |
 | Decisions can be changed | The harness's own decision files (below) are the one exception: they are rewritten when your answer differs from what they say, since otherwise a recorded decision would be permanent and a malformed one unrepairable. The plan shows the value being replaced |
