@@ -6,7 +6,32 @@ section into a tagged version.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-08-03
+
+MINOR rather than PATCH: `audit`'s human output and its `--json` shape both
+change, and `uninstall` writes less to disk than it used to. Nothing here
+meets this repo's breaking-change definition — no subcommand, flag,
+`--mode` value or skill is renamed or removed, and
+`.agentharness-state.json`'s schema is untouched — but a consumer parsing
+`audit --json` should read the two notes below before updating a pin.
+
+**`audit --json` consumers:** entries that do not apply to the recorded
+install mode are now *omitted* rather than reported as missing, so a script
+looking for a specific command must tolerate its absence under
+`--mode npm`. And `executable` alone is no longer a valid alert signal —
+pair it with the new `requires_executable`.
+
 ### Fixed
+- **`enforce-profile` failed a JS/TS project's first run with Vitest's raw
+  error and nothing else.** A project with vitest but no coverage provider
+  — the default state, since Vitest deliberately bundles none — got
+  `MISSING DEPENDENCY  Cannot find dependency '@vitest/coverage-v8'`,
+  which never mentions coverage, the profile that demanded it, or the fix.
+  A useful message existed but sat on the branch taken when vitest
+  *succeeds*, unreachable in the common failing case. Now preflighted
+  before the run, naming both providers that satisfy Vitest. (Merged in
+  #224 after the v0.6.0 tag, so it was never in the published 0.6.0 and
+  had no changelog entry until now.)
 - **`audit` reported a healthy `--mode npm` install as broken.** Its
   validation-commands table predates `--mode npm` and listed the harness
   repo's own maintenance scripts, which the npm package deliberately does
