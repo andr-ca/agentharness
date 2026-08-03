@@ -29,13 +29,16 @@ jobs:
           #
           # npmjs.com answers automated requests with 403 whatever the URL,
           # so it reported this repo's own published package as broken.
-          # There is no per-package variant that behaves differently.
+          # There is no per-package variant that behaves differently. The
+          # www. is optional in the regex (Copilot review on #227): only a
+          # www. link exists today, but a bare https://npmjs.com/... added
+          # later would otherwise re-break this same check.
           #
           # Kept as a YAML comment rather than inline in args below: '#'
           # inside a folded scalar (>-) is literal text, not a comment, so
           # it would be passed to lychee as arguments.
           args: >-
             --no-progress
-            --exclude 'https://www\.npmjs\.com/'
+            --exclude 'https://(www\.)?npmjs\.com/'
             '**/*.md'
           fail: true
