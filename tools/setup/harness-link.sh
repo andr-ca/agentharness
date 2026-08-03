@@ -1654,28 +1654,56 @@ cmd_audit() {
         selected_profile="$(tr -d '[:space:]' < "$target/$PROFILE_FILE_NAME")"
     fi
 
-    # validation-commands: does the *recorded harness checkout's* own
+    # validation-commands: does the *recorded harness source's* own
     # tooling still exist where docs claim it does — catches a doc
     # referencing a script that was renamed/deleted upstream. Checked
     # against source_path (the harness), not target (the consumer
     # project), matching how skill availability above is also computed
     # from source_path.
+    #
+    # Each entry is "path|scope|needs_exec", because two properties of this
+    # list were wrong once --mode npm existed and .py helpers were added:
+    #
+    # scope=full     only a whole harness checkout (link/copy/submodule)
+    #                ships it. The npm package deliberately ships just
+    #                tools/setup/ — so auditing a perfectly healthy npm
+    #                install reported five of six rows as "MISSING" while
+    #                also reporting can_mechanically_enforce: true. A
+    #                consumer reasonably reads that as a broken install.
+    # scope=always   shipped in every mode; genuinely missing if absent.
+    #
+    # needs_exec=no  run as 'python3 <path>', so the executable bit is
+    #                irrelevant. Both .py helpers are non-executable by
+    #                design in the harness repo itself, which made every
+    #                install mode — including a pristine git checkout —
+    #                report two spurious "exists, not executable" warnings.
     local validation_cmds=(
-        "tools/check.sh"
-        "tools/setup/harness-link.sh"
-        "tools/verify-manifest.sh"
-        "tools/verify-content-quality.py"
-        "tools/generate-agents-md.sh"
-        "tools/generate-manifest.py"
+        "tools/check.sh|full|yes"
+        "tools/setup/harness-link.sh|always|yes"
+        "tools/verify-manifest.sh|full|yes"
+        "tools/verify-content-quality.py|full|no"
+        "tools/generate-agents-md.sh|full|yes"
+        "tools/generate-manifest.py|full|no"
     )
+    # Does the recorded source claim to be a whole harness checkout? Keyed
+    # on the recorded mode rather than on probing for files, so a genuinely
+    # broken checkout still reports its missing tooling instead of being
+    # silently reclassified as a partial source.
+    local source_is_full_checkout=true
+    [ "$mode" = "npm" ] && source_is_full_checkout=false
+
     local validation_report=""
-    local cmd_path full exists executable
-    for cmd_path in "${validation_cmds[@]}"; do
+    local cmd_entry cmd_path cmd_scope cmd_needs_exec full exists executable
+    for cmd_entry in "${validation_cmds[@]}"; do
+        IFS='|' read -r cmd_path cmd_scope cmd_needs_exec <<< "$cmd_entry"
+        if [ "$cmd_scope" = "full" ] && [ "$source_is_full_checkout" = false ]; then
+            continue
+        fi
         full="$source_path/$cmd_path"
         exists="false"; executable="false"
         [ -e "$full" ] && exists="true"
         [ -x "$full" ] && executable="true"
-        validation_report+="$cmd_path|$exists|$executable"$'\n'
+        validation_report+="$cmd_path|$exists|$executable|$cmd_needs_exec"$'\n'
     done
 
     # issue #110 (recommendation #3): the four preflight signals a linked
@@ -1737,11 +1765,17 @@ no_longer_available = lines(no_longer_available_raw)
 
 validation_commands = []
 for line in lines(validation_raw):
-    cmd_path, exists, executable = line.split("|")
+    cmd_path, exists, executable, needs_exec = line.split("|")
     validation_commands.append({
         "command": cmd_path,
         "exists": exists == "true",
+        # The literal bit, always reported as observed. `executable: false`
+        # is only a *problem* when requires_executable is also true — the
+        # .py helpers are invoked as 'python3 <path>' and are non-executable
+        # by design, so a consumer keying an alert off `executable` alone
+        # would fire on a healthy install.
         "executable": executable == "true",
+        "requires_executable": needs_exec == "yes",
     })
 
 import subprocess
@@ -1840,17 +1874,26 @@ except (subprocess.SubprocessError, json.JSONDecodeError, OSError, KeyError):
     fi
 
     echo ""
-    echo "Validation commands (in the recorded harness checkout):"
-    while IFS='|' read -r v_path v_exists v_executable; do
+    if [ "$source_is_full_checkout" = true ]; then
+        echo "Validation commands (in the recorded harness checkout):"
+    else
+        echo "Validation commands (in the recorded harness source):"
+    fi
+    while IFS='|' read -r v_path v_exists v_executable v_needs_exec; do
         [ -z "$v_path" ] && continue
         if [ "$v_exists" != "true" ]; then
             echo "  ✗ MISSING: $v_path"
-        elif [ "$v_executable" != "true" ]; then
+        elif [ "$v_needs_exec" = "yes" ] && [ "$v_executable" != "true" ]; then
             echo "  ⚠ $v_path (exists, not executable)"
         else
             echo "  ✓ $v_path"
         fi
     done <<< "$validation_report"
+    if [ "$source_is_full_checkout" = false ]; then
+        echo "  (--mode npm ships only the installer; the harness repo's own"
+        echo "   maintenance scripts are not part of the package and are not"
+        echo "   missing from your install.)"
+    fi
 
     echo ""
     echo "Hook state: with_hook=$with_hook, coverage_hook=$coverage_hook, core.hooksPath=${core_hooks_path:-(unset)}"
@@ -1864,7 +1907,15 @@ except (subprocess.SubprocessError, json.JSONDecodeError, OSError, KeyError):
     echo "Can mechanically enforce the advertised workflow: $can_mechanically_enforce"
 
     echo ""
-    echo "Policy-conflict check: run 'python3 tools/verify-content-quality.py' in the harness checkout (not duplicated here — see B7)."
+    # Only actionable when the operator actually has a harness checkout to
+    # run it in. Under --mode npm there is none, and the script isn't in the
+    # package — telling an npm consumer to run it sends them looking for a
+    # file that was never theirs to have.
+    if [ "$source_is_full_checkout" = true ]; then
+        echo "Policy-conflict check: run 'python3 tools/verify-content-quality.py' in the harness checkout (not duplicated here)."
+    else
+        echo "Policy-conflict check: not available for --mode npm — it runs against a harness checkout, which this install doesn't have."
+    fi
 }
 
 # ----------------------------------------------------------------------------
@@ -2691,6 +2742,7 @@ for line in json.load(sys.stdin)["log"]:
 '
 
     rm -f "$(state_path "$target")"
+
     echo "Uninstalled."
 }
 
