@@ -10,7 +10,7 @@ metadata:
 
 **Reviews merged:** [PR #32](https://github.com/andr-ca/agentharness/pull/32) (GPT-5.6 at 46b820d) + [PR #34](https://github.com/andr-ca/agentharness/pull/34) (Fable at 4f3e94b)
 
-**Filed:** 2026-07-14T03:04:33Z (main commits [`e1d1f3b`](https://github.com/andr-ca/agentharness/commit/e1d1f3b), [`8f6c90e`](https://github.com/andr-ca/agentharness/commit/8f6c90e))
+**Filed:** 2026-07-14T03:04:33Z (main commits [`e1d1f3b`](https://github.com/andr-ca/agentharness/commit/e1d1f3b), `8f6c90e` — the second sha is recorded as the reviewer cited it, but resolves to nothing in this repo on any branch, so it is deliberately not a link)
 
 **Scope of this document:** Merges both reviews' findings (Fable F-01–F-13 + GPT P0s) into a single action list per CLAUDE.md Recommendation Assessment mandate. Neither review has been acted upon yet.
 

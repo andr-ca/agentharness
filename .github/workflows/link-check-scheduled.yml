@@ -22,7 +22,20 @@ jobs:
       - name: Check all markdown links, including external URLs
         uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
         with:
+          # --exclude is only for hosts that reject the checker itself, not
+          # for links that are actually broken: an exclusion asserts the
+          # link is fine and the checker is wrong, so it has to be true. A
+          # genuinely dead link gets fixed or removed, never silenced here.
+          #
+          # npmjs.com answers automated requests with 403 whatever the URL,
+          # so it reported this repo's own published package as broken.
+          # There is no per-package variant that behaves differently.
+          #
+          # Kept as a YAML comment rather than inline in args below: '#'
+          # inside a folded scalar (>-) is literal text, not a comment, so
+          # it would be passed to lychee as arguments.
           args: >-
             --no-progress
+            --exclude 'https://www\.npmjs\.com/'
             '**/*.md'
           fail: true
