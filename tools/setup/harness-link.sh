@@ -2629,6 +2629,19 @@ cmd_uninstall() {
         echo "  Removed skill: $name"
     done
 
+    # Removing the last skill leaves .claude/skills/ and .agents/skills/
+    # behind as empty directories, and their parents with them when the
+    # harness is what created them. rmdir (never rm -rf) so a directory
+    # holding anything the operator put there — their own skills, settings,
+    # agents — stops the cleanup at exactly that level and is preserved.
+    for dest_subdir in "${SKILL_DEST_SUBDIRS[@]}"; do
+        local prune_dir="$target/$dest_subdir"
+        while [ -d "$prune_dir" ] && [ "$prune_dir" != "$target" ]; do
+            rmdir "$prune_dir" 2>/dev/null || break
+            prune_dir="$(dirname "$prune_dir")"
+        done
+    done
+
     if [ -f "$target/.gitignore" ] && grep -qF "$GITIGNORE_MARKER" "$target/.gitignore"; then
         # The merge always appends "" + marker + entries to the end of the
         # file and nothing else ever writes past that point, so truncating
@@ -2743,6 +2756,14 @@ for line in json.load(sys.stdin)["log"]:
 
     rm -f "$(state_path "$target")"
 
+    # init generates this, uninstall deliberately does not remove it: it is
+    # a project policy file the operator is expected to have edited, and
+    # deleting their edits is worse than leaving a file behind. Say so
+    # rather than leaving it silently — an undisclosed leftover reads as a
+    # bug, and the operator can't remove what they don't know is there.
+    if [ -f "$target/.agentharness-guarded-paths.json" ]; then
+        echo "  Left in place: .agentharness-guarded-paths.json (your file-placement policy — delete it yourself if you no longer want it)"
+    fi
     echo "Uninstalled."
 }
 

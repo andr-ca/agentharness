@@ -680,8 +680,53 @@ with open(p, 'w') as f: json.dump(d, f, indent=2)
     [ "$status" -ne 0 ]
 }
 
+@test "lifecycle: uninstall does not strand the empty directories it created" {
+    git -C "$TEST_PROJECT" init --quiet
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing
 
+    run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
 
+    # Removing the last skill / the only harness-created file used to leave
+    # .claude/, .agents/ and .github/ behind as empty husks.
+    [ ! -d "$TEST_PROJECT/.claude" ]
+    [ ! -d "$TEST_PROJECT/.agents" ]
+    [ ! -d "$TEST_PROJECT/.github" ]
+}
+
+@test "lifecycle: uninstall preserves a directory holding anything the operator owns" {
+    git -C "$TEST_PROJECT" init --quiet
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing
+    mkdir -p "$TEST_PROJECT/.claude/skills/my-own-skill"
+    echo "mine" > "$TEST_PROJECT/.claude/skills/my-own-skill/SKILL.md"
+    echo "mine" > "$TEST_PROJECT/.claude/settings.json"
+    mkdir -p "$TEST_PROJECT/.github/workflows"
+    echo "mine" > "$TEST_PROJECT/.github/workflows/ci.yml"
+
+    run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+
+    # The prune is rmdir-only, so it stops at the first non-empty level and
+    # can never take anything the operator put there with it.
+    [ -f "$TEST_PROJECT/.claude/skills/my-own-skill/SKILL.md" ]
+    [ -f "$TEST_PROJECT/.claude/settings.json" ]
+    [ -f "$TEST_PROJECT/.github/workflows/ci.yml" ]
+    [ ! -e "$TEST_PROJECT/.claude/skills/committing" ]
+}
+
+@test "lifecycle: uninstall discloses the guarded-paths policy file it leaves behind" {
+    git -C "$TEST_PROJECT" init --quiet
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing
+    [ -f "$TEST_PROJECT/.agentharness-guarded-paths.json" ]
+
+    run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+
+    # Kept on purpose (the operator may have edited it), but an undisclosed
+    # leftover is indistinguishable from a bug.
+    [ -f "$TEST_PROJECT/.agentharness-guarded-paths.json" ]
+    [[ "$output" =~ "Left in place: .agentharness-guarded-paths.json" ]]
+}
 
 @test "lifecycle: P0-01 regression — a pre-existing foreign core.hooksPath survives init, doctor, and uninstall" {
     # Direct reproduction of the gpt-5.6 third-pass P0-01 finding: init used
