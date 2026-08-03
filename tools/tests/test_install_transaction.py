@@ -849,11 +849,18 @@ def test_uninstall_keeps_a_directory_holding_anything_else(tmp_path):
 def test_prune_never_climbs_above_the_project_root(tmp_path):
     # The safety property: an uninstall must not be able to delete
     # directories outside the project, however empty they are.
+    #
+    # Must start the walk *below* the root and let it climb: passing the
+    # root as both arguments makes the loop condition false on the first
+    # evaluation, so the body never runs and the test proves nothing about
+    # the guard it names.
     outer = tmp_path / "outer"
     project = outer / "project"
-    project.mkdir(parents=True)
+    nested = project / "a" / "b"
+    nested.mkdir(parents=True)
 
-    it._prune_empty_parents(project, project)
+    it._prune_empty_parents(nested, project)
 
-    assert project.exists(), "the base dir itself is never a prune candidate"
-    assert outer.exists(), "the prune must stop at the project root"
+    assert not (project / "a").exists(), "empty dirs below the root are pruned"
+    assert project.exists(), "the prune must stop at the project root"
+    assert outer.exists(), "the prune must never escape the project"
