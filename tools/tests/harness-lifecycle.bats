@@ -320,6 +320,142 @@ print('ok')
 }
 
 # ---------------------------------------------------------------------------
+# Validation-commands table: scope and executability (found by running audit
+# on a real npm install of the published package).
+#
+# The table predates --mode npm and the .py helpers, and asserted two things
+# that stopped being true: that the recorded source is always a whole harness
+# checkout, and that every listed command is run directly.
+# ---------------------------------------------------------------------------
+
+@test "lifecycle: audit does not report the harness's own maintenance scripts as missing from an npm install" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode npm --skills committing
+
+    run bash "$SCRIPT" audit "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+    # The npm package ships only tools/setup/. Listing the harness repo's
+    # maintenance scripts here marked every healthy npm install as broken.
+    [[ "$output" != *"MISSING"* ]]
+    [[ "$output" =~ "tools/setup/harness-link.sh" ]]
+    [[ "$output" != *"tools/verify-manifest.sh"* ]]
+    [[ "$output" != *"tools/generate-manifest.py"* ]]
+    [[ "$output" =~ "ships only the installer" ]]
+}
+
+@test "lifecycle: audit --json omits full-checkout-only commands for an npm install" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode npm --skills committing
+
+    run bash "$SCRIPT" audit "$TEST_PROJECT" --json
+    [ "$status" -eq 0 ]
+
+    run python3 -c "
+import json
+d = json.loads('''$output''')
+cmds = {c['command']: c for c in d['validation_commands']}
+assert set(cmds) == {'tools/setup/harness-link.sh'}, cmds
+assert cmds['tools/setup/harness-link.sh']['exists'] is True, cmds
+print('ok')
+"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "ok" ]]
+}
+
+@test "lifecycle: audit still reports a genuinely missing command in a full checkout install" {
+    # The scope filter must not swallow real breakage: link/copy/submodule
+    # installs record a whole checkout, so every command stays in scope.
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing
+    source_path="$(python3 -c "
+import json
+print(json.load(open('$TEST_PROJECT/.agentharness-state.json'))['source']['path'])
+")"
+    fake_source=$(mktemp -d)
+    mkdir -p "$fake_source/tools/setup"
+    cp "$source_path/tools/setup/harness-link.sh" "$fake_source/tools/setup/harness-link.sh"
+    python3 -c "
+import json
+p = '$TEST_PROJECT/.agentharness-state.json'
+d = json.load(open(p))
+d['source']['path'] = '$fake_source'
+json.dump(d, open(p, 'w'))
+"
+
+    run bash "$SCRIPT" audit "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "MISSING: tools/verify-manifest.sh" ]]
+    rm -rf "$fake_source"
+}
+
+@test "lifecycle: audit does not warn that the python-invoked helpers are non-executable" {
+    # tools/verify-content-quality.py and tools/generate-manifest.py are run
+    # as 'python3 <path>' and are non-executable by design in this repo, so
+    # the old blanket -x check warned on a pristine checkout.
+    [ ! -x "$HARNESS_ROOT/tools/verify-content-quality.py" ]
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing
+
+    run bash "$SCRIPT" audit "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"exists, not executable"* ]]
+    [[ "$output" =~ "✓ tools/verify-content-quality.py" ]]
+}
+
+@test "lifecycle: audit --json marks python-invoked helpers as not requiring the executable bit" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing
+
+    run bash "$SCRIPT" audit "$TEST_PROJECT" --json
+    [ "$status" -eq 0 ]
+
+    run python3 -c "
+import json
+d = json.loads('''$output''')
+cmds = {c['command']: c for c in d['validation_commands']}
+assert cmds['tools/verify-content-quality.py']['requires_executable'] is False, cmds
+assert cmds['tools/generate-manifest.py']['requires_executable'] is False, cmds
+assert cmds['tools/check.sh']['requires_executable'] is True, cmds
+assert cmds['tools/setup/harness-link.sh']['requires_executable'] is True, cmds
+print('ok')
+"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "ok" ]]
+}
+
+@test "lifecycle: audit still warns when a directly-run script loses its executable bit" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing
+    source_path="$(python3 -c "
+import json
+print(json.load(open('$TEST_PROJECT/.agentharness-state.json'))['source']['path'])
+")"
+    fake_source=$(mktemp -d)
+    mkdir -p "$fake_source/tools/setup"
+    cp "$source_path/tools/check.sh" "$fake_source/tools/check.sh"
+    cp "$source_path/tools/setup/harness-link.sh" "$fake_source/tools/setup/harness-link.sh"
+    chmod -x "$fake_source/tools/check.sh"
+    python3 -c "
+import json
+p = '$TEST_PROJECT/.agentharness-state.json'
+d = json.load(open(p))
+d['source']['path'] = '$fake_source'
+json.dump(d, open(p, 'w'))
+"
+
+    run bash "$SCRIPT" audit "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "⚠ tools/check.sh (exists, not executable)" ]]
+    rm -rf "$fake_source"
+}
+
+@test "lifecycle: audit points npm installs away from the policy check they cannot run" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode npm --skills committing
+
+    run bash "$SCRIPT" audit "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+    # verify-content-quality.py isn't in the package and there's no harness
+    # checkout to run it in — telling an npm consumer to run it sends them
+    # after a file that was never theirs.
+    [[ "$output" =~ "Policy-conflict check: not available for --mode npm" ]]
+    [[ "$output" != *"run 'python3 tools/verify-content-quality.py' in the harness checkout"* ]]
+}
+
+# ---------------------------------------------------------------------------
 # Consumer-local check wrapper (issue #110, recommendations #1/#2/#3)
 # ---------------------------------------------------------------------------
 
@@ -542,6 +678,54 @@ with open(p, 'w') as f: json.dump(d, f, indent=2)
     [ ! -f "$TEST_PROJECT/.agentharness-state.json" ]
     run git -C "$TEST_PROJECT" config core.hooksPath
     [ "$status" -ne 0 ]
+}
+
+@test "lifecycle: uninstall does not strand the empty directories it created" {
+    git -C "$TEST_PROJECT" init --quiet
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing
+
+    run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+
+    # Removing the last skill / the only harness-created file used to leave
+    # .claude/, .agents/ and .github/ behind as empty husks.
+    [ ! -d "$TEST_PROJECT/.claude" ]
+    [ ! -d "$TEST_PROJECT/.agents" ]
+    [ ! -d "$TEST_PROJECT/.github" ]
+}
+
+@test "lifecycle: uninstall preserves a directory holding anything the operator owns" {
+    git -C "$TEST_PROJECT" init --quiet
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing
+    mkdir -p "$TEST_PROJECT/.claude/skills/my-own-skill"
+    echo "mine" > "$TEST_PROJECT/.claude/skills/my-own-skill/SKILL.md"
+    echo "mine" > "$TEST_PROJECT/.claude/settings.json"
+    mkdir -p "$TEST_PROJECT/.github/workflows"
+    echo "mine" > "$TEST_PROJECT/.github/workflows/ci.yml"
+
+    run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+
+    # The prune is rmdir-only, so it stops at the first non-empty level and
+    # can never take anything the operator put there with it.
+    [ -f "$TEST_PROJECT/.claude/skills/my-own-skill/SKILL.md" ]
+    [ -f "$TEST_PROJECT/.claude/settings.json" ]
+    [ -f "$TEST_PROJECT/.github/workflows/ci.yml" ]
+    [ ! -e "$TEST_PROJECT/.claude/skills/committing" ]
+}
+
+@test "lifecycle: uninstall discloses the guarded-paths policy file it leaves behind" {
+    git -C "$TEST_PROJECT" init --quiet
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing
+    [ -f "$TEST_PROJECT/.agentharness-guarded-paths.json" ]
+
+    run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+
+    # Kept on purpose (the operator may have edited it), but an undisclosed
+    # leftover is indistinguishable from a bug.
+    [ -f "$TEST_PROJECT/.agentharness-guarded-paths.json" ]
+    [[ "$output" =~ "Left in place: .agentharness-guarded-paths.json" ]]
 }
 
 @test "lifecycle: P0-01 regression — a pre-existing foreign core.hooksPath survives init, doctor, and uninstall" {

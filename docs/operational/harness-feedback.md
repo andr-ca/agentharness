@@ -758,3 +758,82 @@ root. Five tests, including three asserting the non-memory paths are
 still refused. The first cut of the relocated-config test used
 `mktemp -d`, which sits under the already-allowed temp root and so passed
 without exercising the new branch at all — it now uses a path outside both.
+
+## 2026-08-03 — `audit` describes an install mode that did not exist when it was written
+
+**Where it surfaced:** running `agentharness audit` inside a throwaway
+project with the published `agentharness-toolkit@0.6.0` installed from
+npm, as an ordinary consumer would.
+
+**What happened:** the validation-commands table reported five of its six
+entries as `✗ MISSING` on a completely healthy install. Two lines further
+down, the same output reported `Can mechanically enforce the advertised
+workflow: true`. The `--json` form agreed with the broken-looking half.
+
+**Why it matters:** nothing was actually wrong. `--mode npm` ships only
+`tools/setup/`; the entries being reported missing are the harness repo's
+own maintenance scripts, which were never part of the package. A consumer
+has no way to know that, and `audit` is precisely the command they would
+run to find out whether their install is sound. It answered "mostly
+broken" for a correct install, and contradicted itself in the process.
+
+Two adjacent claims in the same table were wrong in *every* install mode,
+including a pristine git checkout of this repo:
+`tools/verify-content-quality.py` and `tools/generate-manifest.py` are
+invoked as `python3 <path>` and are non-executable by design here, so the
+blanket `-x` check emitted two `⚠ exists, not executable` warnings that
+could not be cleared without making a wrong change. The closing line then
+told npm consumers to run `verify-content-quality.py` "in the harness
+checkout" — a file not in their package, in a directory they do not have.
+
+**The pattern:** this is the third instance this week of a table of
+guarantees outliving the thing it describes. `docs/INTEGRATION.md` had
+three false rows, found two at a time. Here the table predates `--mode
+npm` entirely. Adding an install mode is not treated as a reason to re-read
+every surface that asserts something about "the harness checkout", and the
+tests all used the default mode, so nothing caught it.
+
+**What agentharness should change:** when a new install mode is added,
+audit every surface that describes the source tree, not just the install
+path. More durably: assertions like this table should be scoped by the
+mode they apply to at the point they are written, rather than defaulting
+to a universal claim that a later mode quietly falsifies.
+
+**Corrective action taken:** fixed rather than only logged. The table is
+now scoped per entry (`full` vs `always`) and per invocation style
+(`needs_exec`), `--json` gained `requires_executable`, and the
+policy-conflict line reports itself unavailable under `--mode npm`. Nine
+tests, six of which were verified to fail against the unfixed source and
+three of which are counter-cases proving the fix does not over-apply — a
+genuinely missing command and a genuinely non-executable script are still
+reported.
+
+## 2026-08-03 — `uninstall` leaves empty directories and an undisclosed file
+
+**Where it surfaced:** the same consumer journey, uninstalling from the
+throwaway npm project.
+
+**What happened:** uninstall is otherwise clean — it removes every skill,
+reverses each managed block, and deletes files it created that held
+nothing else. But it left `.claude/`, `.agents/` and `.github/` behind as
+empty directories, and left `.agentharness-guarded-paths.json` in place
+without mentioning it.
+
+**Why it matters:** small, but it is the difference between "removed" and
+"mostly removed". The empty-directory case is a gap in cleanup that
+already exists — there is `rmdir` logic, but it only fires on the hooks
+path, so it missed the two cases that occur on every single install.
+Keeping the guarded-paths file is the *right* call (the operator may have
+edited it, and discarding their edits is worse), but keeping it silently
+is indistinguishable from a leak to anyone reading the output.
+
+**What agentharness should change:** an uninstall's output should account
+for everything it deliberately does not remove. "We kept this and here is
+why" is a completed action; saying nothing is an unexplained leftover.
+
+**Corrective action taken:** fixed. Empty parents are pruned with `rmdir`
+only, so any directory holding operator-owned content stops the walk
+there, and the Python side refuses to climb above the project root. The
+guarded-paths file is now disclosed in the output. Four tests, including
+a counter-case that fills `.claude/` and `.github/` with operator files
+and asserts they survive.

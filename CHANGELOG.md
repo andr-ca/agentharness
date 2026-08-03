@@ -6,6 +6,36 @@ section into a tagged version.
 
 ## [Unreleased]
 
+### Fixed
+- **`audit` reported a healthy `--mode npm` install as broken.** Its
+  validation-commands table predates `--mode npm` and listed the harness
+  repo's own maintenance scripts, which the npm package deliberately does
+  not ship. Five of six rows read `✗ MISSING` on a working install, while
+  the same output reported `can_mechanically_enforce: true`. The table is
+  now scoped to what the recorded install mode actually ships, and says so.
+- **`audit` warned that two scripts were "not executable" on every
+  install, including a pristine checkout.** `tools/verify-content-quality.py`
+  and `tools/generate-manifest.py` are invoked as `python3 <path>` and are
+  non-executable by design in this repo, so the blanket `-x` check could
+  never pass. Executability is now only required of commands that are run
+  directly. `audit --json` entries gained `requires_executable`; the
+  existing `executable` field still reports the literal bit, so keying an
+  alert off `executable` alone will still misfire — use both.
+- **`audit` told npm consumers to run a policy check they cannot run.** It
+  closed by pointing at `python3 tools/verify-content-quality.py` "in the
+  harness checkout" — under `--mode npm` there is no checkout and the
+  script isn't in the package. It now says the check is unavailable
+  instead of sending the operator after a file that was never theirs.
+- **`uninstall` left empty `.claude/`, `.agents/` and `.github/`
+  directories behind.** Removing the last skill, or the only file the
+  harness created in a directory it also created, stranded the husk. Now
+  pruned with `rmdir` only, so a directory holding anything the operator
+  owns stops the cleanup at exactly that level.
+- **`uninstall` silently left `.agentharness-guarded-paths.json` in
+  place.** Keeping it is deliberate — it's a policy file the operator may
+  have edited, and deleting their edits is worse. It is now disclosed in
+  the output rather than left as an undocumented leftover.
+
 ## [0.6.0] - 2026-08-02
 
 MINOR rather than PATCH: every entry below changes consumer-visible

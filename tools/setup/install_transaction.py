@@ -403,6 +403,28 @@ def _load_surfaces_spec(spec_path: Path) -> list[Surface]:
     ]
 
 
+def _prune_empty_parents(start: Path, base_dir: Path) -> None:
+    """Remove directories left empty by deleting a harness-created file.
+
+    Deleting the only file the harness put in a directory it also created
+    (.github/copilot-instructions.md being the common one) otherwise strands
+    an empty .github/ in the consumer's tree.
+
+    Uses rmdir, never a recursive delete: a directory holding anything at
+    all — the operator's own workflows, an unrelated dotfile — raises
+    OSError and stops the walk right there, so nothing they own is at risk.
+    Stops at base_dir so uninstall can never climb out of the project.
+    """
+    current = start.resolve()
+    root = base_dir.resolve()
+    while current != root and root in current.parents:
+        try:
+            current.rmdir()
+        except OSError:
+            return
+        current = current.parent
+
+
 def uninstall_all(state: dict[str, Any], base_dir: Path) -> list[str]:
     """Reverse every managed block and overwritten file recorded in
     state, per the spec's per-file-class uninstall semantics. Returns a
@@ -433,6 +455,7 @@ def uninstall_all(state: dict[str, Any], base_dir: Path) -> list[str]:
                 # and here (concurrent cleanup), and that must not strand
                 # the entries still to process.
                 path.unlink(missing_ok=True)
+                _prune_empty_parents(path.parent, base_dir)
                 log.append(
                     f"{entry['file']}: removed managed block and the file, "
                     "which we created and which held nothing else"

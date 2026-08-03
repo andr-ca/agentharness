@@ -823,3 +823,44 @@ def test_uninstall_survives_the_file_vanishing_mid_run(tmp_path):
         Path.unlink = original_unlink
 
     assert not path.exists()
+
+
+def test_uninstall_removes_a_directory_left_empty_by_deleting_our_file(tmp_path):
+    nested = tmp_path / ".github"
+    nested.mkdir()
+    (nested / "copilot-instructions.md").write_text(_block())
+
+    it.uninstall_all(_state(".github/copilot-instructions.md"), tmp_path)
+
+    assert not nested.exists(), "an empty .github/ husk must not be left behind"
+
+
+def test_uninstall_keeps_a_directory_holding_anything_else(tmp_path):
+    nested = tmp_path / ".github"
+    (nested / "workflows").mkdir(parents=True)
+    (nested / "workflows" / "ci.yml").write_text("name: ci\n")
+    (nested / "copilot-instructions.md").write_text(_block())
+
+    it.uninstall_all(_state(".github/copilot-instructions.md"), tmp_path)
+
+    assert (nested / "workflows" / "ci.yml").exists()
+
+
+def test_prune_never_climbs_above_the_project_root(tmp_path):
+    # The safety property: an uninstall must not be able to delete
+    # directories outside the project, however empty they are.
+    #
+    # Must start the walk *below* the root and let it climb: passing the
+    # root as both arguments makes the loop condition false on the first
+    # evaluation, so the body never runs and the test proves nothing about
+    # the guard it names.
+    outer = tmp_path / "outer"
+    project = outer / "project"
+    nested = project / "a" / "b"
+    nested.mkdir(parents=True)
+
+    it._prune_empty_parents(nested, project)
+
+    assert not (project / "a").exists(), "empty dirs below the root are pruned"
+    assert project.exists(), "the prune must stop at the project root"
+    assert outer.exists(), "the prune must never escape the project"
