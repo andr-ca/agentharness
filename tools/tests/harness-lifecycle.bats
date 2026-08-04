@@ -1273,6 +1273,40 @@ with open('$TEST_PROJECT/.agentharness-state.json') as f: print(json.load(f)['so
     [ "$(git -C "$submodule" rev-parse HEAD)" = "$pinned_commit" ]
 }
 
+@test "lifecycle: --mode npm regression — status/audit never leak the consumer's own git HEAD as the harness revision" {
+    # Found running a real npm install inside a real consumer git repo — the
+    # ordinary case, and the one shape none of the other --mode npm
+    # fixtures in this file exercise (none of them git-init TEST_PROJECT).
+    # .agentharness-pkg has no .git of its own (npm strips it), and plain
+    # 'git -C .agentharness-pkg rev-parse HEAD' does upward directory
+    # discovery rather than requiring one, so it silently resolved to
+    # TEST_PROJECT's own HEAD and reported that as the harness's revision.
+    git -C "$TEST_PROJECT" init --quiet
+    echo x > "$TEST_PROJECT/marker"
+    git -C "$TEST_PROJECT" add marker
+    git -C "$TEST_PROJECT" -c user.email=t@t -c user.name=t commit --quiet -m init
+    consumer_head="$(git -C "$TEST_PROJECT" rev-parse HEAD)"
+
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode npm --skills committing
+
+    run bash "$SCRIPT" audit "$TEST_PROJECT" --json
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"$consumer_head"* ]]
+    run python3 -c "
+import json
+d = json.loads('''$output''')
+assert d['current_revision'] == 'unknown', d
+print('ok')
+"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "ok" ]]
+
+    run bash "$SCRIPT" status "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"$consumer_head"* ]]
+    [[ "$output" != *"source has moved on"* ]]
+}
+
 @test "lifecycle: --mode npm copies a durable source into the target instead of symlinking HARNESS_DIR (P0-02)" {
     bash "$SCRIPT" init "$TEST_PROJECT" --mode npm --skills agentic-loops
 
