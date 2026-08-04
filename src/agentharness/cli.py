@@ -42,6 +42,14 @@ def create_parser() -> argparse.ArgumentParser:
     bs_plan = bootstrap_sub.add_parser("plan", add_help=False)
     bs_plan.add_argument("--json", action="store_true", dest="as_json")
     bs_plan.add_argument("--target-dir", dest="target_dir", default=".", type=Path)
+    # Positional alternative to --target-dir (issue found dogfooding a real
+    # npm install): every bash-served subcommand in this same CLI — audit,
+    # doctor, uninstall, init — takes the target as a plain positional
+    # argument. 'bootstrap plan .', the natural first thing to type having
+    # used any of those, hit argparse's unrecognized-argument error, which
+    # SafeArgumentParser then flattens to the opaque "The command is
+    # invalid." with no hint that --target-dir was the only accepted form.
+    bs_plan.add_argument("target_dir_positional", nargs="?", default=None, type=Path)
     bs_plan.add_argument(
         "--answer",
         dest="answers",
@@ -53,6 +61,7 @@ def create_parser() -> argparse.ArgumentParser:
     bs_apply = bootstrap_sub.add_parser("apply", add_help=False)
     bs_apply.add_argument("--json", action="store_true", dest="as_json")
     bs_apply.add_argument("--target-dir", dest="target_dir", default=".", type=Path)
+    bs_apply.add_argument("target_dir_positional", nargs="?", default=None, type=Path)
     bs_apply.add_argument(
         "--answer",
         dest="answers",
@@ -1053,8 +1062,10 @@ _HELP_TOPICS: dict[tuple[str, ...], str] = {
         "  agentharness bootstrap apply --answer ... --confirm <plan-hash>"
     ),
     ("bootstrap", "plan"): (
-        "agentharness bootstrap plan — inventory a project. Read-only.\n"
+        "agentharness bootstrap plan [DIR] — inventory a project. Read-only.\n"
         "\n"
+        "  DIR                 Project to inspect (default: .); same as\n"
+        "                      --target-dir below\n"
         "  --target-dir DIR    Project to inspect (default: .)\n"
         "  --answer KEY=VALUE  Answer one question; repeatable\n"
         "  --json              Machine-readable output\n"
@@ -1064,8 +1075,10 @@ _HELP_TOPICS: dict[tuple[str, ...], str] = {
         "then can it be applied."
     ),
     ("bootstrap", "apply"): (
-        "agentharness bootstrap apply — apply a resolved plan.\n"
+        "agentharness bootstrap apply [DIR] — apply a resolved plan.\n"
         "\n"
+        "  DIR                 Project to modify (default: .); same as\n"
+        "                      --target-dir below\n"
         "  --target-dir DIR    Project to modify (default: .)\n"
         "  --answer KEY=VALUE  Answer one question; repeatable\n"
         "  --confirm HASH      The plan hash being approved (required)\n"
@@ -1120,13 +1133,18 @@ def main(argv: Sequence[str] | None = None, output: TextIO | None = None) -> int
         if arguments.command == "status":
             result = execute_status()
         elif arguments.command == "bootstrap":
+            # Prefer the positional target dir; fall back to --target-dir.
+            # Same precedence as _dispatch_authority's repo_root/target_dir.
+            target_dir = (
+                arguments.target_dir_positional
+                if arguments.target_dir_positional is not None
+                else arguments.target_dir
+            )
             if arguments.bootstrap_command == "plan":
-                result = execute_bootstrap_plan(
-                    arguments.target_dir, arguments.answers
-                )
+                result = execute_bootstrap_plan(target_dir, arguments.answers)
             else:
                 result = execute_bootstrap_apply(
-                    arguments.target_dir, arguments.answers, arguments.confirm
+                    target_dir, arguments.answers, arguments.confirm
                 )
         elif arguments.command == "github":
             result = _dispatch_github(arguments)

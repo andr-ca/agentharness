@@ -6,6 +6,15 @@ section into a tagged version.
 
 ## [Unreleased]
 
+### Fixed
+- **`bootstrap plan`/`apply` rejected a positional target directory.** Every
+  other subcommand in this CLI — `audit`, `doctor`, `uninstall`, `init` —
+  takes the target as a plain positional argument, so `bootstrap plan .`
+  is the natural first thing to type having used any of those. It failed
+  with the generic `The command is invalid.`, giving no hint that
+  `--target-dir` was the only accepted form. A positional argument is now
+  accepted as an alias for `--target-dir` on both `plan` and `apply`.
+
 ## [0.7.0] - 2026-08-03
 
 MINOR rather than PATCH: `audit`'s human output and its `--json` shape both
