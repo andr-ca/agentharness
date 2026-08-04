@@ -188,14 +188,14 @@ def test_bootstrap_plan_accepts_a_positional_target_dir(tmp_path, capsys):
 
 
 def test_bootstrap_plan_positional_target_dir_matches_flag_form(tmp_path, capsys):
-    # Not just "doesn't crash" — must inspect the same directory as
-    # --target-dir does. Distinguish the two dirs by content: a project
-    # with pytest configured reports the test capability as present.
+    # Not just "doesn't crash" — the positional and --target-dir forms must
+    # inspect and report on the same directory. A project with pytest
+    # configured is real content to check for in the output, rather than
+    # comparing two runs against an empty directory that would produce
+    # identical output no matter which directory either form pointed at.
     (tmp_path / "pyproject.toml").write_text(
         "[project]\nname='d'\nversion='0.1'\n[tool.pytest.ini_options]\n"
     )
-    other = tmp_path / "empty"
-    other.mkdir()
 
     main(["bootstrap", "plan", str(tmp_path)])
     positional_out = capsys.readouterr().out
