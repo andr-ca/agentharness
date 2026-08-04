@@ -175,6 +175,46 @@ def test_bootstrap_plan_writes_nothing(tmp_path):
     assert list(tmp_path.iterdir()) == []
 
 
+def test_bootstrap_plan_accepts_a_positional_target_dir(tmp_path, capsys):
+    # Found dogfooding a real npm install: every other subcommand in this
+    # CLI (audit, doctor, uninstall, init) takes the target as a plain
+    # positional, so 'bootstrap plan .' is the natural first thing to type.
+    # It used to die with argparse's unrecognized-argument error, flattened
+    # by SafeArgumentParser into an opaque "The command is invalid."
+    exit_code = main(["bootstrap", "plan", str(tmp_path)])
+
+    assert exit_code == 0
+    assert "The command is invalid" not in capsys.readouterr().out
+
+
+def test_bootstrap_plan_positional_target_dir_matches_flag_form(tmp_path, capsys):
+    # Not just "doesn't crash" — the positional and --target-dir forms must
+    # inspect and report on the same directory. A project with pytest
+    # configured is real content to check for in the output, rather than
+    # comparing two runs against an empty directory that would produce
+    # identical output no matter which directory either form pointed at.
+    (tmp_path / "pyproject.toml").write_text(
+        "[project]\nname='d'\nversion='0.1'\n[tool.pytest.ini_options]\n"
+    )
+
+    main(["bootstrap", "plan", str(tmp_path)])
+    positional_out = capsys.readouterr().out
+    main(["bootstrap", "plan", "--target-dir", str(tmp_path)])
+    flag_out = capsys.readouterr().out
+
+    assert "pytest" in positional_out
+    assert positional_out == flag_out
+
+
+def test_bootstrap_apply_accepts_a_positional_target_dir(tmp_path, capsys):
+    exit_code = main(["bootstrap", "apply", str(tmp_path)])
+    out = capsys.readouterr().out
+
+    assert exit_code == 1
+    assert "not resolved" in out
+    assert "The command is invalid" not in out
+
+
 def test_bootstrap_apply_refuses_an_unresolved_plan(tmp_path, capsys):
     exit_code = main(["bootstrap", "apply", "--target-dir", str(tmp_path)])
 
