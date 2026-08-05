@@ -6,14 +6,24 @@ See [CHANGELOG.md](../CHANGELOG.md) for the history this policy governs.
 
 ## Versioning
 
-Tags are `vMAJOR.MINOR.PATCH`. While the repo is `0.x` (current: `v0.7.0`):
+Tags are `vMAJOR.MINOR.PATCH`. While the repo is `0.x` (current: `v0.7.1`):
 
 - No stability guarantee. Any release may rename or remove a skill,
   change `harness-link.sh`'s CLI shape, or change
   `.agentharness-state.json`'s schema.
 - `MINOR` bumps signal "content or CLI surface changed, check the
-  changelog before updating a pinned consumer." `PATCH` bumps are
-  docs/test-only changes with no behavior change for a consumer.
+  changelog before updating a pinned consumer" — including a fix that
+  changes what an existing flag, subcommand, or output shape does for
+  someone already using it correctly (v0.7.0's `audit --json` shape
+  change is this kind of PATCH-sized-looking-but-actually-MINOR fix).
+  `PATCH` bumps are everything else with no behavior change for a
+  *correct* caller: docs/test-only changes, and bug fixes that only
+  make an already-broken path work as documented (v0.7.1's `bootstrap
+  plan .` accepting a form every other subcommand already accepted, and
+  a revision field that only ever reported a wrong value now reporting
+  `unknown` instead) — read the changelog regardless of the bump size if
+  you rely on exact output shape, since "PATCH" here does not mean
+  "nothing changed."
 - Once a `1.0.0` is cut, `MAJOR` bumps are reserved for breaking changes
   as defined below, and `MINOR`/`PATCH` follow normal semver.
 

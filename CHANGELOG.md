@@ -6,6 +6,15 @@ section into a tagged version.
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-08-05
+
+PATCH, not MINOR: unlike `v0.7.0`, neither fix here changes an existing
+CLI surface's shape for anyone already using it correctly — `bootstrap
+plan`/`apply` gains an accepted form it previously rejected, and
+`--target-dir` is unchanged; `current_revision`/`status`'s note now report
+`unknown` in a case that was already wrong, never a meaningful value that
+existed before. Nothing here is a behavior a correct caller depended on.
+
 ### Fixed
 - **`bootstrap plan`/`apply` rejected a positional target directory.** Every
   other subcommand in this CLI — `audit`, `doctor`, `uninstall`, `init` —
