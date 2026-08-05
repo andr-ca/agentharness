@@ -332,6 +332,31 @@ resolved_source_path() {
     esac
 }
 
+# source_head_rev SOURCE_PATH
+# Prints SOURCE_PATH's own git HEAD, or "unknown" if it isn't a git working
+# tree of its own. Found dogfooding a real --mode npm install: --mode npm's
+# source_path is $NPM_DURABLE_PATH, a plain tar-extracted copy with no .git
+# (npm strips it) -- typically living *inside* the consumer project's own
+# git repo. Plain 'git -C "$source_path" rev-parse HEAD' does not require
+# "$source_path" to contain a .git; git walks UP looking for one, so it
+# silently resolved to the enclosing consumer repo's HEAD instead of
+# failing. That HEAD then got reported as "current_revision" in both
+# status's staleness note and audit --json, and neither is even about the
+# consumer's repo -- it's meant to describe the harness's own revision.
+# The comparable-revision logic downstream already guards against treating
+# an unrelated SHA as a real harness commit (source_rev won't exist as an
+# object in the wrong repo, so rev_comparable stays false), so no *action*
+# was ever taken on the bad data -- but the raw value was still surfaced to
+# a consumer, unlabelled, as if it meant something.
+source_head_rev() {
+    local source_path="$1"
+    if [ -e "$source_path/.git" ]; then
+        git -C "$source_path" rev-parse HEAD 2>/dev/null || echo unknown
+    else
+        echo unknown
+    fi
+}
+
 # check_wrapper_path TARGET
 echo_check_wrapper_path() {
     echo "${1:?check_wrapper_path: target required}/$CHECK_WRAPPER_DIR/$CHECK_WRAPPER_NAME"
@@ -1327,7 +1352,7 @@ cmd_status() {
     source_path="$(resolved_source_path "$target" "$mode" "$(state_field "$target" source.path)")"
     source_rev="$(state_field "$target" source.revision)"
     if [ -d "$source_path" ]; then
-        current_rev="$(git -C "$source_path" rev-parse HEAD 2>/dev/null || echo unknown)"
+        current_rev="$(source_head_rev "$source_path")"
         if [ "$current_rev" != "$source_rev" ] && [ "$current_rev" != "unknown" ]; then
             echo "  note: source has moved on ($source_rev -> $current_rev) — run 'audit' or 'update'"
         fi
@@ -1633,7 +1658,7 @@ cmd_audit() {
 
     local source_rev current_rev rev_comparable=false commits_since=""
     source_rev="$(state_field "$target" source.revision)"
-    current_rev="$(git -C "$source_path" rev-parse HEAD 2>/dev/null || echo unknown)"
+    current_rev="$(source_head_rev "$source_path")"
     if [ "$current_rev" != "$source_rev" ] && [ "$current_rev" != "unknown" ] && git -C "$source_path" cat-file -e "$source_rev" 2>/dev/null; then
         rev_comparable=true
         commits_since="$(git -C "$source_path" log --oneline "$source_rev..$current_rev" -- .claude/skills patterns languages 2>/dev/null | head -20 || true)"

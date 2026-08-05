@@ -14,6 +14,19 @@ section into a tagged version.
   with the generic `The command is invalid.`, giving no hint that
   `--target-dir` was the only accepted form. A positional argument is now
   accepted as an alias for `--target-dir` on both `plan` and `apply`.
+- **`status` and `audit` could report a consumer's own git commit as the
+  harness's revision.** `--mode npm`'s durable copy (`.agentharness-pkg`)
+  has no `.git` of its own — npm strips it — and plain `git -C <dir>
+  rev-parse HEAD` does not require one: it searches upward until it finds
+  one. Inside an ordinary consumer repo, that silently resolved to the
+  consumer's *own* HEAD, reported as `current_revision` in `audit --json`
+  and cited in `status`'s "source has moved on" note — neither of which
+  has anything to do with the consumer's own commit history. No incorrect
+  *action* resulted (the existing revision-comparison guard already
+  rejected the mismatched SHA), but the raw value was still surfaced,
+  unlabelled, as if it meant something. Both now report `unknown` for a
+  source with no `.git` of its own, as they already did when no ambient
+  repository happened to be discoverable.
 
 ## [0.7.0] - 2026-08-03
 
