@@ -54,3 +54,4 @@ precedence.yaml
 .github/hooks/tests/claude-pr-merge-guard.bats
 .codex/hooks.json
 .gemini/settings.json
+docs/superpowers/specs/2026-08-05-context-plane-slice-0-design.md
