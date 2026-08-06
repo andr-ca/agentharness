@@ -30,7 +30,7 @@ pointing at each other without ever meeting:
 - **I-06** ("repository context contract"): committed, provenance-tagged
   repository context with a freshness marker and staleness-invalidation
   rules. Previously blocked on the PR #47 scope decision — **that PR
-  merged 2026-07-** (confirmed via `gh pr view 47`), so the blocker no
+  merged 2026-07-16** (confirmed via `gh pr view 47`), so the blocker no
   longer applies.
 
 Both describe the same missing thing from different angles: a single
@@ -49,9 +49,10 @@ what provenance, and whether it's still fresh enough to trust.
 retrieval, learned cross-session memory, and token-budget-driven context
 compression are the *consuming agent's* runtime behavior, not something
 a policy/governance harness assembles or owns. This repo ships policy
-and portable patterns; it does not ship an agent runtime. `docs/ARCHITECTURE.md`
-gets one line pointing here so a future audit doesn't re-raise long-term
-memory as a silent gap (#193 item 6's ask).
+and portable patterns; it does not ship an agent runtime. As a follow-up
+(not part of this PR), `docs/ARCHITECTURE.md` should get one line
+pointing here so a future audit doesn't re-raise long-term memory as a
+silent gap (#193 item 6's ask).
 
 This boundary is also why Slice 4 (memory lifetime tooling) is deferred,
 not built as scoped: automated expiry/promotion of *memory* is runtime
@@ -72,7 +73,7 @@ existing generated-from-source convention (source of truth is
 | `kind` | enum | `policy` \| `pattern` \| `generated` \| `repository-fact` |
 | `authority` | enum | Tier in `CLAUDE.md`'s existing precedence order (explicit-instruction > authority-contract > publish-mode flag > default), so provenance ties back to a rule that already exists rather than inventing a second hierarchy |
 | `lifecycle` | enum | `task` \| `project` \| `durable` — see below |
-| `loading` | enum | `always` \| `on-demand` (mirrors skills' progressive-disclosure model) |
+| `loading` | enum | `always-on` \| `on-demand` (mirrors skills' progressive-disclosure model, and the terminology `docs/CLIENT_COMPATIBILITY.md` already uses) |
 | `provenance` | enum | `verified` \| `inferred` \| `declared` \| `unknown` — the vocabulary I-06 already named as independently adoptable |
 | `freshness` | object | `{ last_reviewed: date, staleness_rule: string }` — Slice 3 validates against this |
 
