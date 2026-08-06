@@ -8,6 +8,40 @@ go at the top.
 
 Format: **Decision** / **Status** / **Context** / **Consequences**.
 
+## Context Plane: reduced-scope registry, not a full context-management subsystem
+
+**Status:** Scope decided (2026-08-05), gating slices 1 and 3. Slices 2,
+4, 5 deferred. Full design in
+`docs/superpowers/specs/2026-08-05-context-plane-slice-0-design.md`.
+
+**Context:** A session audit (#193) scored this repo's coverage across
+the standard context-management taxonomy and found two long-unbuilt
+ROADMAP entries — P2-04 (policy provenance model) and I-06 (repository
+context contract, previously blocked on the now-merged PR #47) —
+describing the same missing thing from different angles: a registry
+that knows what context exists, who's allowed to say so, and whether
+it's still fresh. The follow-on epic (#194, six slices: registry
+schema, budgeting, freshness gate, memory lifetime tooling, an audit
+CLI) proposed building all of it as a new subsystem. That's the shape
+of proposal this repo has previously rejected in favor of extending
+existing assets, so it needed an explicit scope decision rather than
+inheriting scope-by-default from the epic's own slice count.
+
+**Consequences:** Building slices 0 (this ADR), 1 (`context.yaml`
+registry, extending the `manifest.yaml` pattern), and 3 (freshness
+validation gate, generalizing `check_manifest_md_sync()`). Slice 2
+(budgeting) is deferred — no measured evidence of context overload yet.
+Slice 4 (lifecycle/expiry automation) is deferred — the existing manual
+`docs/operational/README.md` workflow already covers it, and automating
+*memory* lifecycle would cross the ownership boundary this ADR draws
+between harness-owned governed context and consuming-agent-owned
+runtime context. Slice 5 (audit CLI) is deferred — a stale registry
+entry is already visible via the same CI mechanism that catches
+`MANIFEST.md` drift, so a dedicated command has no demonstrated gap to
+fill yet. ROADMAP.md's P2-04 and I-06 entries get replaced with a
+pointer to the design doc instead of continuing to carry two unbuilt
+descriptions of the same thing.
+
 ## Scoped authority contracts: declarative, expiring, revocable grants
 
 **Status:** Implemented (MVP, 2026-07-22). Enforcement is advisory by

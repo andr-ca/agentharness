@@ -438,12 +438,11 @@ label by the review filename cited next to it, never by number alone.
   that *produce* real sessions — `invoke_agent_via_api` stays
   unimplemented (spends real money, user-triggered), same boundary as
   `run.py`.
-- **P2-04 (this review's numbering) — Add a policy provenance model.**
-  For each normative rule: owner/source, rationale, applicability,
-  enforcement mechanism, last review date, as structured data (the
-  semantic equivalent of the already-shipped generated-`MANIFEST.md`
-  work, `manifest.yaml` + `tools/generate-manifest.py`). Human guides
-  would be generated from, or validated against, that catalog.
+- **P2-04 (this review's numbering) — superseded by the Context Plane
+  registry.** Scoped into `context.yaml` (Slice 1) rather than a
+  separate provenance catalog — see
+  `docs/superpowers/specs/2026-08-05-context-plane-slice-0-design.md`
+  and the matching entry in `docs/DECISIONS.md`.
 - **P2-05 (this review's numbering) — Composable presets instead of one
   global opinion set.** Proposed: a minimal safety core plus opt-in
   modules (`git-safe`, `python-production`, `typescript-node`,
@@ -514,14 +513,10 @@ below is an extension of an existing asset, not a new subsystem.
   tests before restructuring, incremental reversible steps, and an
   explicit list of protected public contracts. (Prototype→production
   promotion needs no new doc — one line in rigor tiers covers it.)
-- **I-06 — Repository context contract (blocked).** A
-  knowledge-bootstrap companion to the policy-bootstrap program above:
-  committed, provenance-tagged repository context (purpose, structure,
-  build/test/run, documented-vs-observed branching) with a freshness
-  marker and staleness-invalidation rules, keeping mechanically
-  generated inventory separate from curated, human-reviewed knowledge.
-  **Blocked on the PR #47 scope decision** — no second bootstrap
-  subsystem starts while the first one's scope is unresolved. The one
-  piece adoptable independently and cheaply: the provenance vocabulary
-  (verified / inferred / declared / unknown) as a documentation
-  convention for agent-generated repo docs.
+- **I-06 — Repository context contract — unblocked and superseded.**
+  PR #47 merged, clearing the original blocker, but scope moved to the
+  Context Plane registry rather than a standalone subsystem: the
+  provenance vocabulary (verified / inferred / declared / unknown) is
+  `context.yaml`'s `provenance` field (Slice 1), and the freshness
+  marker / staleness-invalidation half is Slice 3. See
+  `docs/superpowers/specs/2026-08-05-context-plane-slice-0-design.md`.
