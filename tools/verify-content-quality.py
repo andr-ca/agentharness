@@ -408,6 +408,111 @@ def check_manifest_md_sync() -> list[str]:
     return []
 
 
+_CONTEXT_KIND_VALUES = {"policy", "pattern", "generated", "repository-fact"}
+_CONTEXT_LIFECYCLE_VALUES = {"task", "project", "durable"}
+_CONTEXT_LOADING_VALUES = {"always-on", "on-demand"}
+_CONTEXT_PROVENANCE_VALUES = {"verified", "inferred", "declared", "unknown"}
+_CONTEXT_REQUIRED_FIELDS = (
+    "id",
+    "path",
+    "kind",
+    "authority",
+    "lifecycle",
+    "loading",
+    "provenance",
+    "freshness",
+)
+
+
+def check_context_yaml_valid(scan_root: Path = REPO_ROOT) -> list[str]:
+    """Validate context.yaml's schema (Context Plane Slice 1).
+
+    context.yaml is hand-maintained source, like manifest.yaml — not
+    generated, so there is no drift check here, only structural
+    validation: every entry has the required fields, enum fields hold a
+    recognized value, `authority` (when not "none") names a real ladder
+    in precedence.yaml, and `path` points at a file that actually exists
+    — the same "a malformed or path-missing entry fails CI" contract
+    check_manifest_md_sync() already enforces for manifest.yaml, applied
+    to the registry instead of the drift-check it doesn't need.
+    """
+    model_path = scan_root / "context.yaml"
+    if not model_path.is_file():
+        return []  # consumer repos have no registry; do not fail them
+
+    try:
+        raw = model_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        return [f"context.yaml: could not be read — {exc}"]
+
+    try:
+        data = yaml.safe_load(raw) or {}
+    except yaml.YAMLError:
+        return []  # check_yaml_files() already reports malformed YAML
+
+    entries = data.get("entries")
+    if not isinstance(entries, list) or not entries:
+        return ["context.yaml: no entries declared — schema changed?"]
+
+    precedence_path = scan_root / "precedence.yaml"
+    ladder_ids: set[str] = set()
+    if precedence_path.is_file():
+        try:
+            precedence_data = yaml.safe_load(precedence_path.read_text(encoding="utf-8")) or {}
+        except yaml.YAMLError:
+            precedence_data = {}
+        for ladder in precedence_data.get("ladders") or []:
+            if isinstance(ladder, dict) and ladder.get("id"):
+                ladder_ids.add(str(ladder["id"]))
+
+    errors: list[str] = []
+    seen_ids: set[str] = set()
+    for entry in entries:
+        if not isinstance(entry, dict):
+            errors.append(f"context.yaml: entry {entry!r} is not a mapping")
+            continue
+        entry_id = str(entry.get("id", "<missing id>"))
+        missing = [f for f in _CONTEXT_REQUIRED_FIELDS if f not in entry]
+        if missing:
+            errors.append(f"context.yaml: entry '{entry_id}' missing field(s): {', '.join(missing)}")
+            continue
+
+        if entry_id in seen_ids:
+            errors.append(f"context.yaml: duplicate id '{entry_id}'")
+        seen_ids.add(entry_id)
+
+        entry_path = scan_root / str(entry["path"])
+        if not entry_path.is_file():
+            errors.append(f"context.yaml: entry '{entry_id}' points at {entry['path']}, which does not exist")
+
+        if entry["kind"] not in _CONTEXT_KIND_VALUES:
+            errors.append(f"context.yaml: entry '{entry_id}' has invalid kind '{entry['kind']}'")
+        if entry["lifecycle"] not in _CONTEXT_LIFECYCLE_VALUES:
+            errors.append(f"context.yaml: entry '{entry_id}' has invalid lifecycle '{entry['lifecycle']}'")
+        if entry["loading"] not in _CONTEXT_LOADING_VALUES:
+            errors.append(f"context.yaml: entry '{entry_id}' has invalid loading '{entry['loading']}'")
+        if entry["provenance"] not in _CONTEXT_PROVENANCE_VALUES:
+            errors.append(f"context.yaml: entry '{entry_id}' has invalid provenance '{entry['provenance']}'")
+
+        authority = entry["authority"]
+        if authority != "none" and ladder_ids and authority not in ladder_ids:
+            errors.append(
+                f"context.yaml: entry '{entry_id}' has authority '{authority}', "
+                f"which is not a ladder id in precedence.yaml (or 'none')"
+            )
+
+        freshness = entry["freshness"]
+        if not isinstance(freshness, dict) or not freshness.get("last_reviewed") or not freshness.get(
+            "staleness_rule"
+        ):
+            errors.append(
+                f"context.yaml: entry '{entry_id}' has an incomplete freshness "
+                "block — needs last_reviewed and staleness_rule"
+            )
+
+    return errors
+
+
 def check_gemini_md_sync() -> list[str]:
     # Cross-platform parity: GEMINI.md is generated from CLAUDE.md +
     # .claude/skills/ by tools/generate-gemini-md.sh, exact mirror of
@@ -882,6 +987,7 @@ def main() -> int:
     errors += check_no_force_push_instructions()
     errors += check_agents_md_sync()
     errors += check_manifest_md_sync()
+    errors += check_context_yaml_valid()
     errors += check_gemini_md_sync()
     errors += check_kilo_rules_sync()
     errors += check_copilot_instructions_sync()
