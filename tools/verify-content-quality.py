@@ -516,13 +516,38 @@ def check_context_yaml_valid(scan_root: Path = REPO_ROOT) -> list[str]:
             continue
 
         for watched_path in invalidate_on:
-            if not (scan_root / str(watched_path)).exists():
+            resolved = _resolve_repo_relative(scan_root, watched_path)
+            if resolved is None:
+                errors.append(
+                    f"context.yaml: entry '{entry_id}' has an invalid invalidate_on "
+                    f"entry {watched_path!r} — must be a non-empty repo-relative "
+                    "string that stays inside the repo"
+                )
+            elif not resolved.exists():
                 errors.append(
                     f"context.yaml: entry '{entry_id}' watches {watched_path} "
                     "in invalidate_on, which does not exist"
                 )
 
     return errors
+
+
+def _resolve_repo_relative(scan_root: Path, candidate: object) -> Path | None:
+    """A repo-relative path, resolved and checked to stay inside scan_root.
+
+    Rejects non-strings, empty strings, absolute paths, and traversal
+    (`../`) that would otherwise let a malformed context.yaml entry
+    point check_context_yaml_valid()/check_context_freshness() at
+    something outside the repo (e.g. `/etc/passwd`).
+    """
+    if not isinstance(candidate, str) or not candidate.strip():
+        return None
+    resolved = (scan_root / candidate).resolve()
+    try:
+        resolved.relative_to(scan_root.resolve())
+    except ValueError:
+        return None
+    return resolved
 
 
 def _git_last_change_date(scan_root: Path, rel_path: str) -> str | None:
@@ -563,6 +588,12 @@ def check_context_freshness(scan_root: Path = REPO_ROOT) -> tuple[list[str], lis
 
     errors: list[str] = []
     warnings: list[str] = []
+    # Many entries share a watched path (every generated-adapter entry
+    # watches CLAUDE.md, for instance) — cache each path's git lookup
+    # once per run instead of re-shelling out to `git log` for every
+    # entry that watches it.
+    change_date_cache: dict[str, str | None] = {}
+
     for entry in data.get("entries") or []:
         if not isinstance(entry, dict):
             continue
@@ -577,9 +608,14 @@ def check_context_freshness(scan_root: Path = REPO_ROOT) -> tuple[list[str], lis
 
         stale_on: list[str] = []
         for watched_path in invalidate_on:
-            changed = _git_last_change_date(scan_root, str(watched_path))
+            if _resolve_repo_relative(scan_root, watched_path) is None:
+                continue  # check_context_yaml_valid()'s job to report, not this one's
+            watched_str = str(watched_path)
+            if watched_str not in change_date_cache:
+                change_date_cache[watched_str] = _git_last_change_date(scan_root, watched_str)
+            changed = change_date_cache[watched_str]
             if changed and changed[:10] > str(last_verified)[:10]:
-                stale_on.append(str(watched_path))
+                stale_on.append(watched_str)
 
         if not stale_on:
             continue

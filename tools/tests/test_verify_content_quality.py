@@ -661,6 +661,34 @@ def test_context_yaml_reports_freshness_watching_a_missing_path(tmp_path):
     assert any("does not exist" in e and "ghost.md" in e for e in errors)
 
 
+def test_context_yaml_rejects_an_absolute_invalidate_on_path(tmp_path):
+    _write_context_entry(
+        tmp_path, freshness={"last_verified": "2026-08-06", "invalidate_on": ["/etc/passwd"]}
+    )
+
+    errors = vcq.check_context_yaml_valid(scan_root=tmp_path)
+
+    assert any("invalid invalidate_on" in e for e in errors)
+
+
+def test_context_yaml_rejects_a_traversal_invalidate_on_path(tmp_path):
+    _write_context_entry(
+        tmp_path, freshness={"last_verified": "2026-08-06", "invalidate_on": ["../outside.md"]}
+    )
+
+    errors = vcq.check_context_yaml_valid(scan_root=tmp_path)
+
+    assert any("invalid invalidate_on" in e for e in errors)
+
+
+def test_context_yaml_rejects_a_non_string_invalidate_on_entry(tmp_path):
+    _write_context_entry(tmp_path, freshness={"last_verified": "2026-08-06", "invalidate_on": [{"a": 1}]})
+
+    errors = vcq.check_context_yaml_valid(scan_root=tmp_path)
+
+    assert any("invalid invalidate_on" in e for e in errors)
+
+
 def test_context_yaml_reports_duplicate_id(tmp_path):
     (tmp_path / "a.md").write_text("stub\n", encoding="utf-8")
     (tmp_path / "b.md").write_text("stub\n", encoding="utf-8")
@@ -805,6 +833,30 @@ def test_context_freshness_passes_when_verified_after_the_change(tmp_path):
     _init_git_repo(tmp_path)
     _write_freshness_context(tmp_path, last_verified="2026-06-15", authority="none")
     _commit_file(tmp_path, "watched.md", "changed\n", "2026-06-01T00:00:00")
+    _git(tmp_path, "add", "context.yaml")
+    _git(tmp_path, "commit", "--quiet", "-m", "add context.yaml")
+
+    errors, warnings = vcq.check_context_freshness(scan_root=tmp_path)
+
+    assert errors == []
+    assert warnings == []
+
+
+def test_context_freshness_skips_an_invalid_invalidate_on_path(tmp_path):
+    _init_git_repo(tmp_path)
+    entry = {
+        "id": "watched-entry",
+        "path": "watched.md",
+        "kind": "policy",
+        "authority": "none",
+        "lifecycle": "durable",
+        "loading": "on-demand",
+        "provenance": "verified",
+        "freshness": {"last_verified": "2026-01-01", "invalidate_on": ["../outside.md"]},
+    }
+    import yaml as _yaml
+
+    (tmp_path / "context.yaml").write_text(_yaml.dump({"entries": [entry]}, sort_keys=False), encoding="utf-8")
     _git(tmp_path, "add", "context.yaml")
     _git(tmp_path, "commit", "--quiet", "-m", "add context.yaml")
 
