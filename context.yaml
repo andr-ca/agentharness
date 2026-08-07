@@ -1,0 +1,768 @@
+intro: 'Registry of governed, versioned, deterministic context this harness owns and ships: what exists,
+  its authority tier (if any), lifecycle, loading behavior, provenance, and freshness. Runtime context
+  (summarization, RAG retrieval, learned cross-session memory) is explicitly out of scope — see docs/superpowers/specs/2026-08-05-context-plane-slice-0-design.md
+  for the ownership boundary this registry enforces.'
+schema_note: Hand-maintained source, like manifest.yaml — not generated. Add one entry per always-on rule
+  file, skill, custom agent, guide, or docs/operational/-class asset. `authority` is `publish_authority`
+  or `rigor_tier` only for the handful of assets that are themselves levels of one of precedence.yaml's
+  two ladders; everything else is `none` (governed content, but not itself a precedence-ladder entry).
+entries:
+- id: root-instructions
+  path: CLAUDE.md
+  kind: policy
+  authority: none
+  lifecycle: durable
+  loading: always-on
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: codex-router
+  path: AGENTS.md
+  kind: generated
+  authority: none
+  lifecycle: durable
+  loading: always-on
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: gemini-router
+  path: GEMINI.md
+  kind: generated
+  authority: none
+  lifecycle: durable
+  loading: always-on
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: copilot-instructions
+  path: .github/copilot-instructions.md
+  kind: generated
+  authority: none
+  lifecycle: durable
+  loading: always-on
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: kilo-rules
+  path: .kilo/rules/agentharness.md
+  kind: generated
+  authority: none
+  lifecycle: durable
+  loading: always-on
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: cursor-router
+  path: .cursor/rules/agentharness-router.mdc
+  kind: generated
+  authority: none
+  lifecycle: durable
+  loading: always-on
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: precedence-model
+  path: precedence.yaml
+  kind: generated
+  authority: publish_authority
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: rigor-tier-guide
+  path: patterns/profiles/README.md
+  kind: policy
+  authority: rigor_tier
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: branching-strategy
+  path: .github/BRANCHING_STRATEGY.md
+  kind: policy
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: committing-guidelines
+  path: .github/COMMITTING_GUIDELINES.md
+  kind: policy
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: coding-guidelines
+  path: .github/CODING_GUIDELINES.md
+  kind: policy
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: python-conventions-guide
+  path: languages/python/CONVENTIONS.md
+  kind: policy
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: python-copilot-instructions
+  path: languages/python/COPILOT_INSTRUCTIONS.md
+  kind: policy
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: typescript-conventions-guide
+  path: languages/typescript/CONVENTIONS.md
+  kind: policy
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: go-conventions-guide
+  path: languages/go/CONVENTIONS.md
+  kind: policy
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: rust-conventions-guide
+  path: languages/rust/CONVENTIONS.md
+  kind: policy
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: react-conventions-guide
+  path: frameworks/react/CONVENTIONS.md
+  kind: policy
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: tdd-guide
+  path: patterns/testing/TDD.md
+  kind: policy
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: playwright-guide
+  path: patterns/testing/PLAYWRIGHT_UI_TESTING.md
+  kind: policy
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: accessibility-guide
+  path: patterns/accessibility/README.md
+  kind: policy
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: mutation-testing-overview
+  path: patterns/mutation-testing/README.md
+  kind: policy
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: mutation-testing-guide
+  path: patterns/mutation-testing/MUTATION_TESTING.md
+  kind: policy
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: file-placement-overview
+  path: patterns/file-placement-policy/README.md
+  kind: policy
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: file-placement-policy
+  path: patterns/file-placement-policy/POLICY.md
+  kind: policy
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: multi-agent-overview
+  path: patterns/multi-agent-coordination/README.md
+  kind: policy
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: multi-agent-coordination-guide
+  path: patterns/multi-agent-coordination/COORDINATION.md
+  kind: policy
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: error-handling-guide
+  path: patterns/error-handling/README.md
+  kind: policy
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: api-design-overview
+  path: patterns/api-design/README.md
+  kind: policy
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: rest-conventions-guide
+  path: patterns/api-design/REST_CONVENTIONS.md
+  kind: policy
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: agentic-loops-guide
+  path: patterns/agentic-loops/README.md
+  kind: policy
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: eval-suite-overview
+  path: tools/eval/README.md
+  kind: policy
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: logging-standards-guide
+  path: patterns/logging/LOGGING_STANDARDS.md
+  kind: policy
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-accessibility
+  path: .claude/skills/accessibility/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-agentic-loops
+  path: .claude/skills/agentic-loops/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-api-design
+  path: .claude/skills/api-design/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-audit-review-followup
+  path: .claude/skills/audit-review-followup/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-branching
+  path: .claude/skills/branching/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-clean-architecture
+  path: .claude/skills/clean-architecture/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-code-review
+  path: .claude/skills/code-review/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-code-review-api
+  path: .claude/skills/code-review-api/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-code-review-db
+  path: .claude/skills/code-review-db/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-code-review-ui
+  path: .claude/skills/code-review-ui/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-committing
+  path: .claude/skills/committing/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-database-conventions
+  path: .claude/skills/database-conventions/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-dependency-audit
+  path: .claude/skills/dependency-audit/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-dependency-injection
+  path: .claude/skills/dependency-injection/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-design-patterns
+  path: .claude/skills/design-patterns/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-docker-conventions
+  path: .claude/skills/docker-conventions/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-error-handling
+  path: .claude/skills/error-handling/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-file-placement-policy
+  path: .claude/skills/file-placement-policy/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-github-issue-triage
+  path: .claude/skills/github-issue-triage/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-go-conventions
+  path: .claude/skills/go-conventions/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-harness-feedback
+  path: .claude/skills/harness-feedback/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-logging
+  path: .claude/skills/logging/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-multi-agent-coordination
+  path: .claude/skills/multi-agent-coordination/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-mutation-testing
+  path: .claude/skills/mutation-testing/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-performance-profiling
+  path: .claude/skills/performance-profiling/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-planning-with-files
+  path: .claude/skills/planning-with-files/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-port-agent-config
+  path: .claude/skills/port-agent-config/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-project-bootstrap
+  path: .claude/skills/project-bootstrap/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-python-conventions
+  path: .claude/skills/python-conventions/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-react-best-practices
+  path: .claude/skills/react-best-practices/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-requirements-clarification
+  path: .claude/skills/requirements-clarification/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-security-review
+  path: .claude/skills/security-review/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-solid-principles
+  path: .claude/skills/solid-principles/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-testing
+  path: .claude/skills/testing/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: skill-typescript-conventions
+  path: .claude/skills/typescript-conventions/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: agent-coding-guidelines-reviewer
+  path: .claude/agents/coding-guidelines-reviewer.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.
+- id: operational-docs-class
+  path: docs/operational/README.md
+  kind: repository-fact
+  authority: none
+  lifecycle: project
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_reviewed: '2026-08-06'
+    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
+      every 90 days.

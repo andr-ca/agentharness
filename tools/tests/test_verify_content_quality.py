@@ -560,3 +560,147 @@ def test_an_exception_in_one_fence_does_not_excuse_another(tmp_path):
 
     assert len(errors) == 1
     assert "force-with-lease" in errors[0]
+
+
+def _write_context_entry(tmp_path: Path, target: str = "target.md", **overrides) -> None:
+    (tmp_path / target).write_text("stub\n", encoding="utf-8")
+    entry = {
+        "id": "test-entry",
+        "path": target,
+        "kind": "policy",
+        "authority": "none",
+        "lifecycle": "durable",
+        "loading": "on-demand",
+        "provenance": "verified",
+        "freshness": {"last_reviewed": "2026-08-06", "staleness_rule": "review yearly"},
+    }
+    entry.update(overrides)
+    import yaml as _yaml
+
+    (tmp_path / "context.yaml").write_text(
+        _yaml.dump({"entries": [entry]}, sort_keys=False), encoding="utf-8"
+    )
+
+
+def test_context_yaml_missing_file_is_not_an_error(tmp_path):
+    assert vcq.check_context_yaml_valid(scan_root=tmp_path) == []
+
+
+def test_context_yaml_valid_entry_passes(tmp_path):
+    _write_context_entry(tmp_path)
+
+    assert vcq.check_context_yaml_valid(scan_root=tmp_path) == []
+
+
+def test_context_yaml_reports_missing_field(tmp_path):
+    _write_context_entry(tmp_path)
+    (tmp_path / "context.yaml").write_text(
+        "entries:\n  - id: test-entry\n    path: target.md\n", encoding="utf-8"
+    )
+
+    errors = vcq.check_context_yaml_valid(scan_root=tmp_path)
+
+    assert len(errors) == 1
+    assert "missing field(s)" in errors[0]
+
+
+def test_context_yaml_reports_missing_path(tmp_path):
+    _write_context_entry(tmp_path, target="nonexistent.md")
+    (tmp_path / "nonexistent.md").unlink()
+
+    errors = vcq.check_context_yaml_valid(scan_root=tmp_path)
+
+    assert any("does not exist" in e for e in errors)
+
+
+def test_context_yaml_reports_invalid_kind(tmp_path):
+    _write_context_entry(tmp_path, kind="not-a-real-kind")
+
+    errors = vcq.check_context_yaml_valid(scan_root=tmp_path)
+
+    assert any("invalid kind" in e for e in errors)
+
+
+def test_context_yaml_reports_invalid_lifecycle(tmp_path):
+    _write_context_entry(tmp_path, lifecycle="forever")
+
+    errors = vcq.check_context_yaml_valid(scan_root=tmp_path)
+
+    assert any("invalid lifecycle" in e for e in errors)
+
+
+def test_context_yaml_reports_invalid_loading(tmp_path):
+    _write_context_entry(tmp_path, loading="sometimes")
+
+    errors = vcq.check_context_yaml_valid(scan_root=tmp_path)
+
+    assert any("invalid loading" in e for e in errors)
+
+
+def test_context_yaml_reports_invalid_provenance(tmp_path):
+    _write_context_entry(tmp_path, provenance="probably")
+
+    errors = vcq.check_context_yaml_valid(scan_root=tmp_path)
+
+    assert any("invalid provenance" in e for e in errors)
+
+
+def test_context_yaml_reports_incomplete_freshness(tmp_path):
+    _write_context_entry(tmp_path, freshness={"last_reviewed": "2026-08-06"})
+
+    errors = vcq.check_context_yaml_valid(scan_root=tmp_path)
+
+    assert any("incomplete freshness" in e for e in errors)
+
+
+def test_context_yaml_reports_duplicate_id(tmp_path):
+    (tmp_path / "a.md").write_text("stub\n", encoding="utf-8")
+    (tmp_path / "b.md").write_text("stub\n", encoding="utf-8")
+    entry = {
+        "id": "dup",
+        "path": "a.md",
+        "kind": "policy",
+        "authority": "none",
+        "lifecycle": "durable",
+        "loading": "on-demand",
+        "provenance": "verified",
+        "freshness": {"last_reviewed": "2026-08-06", "staleness_rule": "review yearly"},
+    }
+    entry2 = dict(entry, path="b.md")
+    import yaml as _yaml
+
+    (tmp_path / "context.yaml").write_text(
+        _yaml.dump({"entries": [entry, entry2]}, sort_keys=False), encoding="utf-8"
+    )
+
+    errors = vcq.check_context_yaml_valid(scan_root=tmp_path)
+
+    assert any("duplicate id" in e for e in errors)
+
+
+def test_context_yaml_authority_must_be_a_real_ladder_or_none(tmp_path):
+    _write_context_entry(tmp_path, authority="made-up-ladder")
+    (tmp_path / "precedence.yaml").write_text(
+        "ladders:\n  - id: rigor_tier\n    levels: []\n", encoding="utf-8"
+    )
+
+    errors = vcq.check_context_yaml_valid(scan_root=tmp_path)
+
+    assert any("not a ladder id" in e for e in errors)
+
+
+def test_context_yaml_no_entries_reports_schema_change(tmp_path):
+    (tmp_path / "context.yaml").write_text("entries: []\n", encoding="utf-8")
+
+    errors = vcq.check_context_yaml_valid(scan_root=tmp_path)
+
+    assert len(errors) == 1
+    assert "no entries declared" in errors[0]
+
+
+def test_the_real_context_yaml_is_valid():
+    # Integration check: the real committed context.yaml must itself pass
+    # every rule this function enforces.
+    errors = vcq.check_context_yaml_valid()
+
+    assert errors == []
