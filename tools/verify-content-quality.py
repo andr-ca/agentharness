@@ -502,15 +502,135 @@ def check_context_yaml_valid(scan_root: Path = REPO_ROOT) -> list[str]:
             )
 
         freshness = entry["freshness"]
-        if not isinstance(freshness, dict) or not freshness.get("last_reviewed") or not freshness.get(
-            "staleness_rule"
+        invalidate_on = freshness.get("invalidate_on") if isinstance(freshness, dict) else None
+        if (
+            not isinstance(freshness, dict)
+            or not freshness.get("last_verified")
+            or not isinstance(invalidate_on, list)
+            or not invalidate_on
         ):
             errors.append(
                 f"context.yaml: entry '{entry_id}' has an incomplete freshness "
-                "block — needs last_reviewed and staleness_rule"
+                "block — needs last_verified and a non-empty invalidate_on list"
             )
+            continue
+
+        for watched_path in invalidate_on:
+            resolved = _resolve_repo_relative(scan_root, watched_path)
+            if resolved is None:
+                errors.append(
+                    f"context.yaml: entry '{entry_id}' has an invalid invalidate_on "
+                    f"entry {watched_path!r} — must be a non-empty repo-relative "
+                    "string that stays inside the repo"
+                )
+            elif not resolved.exists():
+                errors.append(
+                    f"context.yaml: entry '{entry_id}' watches {watched_path} "
+                    "in invalidate_on, which does not exist"
+                )
 
     return errors
+
+
+def _resolve_repo_relative(scan_root: Path, candidate: object) -> Path | None:
+    """A repo-relative path, resolved and checked to stay inside scan_root.
+
+    Rejects non-strings, empty strings, absolute paths, and traversal
+    (`../`) that would otherwise let a malformed context.yaml entry
+    point check_context_yaml_valid()/check_context_freshness() at
+    something outside the repo (e.g. `/etc/passwd`).
+    """
+    if not isinstance(candidate, str) or not candidate.strip():
+        return None
+    resolved = (scan_root / candidate).resolve()
+    try:
+        resolved.relative_to(scan_root.resolve())
+    except ValueError:
+        return None
+    return resolved
+
+
+def _git_last_change_date(scan_root: Path, rel_path: str) -> str | None:
+    result = subprocess.run(
+        ["git", "log", "-1", "--format=%cI", "--", rel_path],
+        cwd=scan_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    date = result.stdout.strip()
+    return date or None
+
+
+def check_context_freshness(scan_root: Path = REPO_ROOT) -> tuple[list[str], list[str]]:
+    """Slice 3: flag context.yaml entries whose watched paths changed
+    more recently than the entry's own last_verified date.
+
+    Generalizes check_manifest_md_sync()'s one-hardcoded-pair pattern to
+    every registered entry (#193 item 3, #198). Returns (errors,
+    warnings) rather than a single list: staleness is a warning for most
+    entries (advisory content can lag its review), but a hard failure for
+    entries whose `authority` names a real precedence.yaml ladder — those
+    are rule-defining artifacts, and "rules may not" lag per #198.
+
+    Entries with malformed freshness data are check_context_yaml_valid()'s
+    job to report, not this function's — it silently skips what it can't
+    evaluate rather than double-reporting the same defect.
+    """
+    model_path = scan_root / "context.yaml"
+    if not model_path.is_file():
+        return [], []
+
+    try:
+        data = yaml.safe_load(model_path.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError:
+        return [], []
+
+    errors: list[str] = []
+    warnings: list[str] = []
+    # Many entries share a watched path (every generated-adapter entry
+    # watches CLAUDE.md, for instance) — cache each path's git lookup
+    # once per run instead of re-shelling out to `git log` for every
+    # entry that watches it.
+    change_date_cache: dict[str, str | None] = {}
+
+    for entry in data.get("entries") or []:
+        if not isinstance(entry, dict):
+            continue
+        entry_id = str(entry.get("id", "<missing id>"))
+        freshness = entry.get("freshness")
+        if not isinstance(freshness, dict):
+            continue
+        last_verified = freshness.get("last_verified")
+        invalidate_on = freshness.get("invalidate_on")
+        if not last_verified or not isinstance(invalidate_on, list) or not invalidate_on:
+            continue
+
+        stale_on: list[str] = []
+        for watched_path in invalidate_on:
+            if _resolve_repo_relative(scan_root, watched_path) is None:
+                continue  # check_context_yaml_valid()'s job to report, not this one's
+            watched_str = str(watched_path)
+            if watched_str not in change_date_cache:
+                change_date_cache[watched_str] = _git_last_change_date(scan_root, watched_str)
+            changed = change_date_cache[watched_str]
+            if changed and changed[:10] > str(last_verified)[:10]:
+                stale_on.append(watched_str)
+
+        if not stale_on:
+            continue
+
+        message = (
+            f"context.yaml: entry '{entry_id}' is stale — {', '.join(stale_on)} "
+            f"changed after last_verified ({last_verified}); bump last_verified "
+            "in the same commit that re-reviews it"
+        )
+        if entry.get("authority") not in (None, "none"):
+            errors.append(message)
+        else:
+            warnings.append(message)
+
+    return errors, warnings
 
 
 def check_gemini_md_sync() -> list[str]:
@@ -988,6 +1108,8 @@ def main() -> int:
     errors += check_agents_md_sync()
     errors += check_manifest_md_sync()
     errors += check_context_yaml_valid()
+    freshness_errors, freshness_warnings = check_context_freshness()
+    errors += freshness_errors
     errors += check_gemini_md_sync()
     errors += check_kilo_rules_sync()
     errors += check_copilot_instructions_sync()
@@ -998,6 +1120,12 @@ def main() -> int:
     errors += check_kilo_agents_sync()
     errors += check_copilot_agents_sync()
     errors += check_gemini_agents_sync()
+
+    if freshness_warnings:
+        print("Content-quality warnings (non-fatal — advisory context.yaml entries):\n")
+        for warn in freshness_warnings:
+            print(f"  ! {warn}")
+        print()
 
     if errors:
         print("Content-quality check failed:\n")

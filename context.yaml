@@ -2,10 +2,15 @@ intro: 'Registry of governed, versioned, deterministic context this harness owns
   its authority tier (if any), lifecycle, loading behavior, provenance, and freshness. Runtime context
   (summarization, RAG retrieval, learned cross-session memory) is explicitly out of scope — see docs/superpowers/specs/2026-08-05-context-plane-slice-0-design.md
   for the ownership boundary this registry enforces.'
-schema_note: Hand-maintained source, like manifest.yaml — not generated. Add one entry per always-on rule
-  file, skill, custom agent, guide, or docs/operational/-class asset. `authority` is `publish_authority`
-  or `rigor_tier` only for the handful of assets that are themselves levels of one of precedence.yaml's
-  two ladders; everything else is `none` (governed content, but not itself a precedence-ladder entry).
+schema_note: 'Hand-maintained source, like manifest.yaml — not generated. Add one entry per always-on
+  rule file, skill, custom agent, guide, generated/source pair, or docs/operational/-class asset. `authority`
+  is `publish_authority` or `rigor_tier` only for the handful of assets that are themselves levels of
+  one of precedence.yaml''s two ladders; everything else is `none`. `freshness.invalidate_on` lists the
+  paths whose change invalidates this entry — CI (check_context_freshness() in tools/verify-content-quality.py)
+  compares each listed path''s last-git-change date against `last_verified` and flags stale entries: a
+  warning for `authority: none` entries, a failure for entries on a real precedence ladder, matching ''advisory
+  docs may lag; rules may not'' (issue #198). Re-verifying an entry means bumping `last_verified` in the
+  same commit that reviews it, so freshness claims are themselves auditable in git history.'
 entries:
 - id: root-instructions
   path: CLAUDE.md
@@ -15,9 +20,9 @@ entries:
   loading: always-on
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - CLAUDE.md
 - id: codex-router
   path: AGENTS.md
   kind: generated
@@ -26,9 +31,10 @@ entries:
   loading: always-on
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - AGENTS.md
+    - CLAUDE.md
 - id: gemini-router
   path: GEMINI.md
   kind: generated
@@ -37,9 +43,10 @@ entries:
   loading: always-on
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - GEMINI.md
+    - CLAUDE.md
 - id: copilot-instructions
   path: .github/copilot-instructions.md
   kind: generated
@@ -48,9 +55,10 @@ entries:
   loading: always-on
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .github/copilot-instructions.md
+    - CLAUDE.md
 - id: kilo-rules
   path: .kilo/rules/agentharness.md
   kind: generated
@@ -59,9 +67,10 @@ entries:
   loading: always-on
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .kilo/rules/agentharness.md
+    - CLAUDE.md
 - id: cursor-router
   path: .cursor/rules/agentharness-router.mdc
   kind: generated
@@ -70,9 +79,10 @@ entries:
   loading: always-on
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .cursor/rules/agentharness-router.mdc
+    - CLAUDE.md
 - id: precedence-model
   path: precedence.yaml
   kind: generated
@@ -81,9 +91,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - precedence.yaml
 - id: rigor-tier-guide
   path: patterns/profiles/README.md
   kind: policy
@@ -92,9 +102,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - patterns/profiles/README.md
 - id: branching-strategy
   path: .github/BRANCHING_STRATEGY.md
   kind: policy
@@ -103,9 +113,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .github/BRANCHING_STRATEGY.md
 - id: committing-guidelines
   path: .github/COMMITTING_GUIDELINES.md
   kind: policy
@@ -114,9 +124,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .github/COMMITTING_GUIDELINES.md
 - id: coding-guidelines
   path: .github/CODING_GUIDELINES.md
   kind: policy
@@ -125,9 +135,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .github/CODING_GUIDELINES.md
 - id: python-conventions-guide
   path: languages/python/CONVENTIONS.md
   kind: policy
@@ -136,9 +146,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - languages/python/CONVENTIONS.md
 - id: python-copilot-instructions
   path: languages/python/COPILOT_INSTRUCTIONS.md
   kind: policy
@@ -147,9 +157,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - languages/python/COPILOT_INSTRUCTIONS.md
 - id: typescript-conventions-guide
   path: languages/typescript/CONVENTIONS.md
   kind: policy
@@ -158,9 +168,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - languages/typescript/CONVENTIONS.md
 - id: go-conventions-guide
   path: languages/go/CONVENTIONS.md
   kind: policy
@@ -169,9 +179,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - languages/go/CONVENTIONS.md
 - id: rust-conventions-guide
   path: languages/rust/CONVENTIONS.md
   kind: policy
@@ -180,9 +190,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - languages/rust/CONVENTIONS.md
 - id: react-conventions-guide
   path: frameworks/react/CONVENTIONS.md
   kind: policy
@@ -191,9 +201,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - frameworks/react/CONVENTIONS.md
 - id: tdd-guide
   path: patterns/testing/TDD.md
   kind: policy
@@ -202,9 +212,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - patterns/testing/TDD.md
 - id: playwright-guide
   path: patterns/testing/PLAYWRIGHT_UI_TESTING.md
   kind: policy
@@ -213,9 +223,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - patterns/testing/PLAYWRIGHT_UI_TESTING.md
 - id: accessibility-guide
   path: patterns/accessibility/README.md
   kind: policy
@@ -224,9 +234,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - patterns/accessibility/README.md
 - id: mutation-testing-overview
   path: patterns/mutation-testing/README.md
   kind: policy
@@ -235,9 +245,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - patterns/mutation-testing/README.md
 - id: mutation-testing-guide
   path: patterns/mutation-testing/MUTATION_TESTING.md
   kind: policy
@@ -246,9 +256,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - patterns/mutation-testing/MUTATION_TESTING.md
 - id: file-placement-overview
   path: patterns/file-placement-policy/README.md
   kind: policy
@@ -257,9 +267,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - patterns/file-placement-policy/README.md
 - id: file-placement-policy
   path: patterns/file-placement-policy/POLICY.md
   kind: policy
@@ -268,9 +278,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - patterns/file-placement-policy/POLICY.md
 - id: multi-agent-overview
   path: patterns/multi-agent-coordination/README.md
   kind: policy
@@ -279,9 +289,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - patterns/multi-agent-coordination/README.md
 - id: multi-agent-coordination-guide
   path: patterns/multi-agent-coordination/COORDINATION.md
   kind: policy
@@ -290,9 +300,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - patterns/multi-agent-coordination/COORDINATION.md
 - id: error-handling-guide
   path: patterns/error-handling/README.md
   kind: policy
@@ -301,9 +311,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - patterns/error-handling/README.md
 - id: api-design-overview
   path: patterns/api-design/README.md
   kind: policy
@@ -312,9 +322,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - patterns/api-design/README.md
 - id: rest-conventions-guide
   path: patterns/api-design/REST_CONVENTIONS.md
   kind: policy
@@ -323,9 +333,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - patterns/api-design/REST_CONVENTIONS.md
 - id: agentic-loops-guide
   path: patterns/agentic-loops/README.md
   kind: policy
@@ -334,9 +344,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - patterns/agentic-loops/README.md
 - id: eval-suite-overview
   path: tools/eval/README.md
   kind: policy
@@ -345,9 +355,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - tools/eval/README.md
 - id: logging-standards-guide
   path: patterns/logging/LOGGING_STANDARDS.md
   kind: policy
@@ -356,9 +366,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - patterns/logging/LOGGING_STANDARDS.md
 - id: skill-accessibility
   path: .claude/skills/accessibility/SKILL.md
   kind: pattern
@@ -367,9 +377,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/accessibility/SKILL.md
 - id: skill-agentic-loops
   path: .claude/skills/agentic-loops/SKILL.md
   kind: pattern
@@ -378,9 +388,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/agentic-loops/SKILL.md
 - id: skill-api-design
   path: .claude/skills/api-design/SKILL.md
   kind: pattern
@@ -389,9 +399,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/api-design/SKILL.md
 - id: skill-audit-review-followup
   path: .claude/skills/audit-review-followup/SKILL.md
   kind: pattern
@@ -400,9 +410,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/audit-review-followup/SKILL.md
 - id: skill-branching
   path: .claude/skills/branching/SKILL.md
   kind: pattern
@@ -411,9 +421,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/branching/SKILL.md
 - id: skill-clean-architecture
   path: .claude/skills/clean-architecture/SKILL.md
   kind: pattern
@@ -422,9 +432,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/clean-architecture/SKILL.md
 - id: skill-code-review
   path: .claude/skills/code-review/SKILL.md
   kind: pattern
@@ -433,9 +443,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/code-review/SKILL.md
 - id: skill-code-review-api
   path: .claude/skills/code-review-api/SKILL.md
   kind: pattern
@@ -444,9 +454,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/code-review-api/SKILL.md
 - id: skill-code-review-db
   path: .claude/skills/code-review-db/SKILL.md
   kind: pattern
@@ -455,9 +465,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/code-review-db/SKILL.md
 - id: skill-code-review-ui
   path: .claude/skills/code-review-ui/SKILL.md
   kind: pattern
@@ -466,9 +476,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/code-review-ui/SKILL.md
 - id: skill-committing
   path: .claude/skills/committing/SKILL.md
   kind: pattern
@@ -477,9 +487,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/committing/SKILL.md
 - id: skill-database-conventions
   path: .claude/skills/database-conventions/SKILL.md
   kind: pattern
@@ -488,9 +498,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/database-conventions/SKILL.md
 - id: skill-dependency-audit
   path: .claude/skills/dependency-audit/SKILL.md
   kind: pattern
@@ -499,9 +509,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/dependency-audit/SKILL.md
 - id: skill-dependency-injection
   path: .claude/skills/dependency-injection/SKILL.md
   kind: pattern
@@ -510,9 +520,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/dependency-injection/SKILL.md
 - id: skill-design-patterns
   path: .claude/skills/design-patterns/SKILL.md
   kind: pattern
@@ -521,9 +531,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/design-patterns/SKILL.md
 - id: skill-docker-conventions
   path: .claude/skills/docker-conventions/SKILL.md
   kind: pattern
@@ -532,9 +542,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/docker-conventions/SKILL.md
 - id: skill-error-handling
   path: .claude/skills/error-handling/SKILL.md
   kind: pattern
@@ -543,9 +553,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/error-handling/SKILL.md
 - id: skill-file-placement-policy
   path: .claude/skills/file-placement-policy/SKILL.md
   kind: pattern
@@ -554,9 +564,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/file-placement-policy/SKILL.md
 - id: skill-github-issue-triage
   path: .claude/skills/github-issue-triage/SKILL.md
   kind: pattern
@@ -565,9 +575,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/github-issue-triage/SKILL.md
 - id: skill-go-conventions
   path: .claude/skills/go-conventions/SKILL.md
   kind: pattern
@@ -576,9 +586,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/go-conventions/SKILL.md
 - id: skill-harness-feedback
   path: .claude/skills/harness-feedback/SKILL.md
   kind: pattern
@@ -587,9 +597,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/harness-feedback/SKILL.md
 - id: skill-logging
   path: .claude/skills/logging/SKILL.md
   kind: pattern
@@ -598,9 +608,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/logging/SKILL.md
 - id: skill-multi-agent-coordination
   path: .claude/skills/multi-agent-coordination/SKILL.md
   kind: pattern
@@ -609,9 +619,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/multi-agent-coordination/SKILL.md
 - id: skill-mutation-testing
   path: .claude/skills/mutation-testing/SKILL.md
   kind: pattern
@@ -620,9 +630,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/mutation-testing/SKILL.md
 - id: skill-performance-profiling
   path: .claude/skills/performance-profiling/SKILL.md
   kind: pattern
@@ -631,9 +641,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/performance-profiling/SKILL.md
 - id: skill-planning-with-files
   path: .claude/skills/planning-with-files/SKILL.md
   kind: pattern
@@ -642,9 +652,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/planning-with-files/SKILL.md
 - id: skill-port-agent-config
   path: .claude/skills/port-agent-config/SKILL.md
   kind: pattern
@@ -653,9 +663,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/port-agent-config/SKILL.md
 - id: skill-project-bootstrap
   path: .claude/skills/project-bootstrap/SKILL.md
   kind: pattern
@@ -664,9 +674,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/project-bootstrap/SKILL.md
 - id: skill-python-conventions
   path: .claude/skills/python-conventions/SKILL.md
   kind: pattern
@@ -675,9 +685,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/python-conventions/SKILL.md
 - id: skill-react-best-practices
   path: .claude/skills/react-best-practices/SKILL.md
   kind: pattern
@@ -686,9 +696,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/react-best-practices/SKILL.md
 - id: skill-requirements-clarification
   path: .claude/skills/requirements-clarification/SKILL.md
   kind: pattern
@@ -697,9 +707,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/requirements-clarification/SKILL.md
 - id: skill-security-review
   path: .claude/skills/security-review/SKILL.md
   kind: pattern
@@ -708,9 +718,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/security-review/SKILL.md
 - id: skill-solid-principles
   path: .claude/skills/solid-principles/SKILL.md
   kind: pattern
@@ -719,9 +729,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/solid-principles/SKILL.md
 - id: skill-testing
   path: .claude/skills/testing/SKILL.md
   kind: pattern
@@ -730,9 +740,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/testing/SKILL.md
 - id: skill-typescript-conventions
   path: .claude/skills/typescript-conventions/SKILL.md
   kind: pattern
@@ -741,9 +751,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/skills/typescript-conventions/SKILL.md
 - id: agent-coding-guidelines-reviewer
   path: .claude/agents/coding-guidelines-reviewer.md
   kind: pattern
@@ -752,9 +762,9 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - .claude/agents/coding-guidelines-reviewer.md
 - id: operational-docs-class
   path: docs/operational/README.md
   kind: repository-fact
@@ -763,6 +773,39 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_reviewed: '2026-08-06'
-    staleness_rule: Re-verify path and provenance when the source file is materially edited, or at least
-      every 90 days.
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - docs/operational/README.md
+- id: manifest-yaml-source
+  path: manifest.yaml
+  kind: policy
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - manifest.yaml
+- id: manifest-md-generated
+  path: MANIFEST.md
+  kind: generated
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - manifest.yaml
+- id: context-yaml-self
+  path: context.yaml
+  kind: policy
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_verified: '2026-08-07'
+    invalidate_on:
+    - context.yaml
