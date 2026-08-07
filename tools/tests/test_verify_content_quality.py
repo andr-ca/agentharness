@@ -572,7 +572,7 @@ def _write_context_entry(tmp_path: Path, target: str = "target.md", **overrides)
         "lifecycle": "durable",
         "loading": "on-demand",
         "provenance": "verified",
-        "freshness": {"last_reviewed": "2026-08-06", "staleness_rule": "review yearly"},
+        "freshness": {"last_verified": "2026-08-06", "invalidate_on": [target]},
     }
     entry.update(overrides)
     import yaml as _yaml
@@ -646,11 +646,19 @@ def test_context_yaml_reports_invalid_provenance(tmp_path):
 
 
 def test_context_yaml_reports_incomplete_freshness(tmp_path):
-    _write_context_entry(tmp_path, freshness={"last_reviewed": "2026-08-06"})
+    _write_context_entry(tmp_path, freshness={"last_verified": "2026-08-06"})
 
     errors = vcq.check_context_yaml_valid(scan_root=tmp_path)
 
     assert any("incomplete freshness" in e for e in errors)
+
+
+def test_context_yaml_reports_freshness_watching_a_missing_path(tmp_path):
+    _write_context_entry(tmp_path, freshness={"last_verified": "2026-08-06", "invalidate_on": ["ghost.md"]})
+
+    errors = vcq.check_context_yaml_valid(scan_root=tmp_path)
+
+    assert any("does not exist" in e and "ghost.md" in e for e in errors)
 
 
 def test_context_yaml_reports_duplicate_id(tmp_path):
@@ -664,9 +672,9 @@ def test_context_yaml_reports_duplicate_id(tmp_path):
         "lifecycle": "durable",
         "loading": "on-demand",
         "provenance": "verified",
-        "freshness": {"last_reviewed": "2026-08-06", "staleness_rule": "review yearly"},
+        "freshness": {"last_verified": "2026-08-06", "invalidate_on": ["a.md"]},
     }
-    entry2 = dict(entry, path="b.md")
+    entry2 = dict(entry, path="b.md", freshness={"last_verified": "2026-08-06", "invalidate_on": ["b.md"]})
     import yaml as _yaml
 
     (tmp_path / "context.yaml").write_text(
@@ -702,5 +710,114 @@ def test_the_real_context_yaml_is_valid():
     # Integration check: the real committed context.yaml must itself pass
     # every rule this function enforces.
     errors = vcq.check_context_yaml_valid()
+
+    assert errors == []
+
+
+def _git(tmp_path: Path, *args: str) -> None:
+    import subprocess
+
+    subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True)
+
+
+def _init_git_repo(tmp_path: Path) -> None:
+    _git(tmp_path, "init", "--quiet")
+    _git(tmp_path, "config", "user.email", "test@example.com")
+    _git(tmp_path, "config", "user.name", "Test")
+
+
+def _commit_file(tmp_path: Path, rel_path: str, content: str, date_iso: str) -> None:
+    (tmp_path / rel_path).write_text(content, encoding="utf-8")
+    _git(tmp_path, "add", rel_path)
+    import subprocess
+
+    env_commit = ["git", "commit", "--quiet", "-m", f"update {rel_path}"]
+    subprocess.run(
+        env_commit,
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        env={
+            **__import__("os").environ,
+            "GIT_AUTHOR_DATE": date_iso,
+            "GIT_COMMITTER_DATE": date_iso,
+        },
+    )
+
+
+def _write_freshness_context(tmp_path: Path, last_verified: str, authority: str = "none") -> None:
+    entry = {
+        "id": "watched-entry",
+        "path": "watched.md",
+        "kind": "policy",
+        "authority": authority,
+        "lifecycle": "durable",
+        "loading": "on-demand",
+        "provenance": "verified",
+        "freshness": {"last_verified": last_verified, "invalidate_on": ["watched.md"]},
+    }
+    import yaml as _yaml
+
+    (tmp_path / "context.yaml").write_text(
+        _yaml.dump({"entries": [entry]}, sort_keys=False), encoding="utf-8"
+    )
+
+
+def test_context_freshness_no_git_repo_is_not_an_error(tmp_path):
+    _write_freshness_context(tmp_path, last_verified="2026-08-06")
+    (tmp_path / "watched.md").write_text("stub\n", encoding="utf-8")
+
+    errors, warnings = vcq.check_context_freshness(scan_root=tmp_path)
+
+    assert errors == []
+    assert warnings == []
+
+
+def test_context_freshness_flags_a_stale_advisory_entry_as_a_warning(tmp_path):
+    _init_git_repo(tmp_path)
+    _write_freshness_context(tmp_path, last_verified="2026-01-01", authority="none")
+    _commit_file(tmp_path, "watched.md", "changed\n", "2026-06-01T00:00:00")
+    _git(tmp_path, "add", "context.yaml")
+    _git(tmp_path, "commit", "--quiet", "-m", "add context.yaml")
+
+    errors, warnings = vcq.check_context_freshness(scan_root=tmp_path)
+
+    assert errors == []
+    assert len(warnings) == 1
+    assert "watched-entry" in warnings[0]
+
+
+def test_context_freshness_flags_a_stale_ladder_entry_as_an_error(tmp_path):
+    _init_git_repo(tmp_path)
+    _write_freshness_context(tmp_path, last_verified="2026-01-01", authority="rigor_tier")
+    _commit_file(tmp_path, "watched.md", "changed\n", "2026-06-01T00:00:00")
+    _git(tmp_path, "add", "context.yaml")
+    _git(tmp_path, "commit", "--quiet", "-m", "add context.yaml")
+
+    errors, warnings = vcq.check_context_freshness(scan_root=tmp_path)
+
+    assert warnings == []
+    assert len(errors) == 1
+    assert "watched-entry" in errors[0]
+
+
+def test_context_freshness_passes_when_verified_after_the_change(tmp_path):
+    _init_git_repo(tmp_path)
+    _write_freshness_context(tmp_path, last_verified="2026-06-15", authority="none")
+    _commit_file(tmp_path, "watched.md", "changed\n", "2026-06-01T00:00:00")
+    _git(tmp_path, "add", "context.yaml")
+    _git(tmp_path, "commit", "--quiet", "-m", "add context.yaml")
+
+    errors, warnings = vcq.check_context_freshness(scan_root=tmp_path)
+
+    assert errors == []
+    assert warnings == []
+
+
+def test_the_real_context_yaml_has_no_stale_ladder_entries():
+    # Integration check: whatever advisory staleness exists in the real
+    # repo, no authority-bearing (ladder) entry may be stale — that half
+    # is a hard failure by design.
+    errors, _warnings = vcq.check_context_freshness()
 
     assert errors == []
