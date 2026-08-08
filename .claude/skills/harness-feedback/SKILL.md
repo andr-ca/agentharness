@@ -44,6 +44,53 @@ short header if it doesn't exist). Use this template:
 **Corrective action taken:** [What you did to work around or fix it] Logged upstream as #[issue-number] — or "Not filed upstream (opted out via .agentharness-no-upstream-feedback)".
 ```
 
+**Optional structured fields.** Add any of these when you actually have the
+information — none are mandatory, and a one-off entry with just the fields
+above is still a complete, valid entry:
+
+```markdown
+**Event class:** [hook-failure | ambiguous-guidance | mandate-violation | tool-output-mismatch | other]
+
+**Observed vs. inferred:** [Directly observed (you saw the failure happen) or Inferred (you're reasoning from symptoms without a direct repro)]
+
+**Evidence reference:** [Link or path to the transcript, log, or command output that shows this — not the raw content, a pointer to it]
+
+**Severity:** [blocking | degraded | cosmetic]
+
+**Workaround:** [What let the session continue despite the friction, if anything]
+
+**Resolution:** [Fixed upstream in #N | Still open | Won't-fix, because ...]
+```
+
+These exist because 22 local entries in, recurrence detection was still a
+human remembering an earlier entry by feel — the same trunk-protection gap
+got filed twice two months apart before the recurrence-key field existed,
+and volume has since roughly doubled again. Add a field when it helps you
+or a future reader classify or search the entry; skip it when it wouldn't
+(most entries won't have a meaningful "evidence reference," for instance,
+and that's fine).
+
+**Corroboration before promotion.** A feedback entry is a report, not
+authorization to change policy. Before a recurring theme turns into an
+actual mandate, guide edit, or new check, require at least one of:
+reproduction, a second independent occurrence (not the same session
+re-describing itself), or deterministic evidence (a log, a failing test,
+a hook's actual output) — not just an agent's own interpretation of what
+went wrong. This mirrors the Recommendation Assessment mandate's existing
+"assess before implement" step; corroboration is what earns a feedback
+entry the right to be assessed as a real recommendation rather than one
+session's read of events.
+
+**Not built by this schema.** No JSON export, aggregation command, or
+audit-summary tooling — reading 22 markdown entries with grep still works,
+and building a report command ahead of a demonstrated aggregation need
+would be the exact kind of unscoped machinery this repo pushes back on.
+Retention/expiry for stale entries is explicitly out of scope here too —
+that's `docs/operational/`'s general forgetting-policy gap, tracked
+separately (issue #199, deferred pending its own evidence trigger), not
+something this skill should decide on its own. Revisit both if aggregation
+or retention friction actually shows up.
+
 **About the two structured fields.** They exist because recurrence is the
 signal that turns a one-off annoyance into something worth changing, and
 recurrence was being caught only by a human happening to remember an
@@ -61,12 +108,6 @@ on a different issue.
 - **Harness version** — which harness the friction was observed against,
   so a report can be told apart from one already fixed since. `git -C
   <harness-dir> rev-parse --short HEAD` is enough.
-
-Deliberately *not* added: event class, observed-vs-inferred cause,
-evidence reference, severity, and resolution. Ten local entries is not
-enough volume to justify a full schema, and a human found every
-recurrence to date with no structure at all. Revisit only when volume
-actually demands aggregation tooling.
 
 ### 3. File upstream
 
