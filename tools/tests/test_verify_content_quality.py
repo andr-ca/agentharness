@@ -801,6 +801,33 @@ def test_context_freshness_no_git_repo_is_not_an_error(tmp_path):
     assert warnings == []
 
 
+def test_context_freshness_skips_entirely_on_a_shallow_clone(tmp_path):
+    # A shallow clone's `git log -- <path>` only sees the tip commit, so
+    # every watched path looks like it changed at HEAD's date regardless
+    # of real history — this reproduces PR #235's actual CI failure
+    # (python-tests' checkout has no fetch-depth: 0, unlike
+    # content-quality's) rather than asserting the mechanism abstractly.
+    source = tmp_path / "source"
+    source.mkdir()
+    _init_git_repo(source)
+    _write_freshness_context(source, last_verified="2026-01-01", authority="rigor_tier")
+    _git(source, "add", "context.yaml")
+    _git(source, "commit", "--quiet", "-m", "add context.yaml")
+    _commit_file(source, "watched.md", "changed\n", "2026-06-01T00:00:00")
+
+    clone = tmp_path / "clone"
+    # git ignores --depth for a bare local path (treats it as a hardlink
+    # clone) — the file:// form is required to get a genuinely shallow
+    # clone locally, matching what actions/checkout produces over the
+    # network with its default fetch-depth: 1.
+    _git(tmp_path, "clone", "--quiet", "--depth", "1", f"file://{source}", str(clone))
+
+    errors, warnings = vcq.check_context_freshness(scan_root=clone)
+
+    assert errors == []
+    assert warnings == []
+
+
 def test_context_freshness_flags_a_stale_advisory_entry_as_a_warning(tmp_path):
     _init_git_repo(tmp_path)
     _write_freshness_context(tmp_path, last_verified="2026-01-01", authority="none")

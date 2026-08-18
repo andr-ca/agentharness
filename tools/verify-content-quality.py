@@ -550,6 +550,17 @@ def _resolve_repo_relative(scan_root: Path, candidate: object) -> Path | None:
     return resolved
 
 
+def _is_shallow_git_checkout(scan_root: Path) -> bool:
+    result = subprocess.run(
+        ["git", "rev-parse", "--is-shallow-repository"],
+        cwd=scan_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.stdout.strip() == "true"
+
+
 def _git_last_change_date(scan_root: Path, rel_path: str) -> str | None:
     result = subprocess.run(
         ["git", "log", "-1", "--format=%cI", "--", rel_path],
@@ -584,6 +595,17 @@ def check_context_freshness(scan_root: Path = REPO_ROOT) -> tuple[list[str], lis
     try:
         data = yaml.safe_load(model_path.read_text(encoding="utf-8")) or {}
     except yaml.YAMLError:
+        return [], []
+
+    if _is_shallow_git_checkout(scan_root):
+        # A shallow clone's `git log -- <path>` can only see the tip
+        # commit, so every watched path looks like it "changed" at the
+        # checkout's HEAD date regardless of its real history — a false
+        # positive on every entry, not a partial signal. Skip rather than
+        # report staleness neither confirmed nor ruled out. The gate's own
+        # CI job fetches full history (fetch-depth: 0); this guards any
+        # other caller (a different CI job, a contributor's shallow
+        # clone) that doesn't.
         return [], []
 
     errors: list[str] = []
