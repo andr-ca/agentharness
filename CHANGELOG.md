@@ -6,6 +6,17 @@ section into a tagged version.
 
 ## [Unreleased]
 
+### Fixed
+- **`generate-clients` was unreachable through the published npm CLI.**
+  `bin/cli.js` defaults unrecognized subcommands to `--mode npm`, and
+  `generate-clients` (along with `audit-prs`) was missing from its list of
+  known bash-served subcommands — so a real `agentharness generate-clients
+  --client ...` invocation got a bogus `--mode npm` appended and died with
+  `Unexpected argument: --mode`. `--help` is exempted from the injection,
+  so every documented example and manual check that happened to end in
+  `--help` masked it; only an actual invocation, as issue #240's live
+  verification did, ever hit it. Both subcommands are now registered.
+
 ## [0.7.1] - 2026-08-05
 
 PATCH, not MINOR: unlike `v0.7.0`, neither fix here changes an existing

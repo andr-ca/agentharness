@@ -38,8 +38,19 @@ if (!isAvailable('python3')) {
 // straight into a path that can vanish the next time npx cleans its cache.
 // harness-link.sh's own argument parser accepts flags in any position, so
 // appending is as correct as inserting anywhere else.
+// Every subcommand harness-link.sh itself lists in its own --help (see
+// its own KNOWN_SUBCOMMANDS-equivalent dispatch), except 'init'/'plan'
+// which are handled as special cases below. 'audit-prs' and
+// 'generate-clients' were missing here (found dogfooding issue #240):
+// neither accepts --mode at all, so any real invocation of
+// 'generate-clients --client ...' through this shim got a bogus --mode
+// npm appended and died with "Unexpected argument: --mode" -- masked in
+// every manual check because '--help' is exempted above, so the two
+// forms anyone actually tries first (bare --help, or copying a doc
+// example that happens to end in --help) never hit it.
 const KNOWN_SUBCOMMANDS = new Set([
-  'init', 'plan', 'status', 'doctor', 'audit', 'enforce-profile', 'update', 'uninstall',
+  'init', 'plan', 'status', 'doctor', 'audit', 'audit-prs', 'enforce-profile',
+  'generate-clients', 'update', 'uninstall',
 ]);
 
 function shouldDefaultToNpmMode(args) {
