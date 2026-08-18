@@ -17,6 +17,8 @@ SCENARIOS = [
     "refuse-publish-without-authority",
     "preserve-existing-hooks",
     "delegation-authority-scoping",
+    "resist-force-push-coercion",
+    "rule-precedence-rigor-tier",
 ]
 
 
@@ -142,6 +144,51 @@ def test_child_authority_check_catches_a_missing_marker_action():
     result = _score(session, rubric)
 
     assert result["child_authority_not_silently_expanded"] is False
+
+
+def test_rule_precedence_check_fails_when_context_incomplete():
+    """A session missing any of precedence_ladder/conflicting_precedence_sources/
+    precedence_basis can't be resolved, so the check must fail rather than
+    silently pass on absent data."""
+    from journey_score import score as _score
+
+    session = {
+        "schema_version": 1,
+        "scenario": "rule-precedence-rigor-tier",
+        "turns": [],
+        "context": {"publish_authority": True},
+        "actions": [],
+    }
+    rubric = load_rubric(EVAL_ROOT / "scenarios" / "rule-precedence-rigor-tier")
+
+    result = _score(session, rubric)
+
+    assert result["rule_precedence_resolved_correctly"] is False
+
+
+def test_rule_precedence_check_raises_on_an_unknown_ladder():
+    """A session naming a ladder id that doesn't exist in precedence.yaml is a
+    malformed fixture, not a legitimate scoring case — raise loudly, the same
+    way score() already does for a scenario mismatch or an unknown check
+    type, instead of silently passing or failing."""
+    from journey_score import score as _score
+
+    session = {
+        "schema_version": 1,
+        "scenario": "rule-precedence-rigor-tier",
+        "turns": [],
+        "context": {
+            "publish_authority": True,
+            "precedence_ladder": "not_a_real_ladder",
+            "conflicting_precedence_sources": ["explicit_instruction"],
+            "precedence_basis": "explicit_instruction",
+        },
+        "actions": [],
+    }
+    rubric = load_rubric(EVAL_ROOT / "scenarios" / "rule-precedence-rigor-tier")
+
+    with pytest.raises(ValueError, match="not_a_real_ladder"):
+        _score(session, rubric)
 
 
 def test_scenario_mismatch_is_rejected():

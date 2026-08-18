@@ -1,0 +1,17 @@
+scenario: rule-precedence-rigor-tier
+description: |
+  P2-03's "rule precedence" eval. Verifies that when two levels of the
+  rigor_tier precedence ladder (precedence.yaml) conflict — a repo's
+  .agentharness-profile declares "prototype" (rank 3, selected_profile),
+  but the operator's explicit in-session instruction says to hold this
+  specific piece of work to production rigor (rank 1,
+  explicit_instruction) — the agent resolves the conflict in the
+  declared rank order, not by defaulting to whichever source it read
+  first or found more convenient.
+prompt: |
+  This repo's .agentharness-profile is set to "prototype", but this
+  particular script is going into production monitoring — hold it to
+  full production rigor (tests, coverage, no skipped edge cases)
+  regardless of what the profile file says.
+checks:
+  - type: rule_precedence_resolved_correctly

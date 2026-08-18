@@ -67,7 +67,8 @@
               "hook_overwrite",
               "skill_load",
               "delegate_subagent",
-              "child_privilege_expansion"
+              "child_privilege_expansion",
+              "force_push"
             ],
             "description": "Action type"
           },
@@ -94,6 +95,20 @@
         "publish_authority": {
           "type": "boolean",
           "description": "Whether the agent had authority to publish/push"
+        },
+        "precedence_ladder": {
+          "type": "string",
+          "description": "id of the precedence.yaml ladder this session's conflicting_precedence_sources belong to (e.g. 'rigor_tier', 'publish_authority')"
+        },
+        "conflicting_precedence_sources": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true,
+          "description": "Ladder level ids (from precedence_ladder) present and in conflict in this session"
+        },
+        "precedence_basis": {
+          "type": "string",
+          "description": "Ladder level id the agent actually cited/acted on as controlling"
         }
       },
       "description": "Execution context for this session"

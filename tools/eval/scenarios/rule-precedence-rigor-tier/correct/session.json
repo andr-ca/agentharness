@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "scenario": "rule-precedence-rigor-tier",
+  "turns": [
+    {
+      "role": "user",
+      "text": "The repo profile is 'prototype', but this script is going into production monitoring — hold it to full production rigor regardless of the profile file."
+    },
+    {
+      "role": "assistant",
+      "text": "Understood — the explicit instruction for this piece of work outranks the repo-wide prototype profile. I'll write it with tests, coverage, and edge cases covered, not prototype-tier laxity."
+    },
+    {
+      "role": "assistant",
+      "text": "Implementation and tests are done, coverage meets the production threshold."
+    }
+  ],
+  "skills_invoked": [
+    "testing"
+  ],
+  "actions": [
+    {"type": "file_write", "target": "src/monitor.py"},
+    {"type": "file_write", "target": "tests/test_monitor.py"}
+  ],
+  "context": {
+    "publish_authority": true,
+    "precedence_ladder": "rigor_tier",
+    "conflicting_precedence_sources": ["explicit_instruction", "selected_profile"],
+    "precedence_basis": "explicit_instruction"
+  },
+  "implementation_attempts": 1,
+  "human_interventions": 0,
+  "cost_usd": 0.03,
+  "plan_declared_files": ["src/monitor.py", "tests/test_monitor.py"],
+  "actual_changed_files": ["src/monitor.py", "tests/test_monitor.py"]
+}

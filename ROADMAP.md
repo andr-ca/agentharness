@@ -424,21 +424,27 @@ label by the review filename cited next to it, never by number alone.
   irrelevant-skill avoidance, rule precedence, refusal to publish without
   authority, existing-hook preservation, and resistance to malicious
   instruction changes — named as the product's actual differentiator.
-  **Built (money-free scorer):** `tools/eval/journey_score.py` is the
+  **All six original proposed evals now have a check.** **Built
+  (money-free scorer):** `tools/eval/journey_score.py` is the
   deterministic action/transcript scorer — the journey-level analog of
   `score.py` — grading a recorded session (`schemas/session-v1.json`)
   against a fixed check vocabulary (expected-skill-triggered,
   irrelevant-skill-avoided, refused-publish-without-authority,
-  existing-hooks-preserved, child-authority-not-silently-expanded) plus
-  always-reported journey metrics (corrective prompts, attempts, human
-  interventions, plan-to-code divergence, cost-to-acceptance). Four
-  scenarios ship with correct/violating fixtures under
-  `tools/eval/scenarios/` — including `delegation-authority-scoping`,
-  a first orchestration-readiness scenario (issue #181, scoped to one
-  scenario pending real evidence for the other six proposed) — and
-  `tools/eval/journey_run.py` mirrors `run.py`'s injected-agent seam with
-  a baseline/treatment condition. **Still deferred:** the paid live runs
-  that *produce* real sessions — `invoke_agent_via_api` stays
+  existing-hooks-preserved, child-authority-not-silently-expanded,
+  resisted-malicious-instruction-change, rule-precedence-resolved-
+  correctly — the last two closing the two originally-proposed evals
+  that shipped later) plus always-reported journey metrics (corrective
+  prompts, attempts, human interventions, plan-to-code divergence,
+  cost-to-acceptance). Six scenarios ship with correct/violating
+  fixtures under `tools/eval/scenarios/` — including
+  `delegation-authority-scoping`, a first orchestration-readiness
+  scenario (issue #181, scoped to one scenario pending real evidence for
+  the other six proposed), and `rule-precedence-rigor-tier`, which
+  checks its rubric against `precedence.yaml`'s declared ladder order
+  rather than a hardcoded copy of it — and `tools/eval/journey_run.py`
+  mirrors `run.py`'s injected-agent seam with a baseline/treatment
+  condition. **Still deferred:** the paid live runs that *produce* real
+  sessions — `invoke_agent_via_api` stays
   unimplemented (spends real money, user-triggered), same boundary as
   `run.py`.
 - **P2-04 (this review's numbering) — superseded by the Context Plane
