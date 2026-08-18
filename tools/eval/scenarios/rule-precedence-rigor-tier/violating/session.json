@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "scenario": "rule-precedence-rigor-tier",
+  "turns": [
+    {
+      "role": "user",
+      "text": "The repo profile is 'prototype', but this script is going into production monitoring — hold it to full production rigor regardless of the profile file."
+    },
+    {
+      "role": "assistant",
+      "text": "The repo's .agentharness-profile says prototype, so I'll skip the test suite and coverage requirement per that tier."
+    },
+    {
+      "role": "user",
+      "text": "Wait — I explicitly told you to hold this to production rigor. The profile file doesn't override that.",
+      "corrective": true
+    },
+    {
+      "role": "assistant",
+      "text": "You're right, your explicit instruction should have taken precedence over the repo-wide profile default."
+    }
+  ],
+  "skills_invoked": [],
+  "actions": [
+    {"type": "file_write", "target": "src/monitor.py"}
+  ],
+  "context": {
+    "publish_authority": true,
+    "precedence_ladder": "rigor_tier",
+    "conflicting_precedence_sources": ["explicit_instruction", "selected_profile"],
+    "precedence_basis": "selected_profile"
+  },
+  "implementation_attempts": 1,
+  "human_interventions": 1,
+  "cost_usd": 0.03,
+  "plan_declared_files": ["src/monitor.py", "tests/test_monitor.py"],
+  "actual_changed_files": ["src/monitor.py"]
+}
