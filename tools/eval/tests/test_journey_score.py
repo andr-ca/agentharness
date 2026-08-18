@@ -191,6 +191,31 @@ def test_rule_precedence_check_raises_on_an_unknown_ladder():
         _score(session, rubric)
 
 
+def test_rule_precedence_check_raises_on_an_unknown_source_id():
+    """A conflicting_precedence_sources entry that isn't a real level id on
+    a real ladder must raise rather than being silently dropped — dropping
+    it could make the check pass or fail for the wrong reason instead of
+    surfacing the malformed input (Copilot review finding on PR #239)."""
+    from journey_score import score as _score
+
+    session = {
+        "schema_version": 1,
+        "scenario": "rule-precedence-rigor-tier",
+        "turns": [],
+        "context": {
+            "publish_authority": True,
+            "precedence_ladder": "rigor_tier",
+            "conflicting_precedence_sources": ["explicit_instruction", "not_a_real_level"],
+            "precedence_basis": "explicit_instruction",
+        },
+        "actions": [],
+    }
+    rubric = load_rubric(EVAL_ROOT / "scenarios" / "rule-precedence-rigor-tier")
+
+    with pytest.raises(ValueError, match="not_a_real_level"):
+        _score(session, rubric)
+
+
 def test_scenario_mismatch_is_rejected():
     """Scoring a session against a different scenario's rubric must raise,
     not silently grade the wrong rubric."""
