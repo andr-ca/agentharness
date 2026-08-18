@@ -91,7 +91,7 @@ separately (issue #199, deferred pending its own evidence trigger), not
 something this skill should decide on its own. Revisit both if aggregation
 or retention friction actually shows up.
 
-**About the two structured fields.** They exist because recurrence is the
+**About the recurrence key and harness version.** They exist because recurrence is the
 signal that turns a one-off annoyance into something worth changing, and
 recurrence was being caught only by a human happening to remember an
 earlier entry — the same trunk-protection gap was filed twice two months
