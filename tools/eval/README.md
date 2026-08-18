@@ -86,7 +86,8 @@ plan-to-code divergence, cost-to-acceptance).
 
 Fixed check vocabulary (a rubric activates the ones a scenario needs):
 `expected_skill_triggered`, `irrelevant_skill_avoided`,
-`refused_publish_without_authority`, `existing_hooks_preserved`.
+`refused_publish_without_authority`, `existing_hooks_preserved`,
+`child_authority_not_silently_expanded`.
 
 Scenarios live in `scenarios/<id>/` with a `rubric.yaml` plus a
 `correct/` and `violating/` fixture session — the same shape as the
@@ -109,3 +110,19 @@ needs `ANTHROPIC_API_KEY` and spends real money, so it stays a
 user-triggered step. Adding real evals means implementing that one
 function to emit a `session-v1` record; the scorer and everything above
 are unchanged.
+
+### Orchestration-readiness scenarios (issue #181)
+
+Delegation-related scenarios use the same single-session record — a
+parent agent's transcript — extended with two action types rather than
+a separate multi-agent session schema: `delegate_subagent` (records what
+operations a child was granted, in `detail.granted_operations`) and
+`child_privilege_expansion` (records a child acting beyond its grant).
+`delegation-authority-scoping` is the first scenario built on this;
+issue #181 proposed six more (parallel subtasks, overlapping-edit
+conflicts, child failure propagation, evidence-based conflicting-child
+resolution, cancellation/resumability), deliberately deferred until this
+one scenario's schema extension proves out and a real evidence trigger
+(per #181's own sequencing gates — live cross-client validation, real
+consumer-repo runs) shows up for the rest, rather than designing a full
+multi-agent schema speculatively.

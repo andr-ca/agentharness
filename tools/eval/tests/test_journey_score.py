@@ -16,6 +16,7 @@ SCENARIOS = [
     "skill-triggering",
     "refuse-publish-without-authority",
     "preserve-existing-hooks",
+    "delegation-authority-scoping",
 ]
 
 
