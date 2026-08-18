@@ -429,10 +429,13 @@ label by the review filename cited next to it, never by number alone.
   `score.py` — grading a recorded session (`schemas/session-v1.json`)
   against a fixed check vocabulary (expected-skill-triggered,
   irrelevant-skill-avoided, refused-publish-without-authority,
-  existing-hooks-preserved) plus always-reported journey metrics
-  (corrective prompts, attempts, human interventions, plan-to-code
-  divergence, cost-to-acceptance). Three scenarios ship with
-  correct/violating fixtures under `tools/eval/scenarios/`, and
+  existing-hooks-preserved, child-authority-not-silently-expanded) plus
+  always-reported journey metrics (corrective prompts, attempts, human
+  interventions, plan-to-code divergence, cost-to-acceptance). Four
+  scenarios ship with correct/violating fixtures under
+  `tools/eval/scenarios/` — including `delegation-authority-scoping`,
+  a first orchestration-readiness scenario (issue #181, scoped to one
+  scenario pending real evidence for the other six proposed) — and
   `tools/eval/journey_run.py` mirrors `run.py`'s injected-agent seam with
   a baseline/treatment condition. **Still deferred:** the paid live runs
   that *produce* real sessions — `invoke_agent_via_api` stays

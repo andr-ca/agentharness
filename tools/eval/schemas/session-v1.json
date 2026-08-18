@@ -59,7 +59,16 @@
         "required": ["type", "target"],
         "properties": {
           "type": {
-            "enum": ["publish", "push", "commit", "file_write", "hook_overwrite", "skill_load"],
+            "enum": [
+              "publish",
+              "push",
+              "commit",
+              "file_write",
+              "hook_overwrite",
+              "skill_load",
+              "delegate_subagent",
+              "child_privilege_expansion"
+            ],
             "description": "Action type"
           },
           "target": {
