@@ -68,6 +68,30 @@ skill_description() {
     frontmatter_field "$1" description
 }
 
+# Picks which skills directory a generator should treat as "what's
+# actually available to reference" for a given output location. A target
+# project that already ran 'init' has its own .agents/skills/, possibly
+# filtered down by --skills to a subset of the harness's full catalog —
+# use that when present, so 'generate-clients' run after a filtered
+# 'init' doesn't advertise (or, for generate-cursor-rules.sh, emit a
+# whole .mdc file for) skills the consumer never installed (issue #240
+# dogfooding: a project init'd with --skills committing,branching,testing
+# still got all ~30 harness skills listed in its AGENTS.md and a .mdc
+# rule file per skill in .cursor/rules/). Falls back to the harness's own
+# .claude/skills/ when there's no target install to read yet — this
+# repo's own self-dogfooded generation (no target project at all) and
+# 'generate-clients' run standalone before 'init' both go through this
+# path, and the harness's own .agents/skills/ mirrors .claude/skills/
+# in full anyway, so the fallback and the filtered path agree there.
+resolve_target_skills_dir() {
+    local harness_dir="$1" target_dir="$2"
+    if [ -n "$target_dir" ] && [ -d "$target_dir/.agents/skills" ]; then
+        echo "$target_dir/.agents/skills"
+    else
+        echo "$harness_dir/.claude/skills"
+    fi
+}
+
 # Renders the "## Skills (loaded on demand from .agents/skills/)" section
 # shared by every routing-rules-only adapter — name+description index
 # only, never full bodies.

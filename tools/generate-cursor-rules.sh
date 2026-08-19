@@ -15,7 +15,10 @@
 #   - agentharness-router.mdc: alwaysApply: true, CLAUDE.md's routing
 #     prose as body — Cursor's closest analog to AGENTS.md/GEMINI.md's
 #     always-on file.
-#   - one <skill-name>.mdc per skill under .claude/skills/, with no
+#   - one <skill-name>.mdc per skill actually installed in the target's
+#     .agents/skills/ (falling back to every skill under this harness's
+#     own .claude/skills/ when the target has no .agents/skills/ yet —
+#     see resolve_target_skills_dir() in lib/adapter-common.sh), with no
 #     `globs` set so the rule activates in Agent-Requested mode: Cursor's
 #     agent reads the `description` (copied verbatim from that skill's
 #     own SKILL.md frontmatter) and decides whether to pull the full
@@ -48,7 +51,7 @@ output_dir=""
 parse_multi_file_adapter_args "$@"
 
 claude_md="$harness_dir/CLAUDE.md"
-skills_dir="$harness_dir/.claude/skills"
+skills_dir="$(resolve_target_skills_dir "$harness_dir" "$output_dir")"
 
 if [ ! -f "$claude_md" ]; then
     echo "Error: $claude_md not found." >&2

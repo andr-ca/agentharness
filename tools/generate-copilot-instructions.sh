@@ -53,7 +53,7 @@ output_dir=""
 parse_multi_file_adapter_args "$@"
 
 claude_md="$harness_dir/CLAUDE.md"
-skills_dir="$harness_dir/.claude/skills"
+skills_dir="$(resolve_target_skills_dir "$harness_dir" "$output_dir")"
 languages_dir="$harness_dir/languages"
 
 if [ ! -f "$claude_md" ]; then

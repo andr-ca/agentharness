@@ -34,7 +34,7 @@ output=""
 parse_common_adapter_args "$@"
 
 claude_md="$harness_dir/CLAUDE.md"
-skills_dir="$harness_dir/.claude/skills"
+skills_dir="$(resolve_target_skills_dir "$harness_dir" "${output:+$(dirname "$output")}")"
 
 if [ ! -f "$claude_md" ]; then
     echo "Error: $claude_md not found." >&2
