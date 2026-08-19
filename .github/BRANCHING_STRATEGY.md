@@ -39,6 +39,38 @@ Format: `{type}/{description}`, lowercase, hyphens not underscores.
 | `ci/` | CI/CD changes | `ci/add-coverage-reporting` |
 | `wip/` | Work in progress (don't merge!) | `wip/exploring-new-approach` |
 
+## Delete branches once they're merged
+
+A merged branch has nothing left to give — its content is in trunk,
+permanently reachable through the merge commit. Keeping it around adds
+nothing and costs a little: `git branch -r`/`git fetch --prune` noise,
+one more thing a future cleanup has to re-verify is actually safe to
+remove, and no signal left behind for which merged branches were
+deliberately kept for a reason (there isn't one) versus simply never
+cleaned up.
+
+A repo audit on 2026-08-19 found 24 branches sitting on `origin` for
+already-merged or already-superseded PRs, spanning weeks — none kept on
+purpose, all just never deleted. Two things now close that gap:
+
+- **This repo's GitHub setting `delete_branch_on_merge` is enabled** —
+  merging a PR through the GitHub UI, `gh pr merge`, or
+  `tools/safe-pr-merge.sh` all delete the head branch automatically.
+- **`tools/safe-pr-merge.sh` also defaults to passing `--delete-branch`
+  itself**, so the behavior travels with the script into any project
+  that adopts this harness, independent of that project's own repo
+  settings. Pass `--delete-branch=false` on a specific merge if you
+  have a real reason to keep that one branch around.
+
+If you're cleaning up branches that predate this convention: verify
+each one is actually safe first (merged into trunk, or its PR closed in
+favor of a since-merged replacement, or fully redundant with an
+existing tag) — don't blanket-delete on the assumption that "old" means
+"safe." `git merge-base --is-ancestor` misses squash-merged branches
+(diff against trunk directly instead, or check the PR's `mergedAt`
+state); a closed-but-unmerged PR needs its own closing comment or diff
+checked for where its content actually landed.
+
 ## Worktrees
 
 A worktree (`git worktree add`) gives you a second working directory

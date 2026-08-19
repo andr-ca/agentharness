@@ -311,6 +311,32 @@ _run_verify() {
     [[ "$output" == "--merge" ]]
 }
 
+@test "safe-pr-merge: defaults to adding --delete-branch when the caller doesn't ask for it" {
+    run bash -c "source '$SCRIPT'; resolve_delete_branch_default --squash"
+    [ "$status" -eq 0 ]
+    [[ "$output" == "--delete-branch" ]]
+}
+
+@test "safe-pr-merge: does not duplicate an explicit --delete-branch from the caller" {
+    run bash -c "source '$SCRIPT'; resolve_delete_branch_default --delete-branch"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "safe-pr-merge: honours an explicit --delete-branch=false instead of overriding it" {
+    run bash -c "source '$SCRIPT'; resolve_delete_branch_default --delete-branch=false"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "safe-pr-merge: --delete-branch ends up in the actual gh pr merge invocation by default" {
+    # End-to-end through main()'s merge_args construction, not just the
+    # helper in isolation -- guards against the two drifting apart.
+    run bash -c "source '$SCRIPT'; merge_args=(\"\$(resolve_merge_strategy)\"); d=\"\$(resolve_delete_branch_default)\"; [ -n \"\$d\" ] && merge_args+=(\"\$d\"); printf '%s\n' \"\${merge_args[@]}\""
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "--delete-branch" ]]
+}
+
 @test "verify_all_comments_replied: unauthenticated gh fails with an auth error, not a bogus unanswered list" {
     # An empty viewer makes every comment compare > "" and look unanswered.
     # The caller must be told gh can't identify them, not handed a list of

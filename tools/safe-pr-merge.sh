@@ -12,10 +12,16 @@
 # override it; passing more than one strategy is rejected immediately,
 # before any of the polling steps below.
 #
+# Deletes the head branch on merge by default (--delete-branch is added
+# automatically) -- a 2026-08-19 repo audit found 24 branches still
+# sitting on origin for already-merged PRs, none kept deliberately, just
+# because nothing had ever asked gh to clean them up. Pass
+# --delete-branch=false to keep the branch around for a specific PR.
+#
 # Examples:
 #   bash tools/safe-pr-merge.sh 42
-#   bash tools/safe-pr-merge.sh 42 --delete-branch
-#   bash tools/safe-pr-merge.sh 42 --squash --delete-branch
+#   bash tools/safe-pr-merge.sh 42 --delete-branch=false
+#   bash tools/safe-pr-merge.sh 42 --squash
 #
 # Exit codes:
 #   0 — PR merged successfully and post-merge CI is green
@@ -488,6 +494,21 @@ filter_strategy_flags() {
     done
 }
 
+# Default to deleting the head branch on merge (see the header comment
+# for why) unless the caller already passed some form of --delete-branch
+# themselves — echoes "--delete-branch" to add, or nothing if the caller
+# already covered it (including an explicit --delete-branch=false, which
+# this must not override back to true).
+resolve_delete_branch_default() {
+    local arg
+    for arg in "$@"; do
+        case "$arg" in
+            --delete-branch*) return 0 ;;
+        esac
+    done
+    echo "--delete-branch"
+}
+
 # Main entrypoint
 main() {
     if [ $# -lt 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
@@ -527,6 +548,9 @@ main() {
             [ -n "$_filtered_arg" ] && merge_args+=("$_filtered_arg")
         done < <(filter_strategy_flags "$@")
     fi
+    local delete_branch_default
+    delete_branch_default="$(resolve_delete_branch_default "$@")"
+    [ -n "$delete_branch_default" ] && merge_args+=("$delete_branch_default")
 
     # Get repo owner/name
     local repo
