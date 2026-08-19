@@ -49,6 +49,12 @@ across the INDEX.md and inter-file references.
 |---|---|
 | [harness-ideation-2026-07-15-status.md](harness-ideation-2026-07-15-status.md) | Disposition of an external intent-first-harness ideation note; 6 items added to ROADMAP.md (I-01…I-06) |
 
+### Cycle 6 — Issue #240 client dogfooding (2026-08-19)
+
+| File | Purpose |
+|---|---|
+| [issue-240-client-live-verification-2026-08-19.md](issue-240-client-live-verification-2026-08-19.md) | Partial — setup for live Cursor/Codex verification surfaced and fixed 3 real `generate-clients` defects (PR #243); the live-agent runs themselves remain blocked externally (Codex quota, OpenCode server error, Cursor login pending) and are not yet done |
+
 ---
 
 *For active documents not in this directory, see [../INDEX.md](../INDEX.md).*

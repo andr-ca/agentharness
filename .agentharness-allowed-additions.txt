@@ -56,3 +56,4 @@ precedence.yaml
 .gemini/settings.json
 docs/superpowers/specs/2026-08-05-context-plane-slice-0-design.md
 context.yaml
+docs/operational/reviews/issue-240-client-live-verification-2026-08-19.md
