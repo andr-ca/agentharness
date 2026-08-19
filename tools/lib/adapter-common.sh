@@ -83,13 +83,25 @@ skill_description() {
 # 'generate-clients' run standalone before 'init' both go through this
 # path, and the harness's own .agents/skills/ mirrors .claude/skills/
 # in full anyway, so the fallback and the filtered path agree there.
+#
+# Walks up from target_dir rather than checking it alone: some callers'
+# --output path lands more than one level under the project root (e.g.
+# generate-kilo-rules.sh is invoked as --output
+# "$target/.kilo/rules/agentharness.md", so target_dir is
+# "$target/.kilo/rules", two levels below $target/.agents/skills) — a
+# direct-only check silently fell back to the harness's full catalog for
+# Kilo, reintroducing the exact issue #240 bug this function exists to
+# fix (Copilot review on PR #243).
 resolve_target_skills_dir() {
     local harness_dir="$1" target_dir="$2"
-    if [ -n "$target_dir" ] && [ -d "$target_dir/.agents/skills" ]; then
-        echo "$target_dir/.agents/skills"
-    else
-        echo "$harness_dir/.claude/skills"
-    fi
+    while [ -n "$target_dir" ] && [ "$target_dir" != "/" ]; do
+        if [ -d "$target_dir/.agents/skills" ]; then
+            echo "$target_dir/.agents/skills"
+            return
+        fi
+        target_dir="$(dirname "$target_dir")"
+    done
+    echo "$harness_dir/.claude/skills"
 }
 
 # Renders the "## Skills (loaded on demand from .agents/skills/)" section
