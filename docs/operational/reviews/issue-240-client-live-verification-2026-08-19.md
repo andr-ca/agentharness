@@ -70,13 +70,13 @@ Blocked externally, not by anything in this repo, as of 2026-08-19:
 | OpenCode | `opencode run` | Every invocation (including a trivial one outside the fixture) fails with a generic `UnknownError` / "Unexpected server error"; no further detail in `~/.local/share/opencode/log/opencode.log`. Looks like an expired provider auth token, not a fixture problem — not investigated further, out of scope for this repo |
 | Cursor | `cursor-agent` | Not logged in yet (operator's own login, in progress separately) |
 
-The fixture is prepared and ready to reuse the moment any one of these
-clears:
-`/tmp/claude-1000/-home-andrey-projects-awesome-harness/7ad0ece9-a03e-4d23-8153-f96c683bba39/scratchpad/live-verify`
-(ephemeral scratchpad — regenerate with `init --mode copy --skills
-committing,branching,testing` + `generate-clients --client cursor,codex
---force` from a checkout at or after `efde74d` if it's gone by the time
-this resumes).
+Regenerate the fixture the moment any one of these clears, from a
+checkout at or after `efde74d`:
+
+```
+init <target> --mode copy --skills committing,branching,testing
+generate-clients <target> --client cursor,codex --force
+```
 
 ## Static verification done so far (not a substitute for the above)
 
