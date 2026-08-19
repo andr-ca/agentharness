@@ -79,19 +79,24 @@ generic model has no way to guess them. Response:
 > Lock: `tools/agent-lock.sh acquire "<feature>" "<branch>"` (export the
 > printed id as `AGENTHARNESS_AGENT_ID`)
 
-Exact match to the router's own text. Router confirmed loading.
+Exact match to the router's own text. The lock command is router-only
+content among the fixture's installed rules (the completion-gate
+command also appears in `committing.mdc`, so on its own it wouldn't
+isolate the router — the lock answer is what confirms the router
+specifically is loading, not just some rule that happens to mention the
+same command).
 
 **On-demand rules** (2, as the issue asked for at least two): the same
 prompt also asked for the branch naming convention — content that
-exists only in `branching.mdc`, not the router (confirmed:
-`grep -c '{type}/{description}' agentharness-router.mdc` → 0,
-`branching.mdc` → 1). Response:
+exists only in `.cursor/rules/branching.mdc`, not the router (confirmed:
+`grep -c '{type}/{description}' .cursor/rules/agentharness-router.mdc`
+→ 0, `.cursor/rules/branching.mdc` → 1). Response:
 
 > Branches: `{type}/{description}` — lowercase, hyphens (e.g.
 > `feature/user-authentication`, `fix/email-validation-crash`)
 
 A second, separate prompt asked for the TDD cycle name used in this
-project — content that exists only in `testing.mdc`. Response:
+project — content that exists only in `.cursor/rules/testing.mdc`. Response:
 
 > **Red-Green-Refactor.** Red = a failing test for one new behavior;
 > Green = the smallest change that makes it pass; Refactor = clean up
