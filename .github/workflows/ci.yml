@@ -400,6 +400,16 @@ jobs:
           [ -f "$TMP/consumer/.claude/skills/agentic-loops/agent_loop.py" ]
           hooks_path="$(git -C "$TMP/consumer" config --get core.hooksPath)"
           [ -n "$hooks_path" ]
+          # issue #240: generate-clients was unreachable through this exact
+          # shim (bin/cli.js's npm-mode-defaulting heuristic appended a
+          # bogus --mode npm) and, independently, the npm package never
+          # shipped the generator scripts it needs to run at all — neither
+          # gap was visible from --help or from this job's own init-only
+          # coverage above. Drive it for real, from the unpacked tarball,
+          # the same way a consumer actually would.
+          node "$TMP/package/bin/cli.js" generate-clients "$TMP/consumer" --client cursor,codex --force
+          [ -f "$TMP/consumer/.cursor/rules/agentharness-router.mdc" ]
+          [ -f "$TMP/consumer/AGENTS.md" ]
           rm -f agentharness-*.tgz
       - name: Working tree must be unchanged after prepack/postpack
         run: git status --short --porcelain | (! grep .)

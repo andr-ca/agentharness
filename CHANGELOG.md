@@ -16,6 +16,20 @@ section into a tagged version.
   so every documented example and manual check that happened to end in
   `--help` masked it; only an actual invocation, as issue #240's live
   verification did, ever hit it. Both subcommands are now registered.
+- **`generate-clients` never actually worked from any real npm install,
+  even with the routing fixed.** `package.json`'s `files` allowlist never
+  shipped any of the 11 `tools/generate-*.sh` client generators or the
+  `tools/lib/adapter-common.sh` helper they share — only
+  `tools/setup/harness-link.sh` (which dispatches to them) was in the
+  package, so every real invocation failed with `No such file or
+  directory` for whichever generator it tried to run first. The five
+  scripts `generate-clients` itself invokes (`generate-agents-md.sh`,
+  `generate-gemini-md.sh`, `generate-copilot-instructions.sh`,
+  `generate-cursor-rules.sh`, `generate-kilo-rules.sh`) plus their shared
+  helper are now shipped. CI now packs, unpacks, and runs
+  `generate-clients` for real from the tarball — the same gap that let
+  this ship unnoticed, since the existing packaging check only ever
+  exercised `init`.
 
 ## [0.7.1] - 2026-08-05
 
