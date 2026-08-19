@@ -330,8 +330,11 @@ _run_verify() {
 }
 
 @test "safe-pr-merge: --delete-branch ends up in the actual gh pr merge invocation by default" {
-    # End-to-end through main()'s merge_args construction, not just the
-    # helper in isolation -- guards against the two drifting apart.
+    # Composes resolve_merge_strategy and resolve_delete_branch_default
+    # the same way main() does, without calling main() itself (that
+    # needs a real PR and gh network access) -- guards against the two
+    # helpers' outputs drifting apart from how main() actually combines
+    # them, not against main()'s own wiring.
     run bash -c "source '$SCRIPT'; merge_args=(\"\$(resolve_merge_strategy)\"); d=\"\$(resolve_delete_branch_default)\"; [ -n \"\$d\" ] && merge_args+=(\"\$d\"); printf '%s\n' \"\${merge_args[@]}\""
     [ "$status" -eq 0 ]
     [[ "$output" =~ "--delete-branch" ]]

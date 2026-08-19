@@ -42,8 +42,11 @@ Format: `{type}/{description}`, lowercase, hyphens not underscores.
 ## Delete branches once they're merged
 
 A merged branch has nothing left to give — its content is in trunk,
-permanently reachable through the merge commit. Keeping it around adds
-nothing and costs a little: `git branch -r`/`git fetch --prune` noise,
+permanently reachable through whatever the merge produced there (a
+merge commit for `--merge`, a single squashed commit for `--squash`, or
+the replayed commits themselves for `--rebase`). Keeping the branch
+around adds nothing and costs a little: `git branch -r`/`git fetch
+--prune` noise,
 one more thing a future cleanup has to re-verify is actually safe to
 remove, and no signal left behind for which merged branches were
 deliberately kept for a reason (there isn't one) versus simply never
