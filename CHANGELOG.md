@@ -6,6 +6,49 @@ section into a tagged version.
 
 ## [Unreleased]
 
+### Fixed
+- **`generate-clients` was unreachable through the published npm CLI.**
+  `bin/cli.js` defaults unrecognized subcommands to `--mode npm`, and
+  `generate-clients` (along with `audit-prs`) was missing from its list of
+  known bash-served subcommands — so a real `agentharness generate-clients
+  --client ...` invocation got a bogus `--mode npm` appended and died with
+  `Unexpected argument: --mode`. `--help` is exempted from the injection,
+  so every documented example and manual check that happened to end in
+  `--help` masked it; only an actual invocation, as issue #240's live
+  verification did, ever hit it. Both subcommands are now registered.
+- **`generate-clients` never actually worked from any real npm install,
+  even with the routing fixed.** `package.json`'s `files` allowlist never
+  shipped any of the 11 `tools/generate-*.sh` client generators or the
+  `tools/lib/adapter-common.sh` helper they share — only
+  `tools/setup/harness-link.sh` (which dispatches to them) was in the
+  package, so every real invocation failed with `No such file or
+  directory` for whichever generator it tried to run first. The five
+  scripts `generate-clients` itself invokes (`generate-agents-md.sh`,
+  `generate-gemini-md.sh`, `generate-copilot-instructions.sh`,
+  `generate-cursor-rules.sh`, `generate-kilo-rules.sh`) plus their shared
+  helper are now shipped. CI now packs, unpacks, and runs
+  `generate-clients` for real from the tarball — the same gap that let
+  this ship unnoticed, since the existing packaging check only ever
+  exercised `init`.
+- **Generated client files (`AGENTS.md`, `GEMINI.md`,
+  `.github/copilot-instructions.md`, `.kilo/rules/agentharness.md`, and
+  every `.cursor/rules/<skill>.mdc`) always listed this harness's entire
+  skill catalog, regardless of which skills the consumer actually
+  installed via `init --skills`.** Every generator computed its skill
+  index from `$harness_dir/.claude/skills` — the harness's own source
+  directory — instead of the target project's actual `.agents/skills/`.
+  For `generate-cursor-rules.sh` this was worse than a stale text index:
+  it wrote a full `.mdc` rule file per harness skill, so a project
+  init'd with `--skills committing,branching,testing` still got ~30
+  Cursor rule files, 27 of them for skills that don't exist anywhere in
+  the project. Found live-verifying issue #240's generated `AGENTS.md`
+  content against a filtered-skills fixture. All five generators now
+  resolve skills against the target's `.agents/skills/` when present
+  (`resolve_target_skills_dir()` in `tools/lib/adapter-common.sh`),
+  falling back to the full harness catalog only when the target has no
+  `.agents/skills/` yet (this repo's own self-dogfooded generation, or
+  `generate-clients` run standalone before `init`).
+
 ## [0.7.1] - 2026-08-05
 
 PATCH, not MINOR: unlike `v0.7.0`, neither fix here changes an existing

@@ -68,6 +68,42 @@ skill_description() {
     frontmatter_field "$1" description
 }
 
+# Picks which skills directory a generator should treat as "what's
+# actually available to reference" for a given output location. A target
+# project that already ran 'init' has its own .agents/skills/, possibly
+# filtered down by --skills to a subset of the harness's full catalog —
+# use that when present, so 'generate-clients' run after a filtered
+# 'init' doesn't advertise (or, for generate-cursor-rules.sh, emit a
+# whole .mdc file for) skills the consumer never installed (issue #240
+# dogfooding: a project init'd with --skills committing,branching,testing
+# still got all ~30 harness skills listed in its AGENTS.md and a .mdc
+# rule file per skill in .cursor/rules/). Falls back to the harness's own
+# .claude/skills/ when there's no target install to read yet — this
+# repo's own self-dogfooded generation (no target project at all) and
+# 'generate-clients' run standalone before 'init' both go through this
+# path, and the harness's own .agents/skills/ mirrors .claude/skills/
+# in full anyway, so the fallback and the filtered path agree there.
+#
+# Walks up from target_dir rather than checking it alone: some callers'
+# --output path lands more than one level under the project root (e.g.
+# generate-kilo-rules.sh is invoked as --output
+# "$target/.kilo/rules/agentharness.md", so target_dir is
+# "$target/.kilo/rules", two levels below $target/.agents/skills) — a
+# direct-only check silently fell back to the harness's full catalog for
+# Kilo, reintroducing the exact issue #240 bug this function exists to
+# fix (Copilot review on PR #243).
+resolve_target_skills_dir() {
+    local harness_dir="$1" target_dir="$2"
+    while [ -n "$target_dir" ] && [ "$target_dir" != "/" ]; do
+        if [ -d "$target_dir/.agents/skills" ]; then
+            echo "$target_dir/.agents/skills"
+            return
+        fi
+        target_dir="$(dirname "$target_dir")"
+    done
+    echo "$harness_dir/.claude/skills"
+}
+
 # Renders the "## Skills (loaded on demand from .agents/skills/)" section
 # shared by every routing-rules-only adapter — name+description index
 # only, never full bodies.

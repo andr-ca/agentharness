@@ -47,6 +47,24 @@ setup() {
     grep -q "committing/SKILL.md" "$out"
 }
 
+@test "generate-kilo-rules: skill index reflects the target's installed subset through a nested --output path (Copilot review on PR #243)" {
+    # generate-clients invokes this generator with --output
+    # "<target>/.kilo/rules/agentharness.md" — two levels below
+    # <target>/.agents/skills, not one. A resolver that only checked
+    # dirname(output) directly (the first version of the issue #240 fix)
+    # missed .agents/skills entirely here and silently fell back to the
+    # harness's full catalog, reintroducing the exact bug being fixed.
+    target="$BATS_TEST_TMPDIR/consumer"
+    mkdir -p "$target/.agents/skills" "$target/.kilo/rules"
+    cp -r "$HARNESS_ROOT/.claude/skills/committing" "$target/.agents/skills/committing"
+
+    run bash "$SCRIPT" --output "$target/.kilo/rules/agentharness.md"
+    [ "$status" -eq 0 ]
+    out="$(cat "$target/.kilo/rules/agentharness.md")"
+    [[ "$out" == *".agents/skills/committing/SKILL.md"* ]]
+    [[ "$out" != *".agents/skills/accessibility/SKILL.md"* ]]
+}
+
 @test "generate-kilo-rules: committed .kilo/rules/agentharness.md matches the generator's current output" {
     # Regression guard duplicating check_kilo_rules_sync() in
     # tools/verify-content-quality.py so a local 'bats' run alone catches

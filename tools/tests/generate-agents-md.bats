@@ -75,6 +75,23 @@ setup() {
     grep -q "committing/SKILL.md" "$out"
 }
 
+@test "generate-agents-md: skill index reflects the target's installed subset, not the full harness catalog (issue #240)" {
+    # A consumer who ran 'init --skills committing' only has committing/
+    # under .agents/skills/ — the index must not also list every other
+    # harness skill (e.g. accessibility), which was the bug: the old
+    # skills_dir was always $harness_dir/.claude/skills regardless of
+    # --output's target.
+    target="$BATS_TEST_TMPDIR/consumer"
+    mkdir -p "$target/.agents/skills"
+    cp -r "$HARNESS_ROOT/.claude/skills/committing" "$target/.agents/skills/committing"
+
+    run bash "$SCRIPT" --output "$target/AGENTS.md"
+    [ "$status" -eq 0 ]
+    out="$(cat "$target/AGENTS.md")"
+    [[ "$out" == *".agents/skills/committing/SKILL.md"* ]]
+    [[ "$out" != *".agents/skills/accessibility/SKILL.md"* ]]
+}
+
 @test "generate-agents-md: committed AGENTS.md at repo root matches the generator's current output" {
     # Regression guard for the same drift class fixed for docs in P1-13 —
     # this is also asserted in CI via tools/verify-content-quality.py's
