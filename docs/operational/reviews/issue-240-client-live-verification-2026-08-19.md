@@ -54,10 +54,10 @@ CI on `main` green.
 
 **The reproducibility CI cousin already existed** before this issue was
 filed: `tools/tests/generate-clients.bats:69`
-("`is idempotent — a second run reproduces identical files`", from PR
-#66, 2026-07-13) runs `generate-clients` twice against the same target
-at the same SHA and hashes every file for equality. It already runs in
-CI's `content-quality` job. No new work needed there.
+("`is idempotent — a second run reproduces identical files`", from
+PR #66, 2026-07-13) runs `generate-clients` twice against the same
+target at the same SHA and hashes every file for equality. It already
+runs in CI's `content-quality` job. No new work needed there.
 
 ## What's still open — the actual live-agent verification
 
@@ -91,8 +91,8 @@ this resumes).
   directly against the committed files).
 
 None of this exercises whether Cursor or Codex/OpenCode actually *read
-and act on* the generated files in a live session — that's the part of
-#240 this note cannot yet close.
+and act on* the generated files in a live session — that's the part
+of #240 this note cannot yet close.
 
 ## Follow-up
 
