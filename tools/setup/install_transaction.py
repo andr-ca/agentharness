@@ -141,6 +141,7 @@ class Surface:
     content: str = ""
     block_id: str = "core-instructions"
     block_version: str = "0.0.0"
+    client: str = ""  # which client generated this surface (codex, cursor, etc), empty for core
 
 
 @dataclass
@@ -353,6 +354,30 @@ def apply_plan(
         elif action.kind == "create":
             surface.path.parent.mkdir(parents=True, exist_ok=True)
             bi.atomic_write(surface.path, surface.content)
+            # Track created whole-file surfaces so doctor can detect drift and
+            # uninstall can clean them up. Use same created_by_harness logic
+            # as managed_blocks: check prior state first, fall back to whether
+            # the file already existed at plan time (created_by_harness=True).
+            prior = next(
+                (f for f in state["overwritten_files"] if f["file"] == rel_path),
+                None,
+            )
+            created_by_harness = (
+                prior.get("created_by_harness")
+                if prior and "created_by_harness" in prior
+                else True  # CREATE action means we're creating it, so it's ours
+            )
+            written_hash = bi.sha256_bytes(surface.content.encode())
+            entry = {
+                "file": rel_path,
+                "written_sha256": written_hash,
+                "created_by_harness": created_by_harness,
+            }
+            if surface.client:
+                entry["client"] = surface.client
+            state["overwritten_files"] = [
+                f for f in state["overwritten_files"] if f["file"] != rel_path
+            ] + [entry]
 
         elif action.kind == "overwrite_with_backup":
             backup = resolve_backup_path(
@@ -366,14 +391,17 @@ def apply_plan(
             backup_hash = sha256_of_file(backup)
             bi.atomic_write(surface.path, surface.content)
             written_hash = bi.sha256_bytes(surface.content.encode())
-            state["overwritten_files"] = [
-                f for f in state["overwritten_files"] if f["file"] != rel_path
-            ] + [{
+            entry = {
                 "file": rel_path,
                 "backup": _rel(backup, base_dir),
                 "written_sha256": written_hash,
                 "backup_sha256": backup_hash,
-            }]
+            }
+            if surface.client:
+                entry["client"] = surface.client
+            state["overwritten_files"] = [
+                f for f in state["overwritten_files"] if f["file"] != rel_path
+            ] + [entry]
 
     # Collision decisions (both "overwrite" and "keep-existing") were
     # already captured at plan time in plan.collision_decisions, using
@@ -465,6 +493,30 @@ def uninstall_all(state: dict[str, Any], base_dir: Path) -> list[str]:
 
     for entry in state.get("overwritten_files", []):
         path = base_dir / entry["file"]
+
+        # Harness-created whole-file surfaces (CREATE action) have no backup:
+        # we created them from nothing, so uninstall deletes them (same logic
+        # as managed_blocks with created_by_harness=True and empty content).
+        if entry.get("created_by_harness") is True:
+            if not path.exists():
+                log.append(f"{entry['file']}: deleted since install, nothing to remove")
+                continue
+            current_hash = sha256_of_file(path)
+            if current_hash != entry["written_sha256"]:
+                log.append(
+                    f"{entry['file']}: edited since install — left in place "
+                    "(we created it and can't safely restore to nothing)"
+                )
+                continue
+            path.unlink(missing_ok=True)
+            _prune_empty_parents(path.parent, base_dir)
+            log.append(
+                f"{entry['file']}: removed (we created it from nothing, "
+                "and it matches what we wrote)"
+            )
+            continue
+
+        # Files we overwrote (pre-existing) have a backup: restore from it.
         backup = base_dir / entry["backup"]
         if not path.exists():
             log.append(f"{entry['file']}: deleted since install, nothing to restore")

@@ -736,7 +736,7 @@ for client in selected:
                 subprocess.check_call(['bash', f'{gen_dir}/generate-agents-md.sh', harness_dir, '--output', tmp_path], stderr=subprocess.DEVNULL)
                 with open(tmp_path) as f:
                     content = f.read()
-                surfaces.append({'path': f'{target}/AGENTS.md', 'is_block_surface': False, 'content': content})
+                surfaces.append({'path': f'{target}/AGENTS.md', 'is_block_surface': False, 'content': content, 'client': 'codex'})
             finally:
                 os.unlink(tmp_path)
         except (subprocess.CalledProcessError, OSError):
@@ -749,7 +749,7 @@ for client in selected:
                 subprocess.check_call(['bash', f'{gen_dir}/generate-gemini-md.sh', harness_dir, '--output', tmp_path], stderr=subprocess.DEVNULL)
                 with open(tmp_path) as f:
                     content = f.read()
-                surfaces.append({'path': f'{target}/GEMINI.md', 'is_block_surface': False, 'content': content})
+                surfaces.append({'path': f'{target}/GEMINI.md', 'is_block_surface': False, 'content': content, 'client': 'gemini'})
             finally:
                 os.unlink(tmp_path)
         except (subprocess.CalledProcessError, OSError):
@@ -762,7 +762,7 @@ for client in selected:
                 subprocess.check_call(['bash', f'{gen_dir}/generate-copilot-instructions.sh', harness_dir, '--output', tmp_path], stderr=subprocess.DEVNULL)
                 with open(tmp_path) as f:
                     content = f.read()
-                surfaces.append({'path': f'{target}/.github/copilot-instructions.md', 'is_block_surface': False, 'content': content})
+                surfaces.append({'path': f'{target}/.github/copilot-instructions.md', 'is_block_surface': False, 'content': content, 'client': 'copilot'})
             finally:
                 os.unlink(tmp_path)
         except (subprocess.CalledProcessError, OSError):
@@ -781,7 +781,7 @@ for client in selected:
                         if fname.endswith('.mdc'):
                             with open(os.path.join(rules_dir, fname)) as f:
                                 content = f.read()
-                            surfaces.append({'path': f'{target}/.cursor/rules/{fname}', 'is_block_surface': False, 'content': content})
+                            surfaces.append({'path': f'{target}/.cursor/rules/{fname}', 'is_block_surface': False, 'content': content, 'client': 'cursor'})
             finally:
                 # Recursively clean up tmpdir tree
                 for root, dirs, files in os.walk(tmpdir, topdown=False):
@@ -800,7 +800,7 @@ for client in selected:
                 subprocess.check_call(['bash', f'{gen_dir}/generate-kilo-rules.sh', harness_dir, '--output', tmp_path], stderr=subprocess.DEVNULL)
                 with open(tmp_path) as f:
                     content = f.read()
-                surfaces.append({'path': f'{target}/.kilo/rules/agentharness.md', 'is_block_surface': False, 'content': content})
+                surfaces.append({'path': f'{target}/.kilo/rules/agentharness.md', 'is_block_surface': False, 'content': content, 'client': 'kilo'})
             finally:
                 os.unlink(tmp_path)
         except (subprocess.CalledProcessError, OSError):
@@ -2763,6 +2763,54 @@ cmd_update() {
     new_skills_csv="$(IFS=,; echo "${current[*]}")"
 
     # Existing-surface integration: same as cmd_init
+    # Before applying new surfaces, handle client switching: if --client was
+    # specified and differs from state, delete files for removed clients.
+    if [ -n "$client_filter" ]; then
+        local old_clients_csv
+        old_clients_csv="$(state_field "$target" clients 2>/dev/null || echo "")"
+        # state_field returns comma-separated for lists; convert to set
+        # and compare against new clients_csv to find removed ones
+        python3 -c "
+import json, sys
+from pathlib import Path
+
+old_clients_csv = '$old_clients_csv'
+new_clients_csv = '$clients_csv'
+
+# Parse comma-separated client strings into sets
+old_clients = set(old_clients_csv.split(',')) if old_clients_csv else set()
+new_clients = set(new_clients_csv.split(',')) if new_clients_csv else set()
+removed = old_clients - new_clients
+
+if not removed:
+    sys.exit(0)
+
+state_file = Path(sys.argv[1]) / '.agentharness-state.json'
+try:
+    with open(state_file) as f:
+        state = json.load(f)
+except:
+    sys.exit(0)
+
+# Find and delete files tagged with removed clients
+base_dir = Path(sys.argv[1])
+to_delete = []
+for entry in state.get('overwritten_files', []):
+    if entry.get('client') in removed:
+        path = base_dir / entry['file']
+        if path.exists():
+            path.unlink(missing_ok=True)
+        to_delete.append(entry['file'])
+
+# Rebuild overwritten_files without deleted entries
+state['overwritten_files'] = [f for f in state.get('overwritten_files', []) if f['file'] not in to_delete]
+
+# Write updated state
+with open(state_file, 'w') as f:
+    json.dump(state, f)
+" "$target" 2>/dev/null || true
+    fi
+
     acquire_install_lock "$target" || exit 1
     local surfaces_json rendered_block install_id
     install_id="$(python3 -c 'import uuid; print(uuid.uuid4().hex[:8])')"
