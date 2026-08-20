@@ -296,16 +296,19 @@ label by the review filename cited next to it, never by number alone.
 
 ### P1 — coherence and maintainability
 
-- **P1-01 — Client entry point beyond skill directories.** **First
-  increment done:** a `harness-link.sh generate-clients <project>
-  [--client codex|gemini|copilot|cursor|kilo|all]` subcommand now runs the
-  matching adapter generators into a consumer project in one command
-  (previously a per-generator manual step — see `docs/INTEGRATION.md`).
-  Ships standalone, the same posture `enforce-profile` did. Still open
-  (the larger managed-block part): wiring generation into `init`/`update`
-  itself, tracking generated files through state/doctor/uninstall via
-  marked managed blocks so user-owned project instructions are never
-  overwritten, and wiring language/framework/pattern guides in too.
+- **P1-01 — Client entry point beyond skill directories.** **Second
+  increment done** (#241, #248): client generation is now wired directly
+  into `init`/`update` (a selected client's whole-file surface — e.g.
+  Codex → `AGENTS.md` — is generated automatically, no separate
+  `generate-clients` step required), and generated files are tracked
+  through state/`doctor`/`uninstall` via `install_transaction.py`'s
+  `overwritten_files`/`managed_blocks` entries, so a hand-edited
+  generated file is never silently overwritten (verified by dedicated
+  `harness-lifecycle.bats` regression tests, including the collision
+  path for a pre-existing `AGENTS.md`). The standalone `generate-clients`
+  subcommand from the first increment still exists unchanged. **Still
+  open:** wiring language/framework/pattern guides (not just client
+  routing files) into the same generation flow.
 - **P1-02 — Complete profile enforcement for mainstream projects.**
   Largely **done**: `enforce-profile` now has real runner adapters for
   **Go** (`go test -coverprofile` + `go tool cover`) and **Vitest**
@@ -367,12 +370,19 @@ label by the review filename cited next to it, never by number alone.
   choices into language/framework/profile modules with explicit
   precedence and conflict examples.
 - **P1-09 (this review's numbering) — Give managed state a
-  compatibility/migration contract.** The state file declares `version:
-  1` with no migration machinery or test matrix proving a newer CLI can
-  read/update/uninstall older released state. Proposed: keep state
-  fixtures from every release, add forward migration plus clear
-  unsupported-version errors, and exercise v0.1/v0.2 → current
-  update/uninstall in CI.
+  compatibility/migration contract.** **Partially done, and the original
+  premise is now stale:** the state file is at `schema_version: 2`, not
+  `version: 1` as originally written here, and `install_transaction.py`'s
+  `load_state()` already migrates a v1-shaped file in memory (adds the
+  v2 list fields, bumps the version, leaves v1 fields untouched — see
+  `tools/tests/test_install_transaction.py::test_load_state_migrates_v1_to_v2`).
+  **Still genuinely open:** that migration is exercised only as a unit
+  test against a synthetic v1 fixture, not an end-to-end `update`/
+  `uninstall` run against real old-release state in CI; there's no
+  retained state fixture per actual release; and there's no explicit
+  error for a schema version this CLI doesn't recognize (older code
+  reading a newer state file, or a version below v1) — it would
+  currently just get overwritten in place rather than failing loudly.
 - **P1-10 — Consolidate operational review history.** The review/status
   chain is valuable but long, repetitive, and easy to read out of
   chronological context; several current docs link deep into old status
