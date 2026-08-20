@@ -48,6 +48,22 @@ section into a tagged version.
   falling back to the full harness catalog only when the target has no
   `.agents/skills/` yet (this repo's own self-dogfooded generation, or
   `generate-clients` run standalone before `init`).
+- **`harness-link.sh init` with `--client` crashed on `HARNESS_DIR`
+  environment variable lookup, never exported by `build_surfaces_spec()`.**
+  The Python code sourcing the client generators received `HARNESS_DIR` as
+  a positional argument (matching the pattern for other Python invocations
+  in the script) but tried to read it from `os.environ` instead. Fixed by
+  passing it as `sys.argv[5]` to match how the Python code receives
+  `target`, `body`, `version`, and `clients_str` (issue #241).
+- **`build_surfaces_spec()` passed generators `--output -` to write content
+  to stdout, but generators have no such mechanism — the argument is
+  interpreted as the literal filename `-`.** This left behind files named
+  literally `-` in the target directory instead of generating the requested
+  instruction files. Fixed by writing to temporary files inside the target
+  directory (so `resolve_target_skills_dir()` walk-up works correctly),
+  reading back their content, and deleting the temp files — matching the
+  pattern generators themselves use for cursor rules
+  (`.cursor-gen-tmp/.cursor/rules/`).
 
 ## [0.7.1] - 2026-08-05
 

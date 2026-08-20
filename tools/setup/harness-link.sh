@@ -116,6 +116,11 @@ init options:
                                 docs/INTEGRATION.md#method-4-npmnpx)
   --skills a,b,c               Comma-separated list of skills (default:
                                 all; 'none' explicitly installs zero)
+  --client codex|gemini|copilot|cursor|kilo|all|none
+                                Which client router/instruction files to
+                                generate (default: codex). Comma-separated
+                                list also accepted. 'none' skips all client
+                                generation.
   --with-hook                   Install the trunk-protection hook (blocks
                                 direct commits to trunk branches). Does NOT
                                 enforce coverage on its own — see
@@ -135,6 +140,9 @@ init options:
 
 update options:
   --yes                         Skip the confirmation prompt
+  --client codex|gemini|copilot|cursor|kilo|all|none
+                                Which clients to regenerate (default: keep
+                                existing). Comma-separated list also accepted.
   --force                       Auto-overwrite whole-file collisions without prompting
   --dry-run                     Show what would happen, make no changes
   --keep-existing               Auto-keep all whole-file collisions
@@ -692,9 +700,8 @@ EOF
 build_surfaces_spec() {
     local target="$1" block_body="$2" block_version="$3" clients="${4:-}"
     python3 -c "
-import json, sys, subprocess, os
-target, body, version, clients_str = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
-harness_dir = os.environ['HARNESS_DIR']
+import json, sys, subprocess, os, tempfile
+target, body, version, clients_str, harness_dir = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5]
 gen_dir = os.path.join(harness_dir, 'tools')
 
 surfaces = []
@@ -722,44 +729,85 @@ else:
 for client in selected:
     if client == 'codex':
         try:
-            out = subprocess.check_output(['bash', f'{gen_dir}/generate-agents-md.sh', harness_dir, '--output', '-'], stderr=subprocess.DEVNULL, text=True)
-            surfaces.append({'path': f'{target}/AGENTS.md', 'is_block_surface': False, 'content': out})
-        except subprocess.CalledProcessError:
+            # Write to temp file inside target so skill-scoping walk-up works correctly
+            with tempfile.NamedTemporaryFile(dir=target, suffix='.md', delete=False, mode='w') as tmp:
+                tmp_path = tmp.name
+            try:
+                subprocess.check_call(['bash', f'{gen_dir}/generate-agents-md.sh', harness_dir, '--output', tmp_path], stderr=subprocess.DEVNULL)
+                with open(tmp_path) as f:
+                    content = f.read()
+                surfaces.append({'path': f'{target}/AGENTS.md', 'is_block_surface': False, 'content': content})
+            finally:
+                os.unlink(tmp_path)
+        except (subprocess.CalledProcessError, OSError):
             pass
     elif client == 'gemini':
         try:
-            out = subprocess.check_output(['bash', f'{gen_dir}/generate-gemini-md.sh', harness_dir, '--output', '-'], stderr=subprocess.DEVNULL, text=True)
-            surfaces.append({'path': f'{target}/GEMINI.md', 'is_block_surface': False, 'content': out})
-        except subprocess.CalledProcessError:
+            with tempfile.NamedTemporaryFile(dir=target, suffix='.md', delete=False, mode='w') as tmp:
+                tmp_path = tmp.name
+            try:
+                subprocess.check_call(['bash', f'{gen_dir}/generate-gemini-md.sh', harness_dir, '--output', tmp_path], stderr=subprocess.DEVNULL)
+                with open(tmp_path) as f:
+                    content = f.read()
+                surfaces.append({'path': f'{target}/GEMINI.md', 'is_block_surface': False, 'content': content})
+            finally:
+                os.unlink(tmp_path)
+        except (subprocess.CalledProcessError, OSError):
             pass
     elif client == 'copilot':
         try:
-            out = subprocess.check_output(['bash', f'{gen_dir}/generate-copilot-instructions.sh', harness_dir, '--output', '-'], stderr=subprocess.DEVNULL, text=True)
-            surfaces.append({'path': f'{target}/.github/copilot-instructions.md', 'is_block_surface': False, 'content': out})
-        except subprocess.CalledProcessError:
+            with tempfile.NamedTemporaryFile(dir=target, suffix='.md', delete=False, mode='w') as tmp:
+                tmp_path = tmp.name
+            try:
+                subprocess.check_call(['bash', f'{gen_dir}/generate-copilot-instructions.sh', harness_dir, '--output', tmp_path], stderr=subprocess.DEVNULL)
+                with open(tmp_path) as f:
+                    content = f.read()
+                surfaces.append({'path': f'{target}/.github/copilot-instructions.md', 'is_block_surface': False, 'content': content})
+            finally:
+                os.unlink(tmp_path)
+        except (subprocess.CalledProcessError, OSError):
             pass
     elif client == 'cursor':
-        import tempfile
-        with tempfile.TemporaryDirectory() as tmpdir:
+        try:
+            # Create temp dir inside target for skill-scoping walk-up
+            tmpdir = os.path.join(target, '.cursor-gen-tmp')
+            os.makedirs(tmpdir, exist_ok=True)
             try:
                 subprocess.check_call(['bash', f'{gen_dir}/generate-cursor-rules.sh', harness_dir, '--output-dir', tmpdir], stderr=subprocess.DEVNULL)
-                # Read all .mdc files from tmpdir
-                for fname in os.listdir(tmpdir):
-                    if fname.endswith('.mdc'):
-                        with open(os.path.join(tmpdir, fname)) as f:
-                            content = f.read()
-                        surfaces.append({'path': f'{target}/.cursor/rules/{fname}', 'is_block_surface': False, 'content': content})
-            except subprocess.CalledProcessError:
-                pass
+                # generate-cursor-rules.sh creates files at tmpdir/.cursor/rules/
+                rules_dir = os.path.join(tmpdir, '.cursor', 'rules')
+                if os.path.isdir(rules_dir):
+                    for fname in os.listdir(rules_dir):
+                        if fname.endswith('.mdc'):
+                            with open(os.path.join(rules_dir, fname)) as f:
+                                content = f.read()
+                            surfaces.append({'path': f'{target}/.cursor/rules/{fname}', 'is_block_surface': False, 'content': content})
+            finally:
+                # Recursively clean up tmpdir tree
+                for root, dirs, files in os.walk(tmpdir, topdown=False):
+                    for f in files:
+                        os.unlink(os.path.join(root, f))
+                    for d in dirs:
+                        os.rmdir(os.path.join(root, d))
+                os.rmdir(tmpdir)
+        except (subprocess.CalledProcessError, OSError):
+            pass
     elif client == 'kilo':
         try:
-            out = subprocess.check_output(['bash', f'{gen_dir}/generate-kilo-rules.sh', harness_dir, '--output', '-'], stderr=subprocess.DEVNULL, text=True)
-            surfaces.append({'path': f'{target}/.kilo/rules/agentharness.md', 'is_block_surface': False, 'content': out})
-        except subprocess.CalledProcessError:
+            with tempfile.NamedTemporaryFile(dir=target, suffix='.md', delete=False, mode='w') as tmp:
+                tmp_path = tmp.name
+            try:
+                subprocess.check_call(['bash', f'{gen_dir}/generate-kilo-rules.sh', harness_dir, '--output', tmp_path], stderr=subprocess.DEVNULL)
+                with open(tmp_path) as f:
+                    content = f.read()
+                surfaces.append({'path': f'{target}/.kilo/rules/agentharness.md', 'is_block_surface': False, 'content': content})
+            finally:
+                os.unlink(tmp_path)
+        except (subprocess.CalledProcessError, OSError):
             pass
 
 print(json.dumps(surfaces))
-" "$target" "$block_body" "$block_version" "$clients"
+" "$target" "$block_body" "$block_version" "$clients" "$HARNESS_DIR"
 }
 
 resolve_collisions_and_apply() {

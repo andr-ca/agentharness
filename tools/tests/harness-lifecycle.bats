@@ -1834,3 +1834,59 @@ PYEOF
     [ "$status" -eq 0 ]
     [ ! -f "$TEST_PROJECT/AGENTS.md" ]
 }
+
+# ============================================================================
+# Issue #241: Client generation (build_surfaces_spec) regressions
+# ============================================================================
+
+@test "init --client codex with --skills committing generates only 1 skill in AGENTS.md (issue #241)" {
+    # Regression: build_surfaces_spec crashed on HARNESS_DIR env lookup and
+    # generate-clients used --output - which created a file named "-".
+    # This test verifies skill-scoping walk-up works in init flow.
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client codex
+    [ -f "$TEST_PROJECT/AGENTS.md" ]
+
+    skill_count=$(grep -c '^- `.agents/skills/' "$TEST_PROJECT/AGENTS.md" || true)
+    [ "$skill_count" -eq 1 ]
+    grep -q "committing/SKILL.md" "$TEST_PROJECT/AGENTS.md"
+    ! grep -q "accessibility/SKILL.md" "$TEST_PROJECT/AGENTS.md"
+}
+
+@test "init --client cursor generates exactly 2 rules: router + committing skill" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client cursor
+    [ -f "$TEST_PROJECT/.cursor/rules/agentharness-router.mdc" ]
+    [ -f "$TEST_PROJECT/.cursor/rules/committing.mdc" ]
+
+    cursor_count=$(ls "$TEST_PROJECT/.cursor/rules/" 2>/dev/null | wc -l)
+    [ "$cursor_count" -eq 2 ]
+}
+
+@test "init --client none creates no client-specific files (.cursor/rules, .kilo/rules)" {
+    # Block-managed files (AGENTS.md, GEMINI.md, etc) are always created
+    # as container files; --client none just means no generated content
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client none
+    [ -f "$TEST_PROJECT/CLAUDE.md" ]
+    # Block files still exist (they're the instruction container)
+    [ -f "$TEST_PROJECT/AGENTS.md" ]
+    # But client-specific directories do not
+    [ ! -d "$TEST_PROJECT/.cursor/rules" ]
+    [ ! -f "$TEST_PROJECT/.kilo/rules/agentharness.md" ]
+}
+
+@test "init --client cursor,kilo generates both Cursor rules and Kilo config" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client cursor,kilo
+    [ -f "$TEST_PROJECT/.cursor/rules/agentharness-router.mdc" ]
+    [ -f "$TEST_PROJECT/.cursor/rules/committing.mdc" ]
+    [ -f "$TEST_PROJECT/.kilo/rules/agentharness.md" ]
+    grep -q "committing/SKILL.md" "$TEST_PROJECT/.kilo/rules/agentharness.md"
+}
+
+@test "init --client cursor,kilo then init --client codex updates state correctly" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client cursor,kilo
+    [ -d "$TEST_PROJECT/.cursor/rules" ]
+    [ -f "$TEST_PROJECT/.kilo/rules/agentharness.md" ]
+
+    # Reinit with just Codex (should not break)
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client codex --force
+    [ -f "$TEST_PROJECT/AGENTS.md" ]
+}
