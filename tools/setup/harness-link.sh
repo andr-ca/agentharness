@@ -743,6 +743,17 @@ for f in block_files:
     })
 
 # Generate whole-file surfaces for each selected client
+def _generation_failed(client, exc):
+    # A selected client that fails to generate is not a soft skip: for
+    # codex/gemini/copilot specifically it now OWNS one of the four core
+    # instruction files (see client_owns_block_file above), so a silently
+    # swallowed failure here means that file goes completely unmanaged
+    # while state still records the client as installed. Fail the whole
+    # spec build loudly instead — init/update must not report success
+    # while quietly leaving a requested client's surface missing.
+    print(f\"agentharness: generating '{client}' surface failed: {exc}\", file=sys.stderr)
+    sys.exit(1)
+
 for client in selected:
     if client == 'codex':
         try:
@@ -756,8 +767,8 @@ for client in selected:
                 surfaces.append({'path': f'{target}/AGENTS.md', 'is_block_surface': False, 'content': content, 'client': 'codex'})
             finally:
                 os.unlink(tmp_path)
-        except (subprocess.CalledProcessError, OSError):
-            pass
+        except (subprocess.CalledProcessError, OSError) as exc:
+            _generation_failed(client, exc)
     elif client == 'gemini':
         try:
             with tempfile.NamedTemporaryFile(dir=target, suffix='.md', delete=False, mode='w') as tmp:
@@ -769,8 +780,8 @@ for client in selected:
                 surfaces.append({'path': f'{target}/GEMINI.md', 'is_block_surface': False, 'content': content, 'client': 'gemini'})
             finally:
                 os.unlink(tmp_path)
-        except (subprocess.CalledProcessError, OSError):
-            pass
+        except (subprocess.CalledProcessError, OSError) as exc:
+            _generation_failed(client, exc)
     elif client == 'copilot':
         try:
             with tempfile.NamedTemporaryFile(dir=target, suffix='.md', delete=False, mode='w') as tmp:
@@ -782,33 +793,35 @@ for client in selected:
                 surfaces.append({'path': f'{target}/.github/copilot-instructions.md', 'is_block_surface': False, 'content': content, 'client': 'copilot'})
             finally:
                 os.unlink(tmp_path)
-        except (subprocess.CalledProcessError, OSError):
-            pass
+        except (subprocess.CalledProcessError, OSError) as exc:
+            _generation_failed(client, exc)
     elif client == 'cursor':
+        # mkdtemp mints a unique, freshly-created directory name inside
+        # target, so this can never collide with a pre-existing directory
+        # (unlike a fixed name such as '.cursor-gen-tmp', which risked the
+        # cleanup below recursively deleting user data that happened to
+        # already live at that path).
+        tmpdir = tempfile.mkdtemp(dir=target, prefix='.agentharness-cursor-gen-')
         try:
-            # Create temp dir inside target for skill-scoping walk-up
-            tmpdir = os.path.join(target, '.cursor-gen-tmp')
-            os.makedirs(tmpdir, exist_ok=True)
-            try:
-                subprocess.check_call(['bash', f'{gen_dir}/generate-cursor-rules.sh', harness_dir, '--output-dir', tmpdir], stderr=subprocess.DEVNULL)
-                # generate-cursor-rules.sh creates files at tmpdir/.cursor/rules/
-                rules_dir = os.path.join(tmpdir, '.cursor', 'rules')
-                if os.path.isdir(rules_dir):
-                    for fname in os.listdir(rules_dir):
-                        if fname.endswith('.mdc'):
-                            with open(os.path.join(rules_dir, fname)) as f:
-                                content = f.read()
-                            surfaces.append({'path': f'{target}/.cursor/rules/{fname}', 'is_block_surface': False, 'content': content, 'client': 'cursor'})
-            finally:
-                # Recursively clean up tmpdir tree
-                for root, dirs, files in os.walk(tmpdir, topdown=False):
-                    for f in files:
-                        os.unlink(os.path.join(root, f))
-                    for d in dirs:
-                        os.rmdir(os.path.join(root, d))
-                os.rmdir(tmpdir)
-        except (subprocess.CalledProcessError, OSError):
-            pass
+            subprocess.check_call(['bash', f'{gen_dir}/generate-cursor-rules.sh', harness_dir, '--output-dir', tmpdir], stderr=subprocess.DEVNULL)
+            # generate-cursor-rules.sh creates files at tmpdir/.cursor/rules/
+            rules_dir = os.path.join(tmpdir, '.cursor', 'rules')
+            if os.path.isdir(rules_dir):
+                for fname in os.listdir(rules_dir):
+                    if fname.endswith('.mdc'):
+                        with open(os.path.join(rules_dir, fname)) as f:
+                            content = f.read()
+                        surfaces.append({'path': f'{target}/.cursor/rules/{fname}', 'is_block_surface': False, 'content': content, 'client': 'cursor'})
+        except (subprocess.CalledProcessError, OSError) as exc:
+            _generation_failed(client, exc)
+        finally:
+            # Recursively clean up tmpdir tree
+            for root, dirs, files in os.walk(tmpdir, topdown=False):
+                for f in files:
+                    os.unlink(os.path.join(root, f))
+                for d in dirs:
+                    os.rmdir(os.path.join(root, d))
+            os.rmdir(tmpdir)
     elif client == 'kilo':
         try:
             with tempfile.NamedTemporaryFile(dir=target, suffix='.md', delete=False, mode='w') as tmp:
@@ -820,8 +833,8 @@ for client in selected:
                 surfaces.append({'path': f'{target}/.kilo/rules/agentharness.md', 'is_block_surface': False, 'content': content, 'client': 'kilo'})
             finally:
                 os.unlink(tmp_path)
-        except (subprocess.CalledProcessError, OSError):
-            pass
+        except (subprocess.CalledProcessError, OSError) as exc:
+            _generation_failed(client, exc)
 
 print(json.dumps(surfaces))
 " "$target" "$block_body" "$block_version" "$clients" "$HARNESS_DIR"
@@ -2579,6 +2592,16 @@ cmd_update() {
     [ -d "$target" ] && target="$(cd "$target" && pwd)"
     require_state "$target"
 
+    # Validate before any mutation, same as cmd_init: an unknown client name
+    # here would otherwise flow straight into build_surfaces_spec's Python
+    # (untrusted string interpolation) and into state as a silently-recorded
+    # bogus client, rather than failing loudly up front.
+    if ! validate_client_filter "$target" "$client_filter"; then
+        echo "Error: one or more requested client names are invalid or unknown — aborting before making any changes." >&2
+        echo "Use --client none to explicitly install zero clients." >&2
+        exit 1
+    fi
+
     local mode source_path skills_filter with_hook profile hooks_path coverage_hook
     local previous_hooks_path previous_merge_ff
     mode="$(state_field "$target" mode)"
@@ -2785,65 +2808,31 @@ cmd_update() {
 
     # Existing-surface integration: same as cmd_init
     # Before applying new surfaces, handle client switching: if --client was
-    # specified and differs from state, delete files for removed clients.
+    # specified and differs from state, reverse files for removed clients.
+    # Delegates to install_transaction.py's remove_clients(), which applies
+    # the exact same per-file safety rule as 'uninstall' (delete/restore
+    # only when on-disk content still matches what the harness wrote; a
+    # hand-edited file is left in place and stays tracked) rather than the
+    # unconditional delete this used to do inline.
     if [ -n "$client_filter" ]; then
         local old_clients_csv
         old_clients_csv="$(state_field "$target" clients 2>/dev/null || echo "")"
-        # state_field returns comma-separated for lists; convert to set
-        # and compare against new clients_csv to find removed ones
-        python3 -c "
+        local removed_clients_csv
+        removed_clients_csv="$(python3 -c "
+old = set('$old_clients_csv'.split(',')) if '$old_clients_csv' else set()
+new = set('$clients_csv'.split(',')) if '$clients_csv' else set()
+print(','.join(sorted(old - new)))
+")"
+        if [ -n "$removed_clients_csv" ]; then
+            local remove_clients_json
+            remove_clients_json="$(python3 "$HARNESS_DIR/tools/setup/install_transaction.py" remove-clients \
+                --state "$(state_path "$target")" --base-dir "$target" --clients "$removed_clients_csv")"
+            echo "$remove_clients_json" | python3 -c '
 import json, sys
-from pathlib import Path
-
-old_clients_csv = '$old_clients_csv'
-new_clients_csv = '$clients_csv'
-
-# Parse comma-separated client strings into sets
-old_clients = set(old_clients_csv.split(',')) if old_clients_csv else set()
-new_clients = set(new_clients_csv.split(',')) if new_clients_csv else set()
-removed = old_clients - new_clients
-
-if not removed:
-    sys.exit(0)
-
-state_file = Path(sys.argv[1]) / '.agentharness-state.json'
-try:
-    with open(state_file) as f:
-        state = json.load(f)
-except (OSError, json.JSONDecodeError):
-    sys.exit(0)
-
-def prune_empty_parents(start, root):
-    # Mirrors install_transaction.py's _prune_empty_parents: rmdir only
-    # (never recursive), stops at the first non-empty dir or at root, so
-    # nothing the operator owns is ever at risk.
-    current = start.resolve()
-    root = root.resolve()
-    while current != root and root in current.parents:
-        try:
-            current.rmdir()
-        except OSError:
-            return
-        current = current.parent
-
-# Find and delete files tagged with removed clients
-base_dir = Path(sys.argv[1])
-to_delete = []
-for entry in state.get('overwritten_files', []):
-    if entry.get('client') in removed:
-        path = base_dir / entry['file']
-        if path.exists():
-            path.unlink(missing_ok=True)
-            prune_empty_parents(path.parent, base_dir)
-        to_delete.append(entry['file'])
-
-# Rebuild overwritten_files without deleted entries
-state['overwritten_files'] = [f for f in state.get('overwritten_files', []) if f['file'] not in to_delete]
-
-# Write updated state
-with open(state_file, 'w') as f:
-    json.dump(state, f)
-" "$target" 2>/dev/null || true
+for line in json.load(sys.stdin)["log"]:
+    print("  " + line)
+'
+        fi
     fi
 
     acquire_install_lock "$target" || exit 1

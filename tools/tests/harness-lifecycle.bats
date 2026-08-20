@@ -2046,6 +2046,67 @@ PYEOF
 }
 
 # ============================================================================
+# Copilot review findings on PR #248 (generate-clients lifecycle wiring, #241)
+# ============================================================================
+
+@test "update --client switch preserves a hand-edited dropped-client file instead of deleting it (review finding #4)" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client cursor --force
+    [ -f "$TEST_PROJECT/.cursor/rules/committing.mdc" ]
+
+    # Simulate the user hand-editing the cursor-generated file after install.
+    echo "# hand-edited by the user, do not clobber" >> "$TEST_PROJECT/.cursor/rules/committing.mdc"
+
+    bash "$SCRIPT" update "$TEST_PROJECT" --client codex --yes --force
+    [ -f "$TEST_PROJECT/AGENTS.md" ]
+    # The hand-edited file must survive the client switch...
+    [ -f "$TEST_PROJECT/.cursor/rules/committing.mdc" ]
+    grep -q "hand-edited by the user" "$TEST_PROJECT/.cursor/rules/committing.mdc"
+    # ...and must still be tracked in state (not silently orphaned), so a
+    # later doctor/uninstall can still see and report the drift.
+    python3 - "$TEST_PROJECT" <<'PYEOF'
+import json
+from pathlib import Path
+import sys
+state_file = Path(sys.argv[1]) / ".agentharness-state.json"
+with open(state_file) as f:
+    state = json.load(f)
+cursor_entries = [e for e in state["overwritten_files"] if e.get("client") == "cursor"]
+assert len(cursor_entries) == 1, f"hand-edited cursor entry should still be tracked, found {cursor_entries}"
+PYEOF
+}
+
+@test "init --client cursor never touches a pre-existing directory that shares its old fixed temp-dir name (review finding #1)" {
+    # Prior to the fix, the Cursor generator used a hardcoded temp dir name
+    # ('.cursor-gen-tmp') inside the target and recursively deleted it as
+    # part of cleanup. A project that already had a real directory at that
+    # exact path would have had it silently destroyed. Generation now uses
+    # tempfile.mkdtemp() for a unique name, so this sentinel must survive.
+    mkdir -p "$TEST_PROJECT/.cursor-gen-tmp"
+    echo "do not delete me" > "$TEST_PROJECT/.cursor-gen-tmp/sentinel.txt"
+
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client cursor --force
+
+    [ -f "$TEST_PROJECT/.cursor-gen-tmp/sentinel.txt" ]
+    grep -q "do not delete me" "$TEST_PROJECT/.cursor-gen-tmp/sentinel.txt"
+    # And no stray unique-suffixed temp dirs were left behind either.
+    ! ls -d "$TEST_PROJECT"/.agentharness-cursor-gen-* >/dev/null 2>&1
+}
+
+@test "build_surfaces_spec fails loudly instead of silently skipping a client generator failure (review finding #2)" {
+    TARGET_DIR=$(mktemp -d)
+    BAD_HARNESS_DIR=$(mktemp -d)  # has none of the generate-*.sh scripts
+
+    run bash -c "
+        source '$SCRIPT'
+        HARNESS_DIR='$BAD_HARNESS_DIR' build_surfaces_spec '$TARGET_DIR' 'block body' 'v1' 'codex'
+    "
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"generating 'codex' surface failed"* ]]
+
+    rm -rf "$TARGET_DIR" "$BAD_HARNESS_DIR"
+}
+
+# ============================================================================
 # Additional regression tests
 # ============================================================================
 
