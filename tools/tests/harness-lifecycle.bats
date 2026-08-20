@@ -1948,6 +1948,18 @@ PYEOF
     [ ! -d "$TEST_PROJECT/.cursor/rules" ] || [ -z "$(ls -A "$TEST_PROJECT/.cursor/rules" 2>/dev/null)" ]
 }
 
+@test "update --client switching from cursor to codex prunes the now-empty .cursor/ tree (bug #2 leftover-dir)" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client cursor --force
+    [ -f "$TEST_PROJECT/.cursor/rules/committing.mdc" ]
+
+    bash "$SCRIPT" update "$TEST_PROJECT" --client codex --yes --force
+    [ -f "$TEST_PROJECT/AGENTS.md" ]
+    # The harness created .cursor/ and .cursor/rules/ solely to hold files it
+    # just deleted; pruning must remove the now-empty directories too, not
+    # just the files inside them.
+    [ ! -e "$TEST_PROJECT/.cursor" ]
+}
+
 @test "update --client removes dropped client's state entries (bug #2 tracking)" {
     bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client cursor --force
     bash "$SCRIPT" update "$TEST_PROJECT" --client codex --yes --force

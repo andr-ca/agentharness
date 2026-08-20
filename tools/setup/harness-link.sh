@@ -2789,8 +2789,21 @@ state_file = Path(sys.argv[1]) / '.agentharness-state.json'
 try:
     with open(state_file) as f:
         state = json.load(f)
-except:
+except (OSError, json.JSONDecodeError):
     sys.exit(0)
+
+def prune_empty_parents(start, root):
+    # Mirrors install_transaction.py's _prune_empty_parents: rmdir only
+    # (never recursive), stops at the first non-empty dir or at root, so
+    # nothing the operator owns is ever at risk.
+    current = start.resolve()
+    root = root.resolve()
+    while current != root and root in current.parents:
+        try:
+            current.rmdir()
+        except OSError:
+            return
+        current = current.parent
 
 # Find and delete files tagged with removed clients
 base_dir = Path(sys.argv[1])
@@ -2800,6 +2813,7 @@ for entry in state.get('overwritten_files', []):
         path = base_dir / entry['file']
         if path.exists():
             path.unlink(missing_ok=True)
+            prune_empty_parents(path.parent, base_dir)
         to_delete.append(entry['file'])
 
 # Rebuild overwritten_files without deleted entries
