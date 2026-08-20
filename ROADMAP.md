@@ -215,32 +215,34 @@ GitHub Copilot, and Gemini CLI via the Agent Skills open standard.
   isn't a meaningful concept for a binary rule, so it needs a different
   detection approach, not an extension of this one.
 
-- **P2-05 (real dogfood) — partially closed; the independent half is
-  still open.** The 2026-07-13 re-audit
+- **P2-05 (real dogfood) — the recorded-row half is now closed; the
+  independent-repo half is still open.** The 2026-07-13 re-audit
   (`gpt-5.6-completion-reaudit.md`) recorded "no evidence the harness is
   pinned and used in a real, non-fixture project," and **that text is now
   stale**: the harness has since been used in `andr-ca/recalium` and
   `andr-ca/infoocode`, and the friction that surfaced was filed upstream
-  as issues #76, #77, #78, #79, #88, #149 (recalium) and #110, #117
-  (infoocode) — real-use evidence the fixtures could not have produced.
+  as issues #76, #77, #78, #79, #88, #149, #154 (recalium) and #110, #117
+  (infoocode) — real-use evidence the fixtures could not have produced,
+  and every issue was fixed.
 
-  Two things the original entry asked for are still genuinely missing,
-  and they are the ones that carry the generalization claim:
-  1. **A repo that is not the author's own.** Both dogfood targets are
-     the same operator's projects, so correlated blind spots — the
-     explicit reason fixtures aren't enough — remain untested.
-  2. **A recorded dogfood row.** No dated status doc under
-     `docs/operational/reviews/` captures the signals
-     `docs/operational/planning/DOGFOODING.md` defines (install time,
-     overrides needed, false positives, update friction, context cost,
-     abandoned features, net verdict). The friction was filed as
-     individual issues, which is not the same as the systematic
-     comparison the plan asks for.
+  The original entry asked for two things; one is now done:
+  1. ~~**A recorded dogfood row.**~~ — **DONE.** A dated status doc now
+     exists: `docs/operational/reviews/dogfood-recalium-2026-08-20-status.md`,
+     filling in every signal `docs/operational/planning/DOGFOODING.md`
+     defines (install time — not recorded, a real gap the doc names
+     rather than papers over; overrides, false positives, update
+     friction, abandoned features, net verdict) against the recalium
+     install specifically, not just the individual issue list.
+     `DOGFOODING.md`'s own "**Status:** not started" line is updated to
+     match.
+  2. **A repo that is not the author's own** — still genuinely missing,
+     and still the item that carries the generalization claim. Both
+     dogfood targets remain the same operator's projects, so correlated
+     blind spots — the explicit reason fixtures aren't enough — remain
+     untested.
 
-  Note also that `DOGFOODING.md` still opens with "**Status:** not
-  started," which is now wrong in the same direction; update it when the
-  first row is recorded. Tracked here so it isn't silently dropped
-  between status snapshots; see
+  Tracked here so the still-open half isn't silently dropped between
+  status snapshots; see
   `docs/operational/reviews/gpt-5.6-completion-reaudit-status.md`.
 
 - ~~P0-03's remote-write authorization model is unresolved.~~ —
@@ -413,12 +415,10 @@ label by the review filename cited next to it, never by number alone.
   raises first-prompt cost while cutting rework is a win the
   first-generation metric would misreport as a loss.
 - **P2-02 (this review's numbering) — Dogfood in real repositories.**
-  Same substance as the already-tracked "P2-05 (real dogfood) has no
-  target" entry above (different review's numbering, same gap): adopt a
-  pinned release in at least two non-fixture repos with a different
-  stack and a user other than the author, tracking install time,
-  overrides, false positives, update friction, context cost, and
-  abandoned features.
+  Same substance as the "P2-05 (real dogfood)" entry above (different
+  review's numbering, same gap) — see that entry for current status: the
+  recorded-row half is done (`dogfood-recalium-2026-08-20-status.md`);
+  a non-author target repo is still open.
 - **P2-03 (this review's numbering) — Measure instruction quality, not
   just file correctness.** Proposed evals: correct skill triggering,
   irrelevant-skill avoidance, rule precedence, refusal to publish without
@@ -472,11 +472,13 @@ label by the review filename cited next to it, never by number alone.
   managed router state (once P1-01 exists), unsupported profile runner,
   broken/stale package source, hook ownership, and state-schema version —
   local and deterministic, no remote telemetry.
-- **P2-08 — Publish a concise comparison and migration story.** Explain
-  when to use agentharness versus a single `CLAUDE.md`/`AGENTS.md`, a
-  native agent plugin, dotfiles, a submodule of policy docs, or an
-  organization template — including the smallest migration from one
-  existing project and its ongoing maintenance cost.
+- ~~P2-08 — Publish a concise comparison and migration story.~~ —
+  **IMPLEMENTED** (#242). [`docs/COMPARE.md`](docs/COMPARE.md) covers
+  when to use agentharness vs. a single `CLAUDE.md`/`AGENTS.md`, a native
+  agent plugin, dotfiles/a submodule of policy docs, or an organization
+  template — including when *not* to use it, the smallest migration from
+  one existing project, and its ongoing maintenance cost via `update`.
+  Linked from README.
 
 ## Ideation Backlog (I-01…I-06, 2026-07-15)
 

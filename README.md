@@ -106,6 +106,12 @@ checkout syncs (see "Pin, Upgrade, Rollback" in
 [docs/RELEASING.md](docs/RELEASING.md) for exactly when that happens per
 install mode).
 
+Weighing this against a native agent plugin, dotfiles, a submodule of
+markdown, or an org template instead? See
+[docs/COMPARE.md](docs/COMPARE.md) for the full comparison, when *not*
+to use agentharness, and the smallest migration from an existing
+project.
+
 ## Product Contract
 
 **Target users:** teams or individuals running multiple projects with a

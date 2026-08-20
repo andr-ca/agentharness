@@ -1,13 +1,15 @@
 # Dogfooding Plan (P2-05 / P2-02)
 
-**Status:** not started — this is the actionable plan, not a record of a
-run. The single biggest open gap in the harness is that it has *no
-real-world evidence*: it's exercised only by its own CI fixtures
-(`examples/*-project/`), never pinned into a real project with a
-different stack and a user other than the author. This doc makes that
-gap executable so it isn't silently dropped between status snapshots.
-See [ROADMAP.md](../../../ROADMAP.md) ("P2-05 (real dogfood) has no
-target").
+**Status:** one row recorded, one prerequisite still open. The first
+target repo (`andr-ca/recalium`) has a full dated status doc — see
+[`docs/operational/reviews/dogfood-recalium-2026-08-20-status.md`](../reviews/dogfood-recalium-2026-08-20-status.md).
+What's still missing, and still the actual gap: **a target repo that
+isn't the same operator's own project.** Both dogfood targets so far
+(`recalium`, `infoocode`) share an operator with this repo — correlated
+blind spots, the reason fixtures alone were never trusted here, remain
+untested. This doc stays the actionable plan for that still-open half.
+See [ROADMAP.md](../../../ROADMAP.md)'s P2-05 entry for the full
+disposition.
 
 ## Why this can't be faked
 
