@@ -52,7 +52,9 @@ re-cloning.
   so concurrent runs never fight over one working tree or index. This is
   the highest-value case for an agent harness.
 
-Skip it for a single quick edit — a plain branch switch is cheaper.
+Skip it for a single quick edit on an already-clean, already-scoped
+branch — a plain branch switch is cheaper. That exception does not apply
+once either mandatory condition below is true.
 
 **Mandatory, not a preference, before starting new feature/fix
 implementation work** (not Q&A, not read-only investigation) when either
@@ -67,13 +69,13 @@ disallowed — isolate first:
 
 ```bash
 git fetch origin
-git worktree add -b feat/<short-name> .worktrees/feat-<short-name> origin/main
-cd .worktrees/feat-<short-name>
+git worktree add -b feature/<short-name> .worktrees/feature-<short-name> origin/main
+cd .worktrees/feature-<short-name>
 ```
 
-❌ `git checkout -b feat/foo` on top of a `chore/*` branch carrying 100
-modified files.
-✅ `git worktree add -b feat/foo .worktrees/feat-foo origin/main`.
+❌ `git checkout -b feature/foo` on top of a `chore/*` branch carrying
+100 modified files.
+✅ `git worktree add -b feature/foo .worktrees/feature-foo origin/main`.
 
 This check runs before the first file edit, on its own — it is not
 something to ask the user about. A prompt like "let's build X"
