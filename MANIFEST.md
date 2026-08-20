@@ -235,6 +235,7 @@ they drift (`check_manifest_md_sync()` in `tools/verify-content-quality.py`).
 | Integration instructions | `docs/INTEGRATION.md` | doc |
 | Client compatibility matrix (always-on instructions + on-demand skills, per agentic tool) | `docs/CLIENT_COMPATIBILITY.md` | doc |
 | 5-minute scripted demo (real commands, real output) | `docs/DEMO.md` | doc |
+| Comparison vs. alternatives + smallest-migration guide | `docs/COMPARE.md` | doc |
 | Planned-but-not-built components | `ROADMAP.md` | doc |
 | Current status (what works today, single snapshot) | `docs/STATUS.md` | doc |
 | Known limitations (open gaps and caveats, single list) | `docs/KNOWN_LIMITATIONS.md` | doc |

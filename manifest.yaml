@@ -732,6 +732,9 @@ sections:
   - asset: 5-minute scripted demo (real commands, real output)
     path: docs/DEMO.md
     type: doc
+  - asset: Comparison vs. alternatives + smallest-migration guide
+    path: docs/COMPARE.md
+    type: doc
   - asset: Planned-but-not-built components
     path: ROADMAP.md
     type: doc
