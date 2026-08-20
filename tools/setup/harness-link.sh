@@ -1643,6 +1643,7 @@ for s in json.load(sys.stdin)["summary"]:
 
     # Managed-block drift: does the block currently on disk still match
     # what was recorded (by hash) when it was last installed/updated?
+    # Also check whole-file surfaces (overwritten_files): did they change since install?
     python3 -c "
 import hashlib
 import sys
@@ -1652,6 +1653,8 @@ import block_installer as bi
 
 state = it.load_state('$(state_path "$target")')
 any_drift = False
+
+# Check managed blocks
 for entry in state.get('managed_blocks', []):
     path = '$target/' + entry['file']
     try:
@@ -1677,6 +1680,21 @@ for entry in state.get('managed_blocks', []):
         any_drift = True
     else:
         print(f'  OK: {entry[\"file\"]}: managed block matches last-recorded render')
+
+# Check whole-file surfaces (overwritten_files)
+for entry in state.get('overwritten_files', []):
+    path = '$target/' + entry['file']
+    try:
+        current_hash = bi.sha256_bytes(open(path, 'rb').read())
+    except FileNotFoundError:
+        print(f'  note: {entry[\"file\"]}: deleted since install, nothing to verify')
+        continue
+    if current_hash != entry.get('written_sha256'):
+        print(f'  drift: {entry[\"file\"]}: on-disk generated file does not match last-recorded render (hand-edited, or a version bump is pending — re-run update)')
+        any_drift = True
+    else:
+        print(f'  OK: {entry[\"file\"]}: generated file matches last-recorded render')
+
 sys.exit(1 if any_drift else 0)
 " || failed=1
 
@@ -2481,11 +2499,12 @@ confirm() {
 }
 
 cmd_update() {
-    local target="" yes=false force=false dry_run=false keep_existing=false
+    local target="" yes=false force=false dry_run=false keep_existing=false client_filter=""
     while [ $# -gt 0 ]; do
         case "$1" in
             --yes) yes=true; shift ;;
             --force) force=true; shift ;;
+            --client) client_filter="$2"; shift 2 ;;
             --dry-run) dry_run=true; shift ;;
             --keep-existing) keep_existing=true; shift ;;
             -h|--help) usage; exit 0 ;;
@@ -2518,6 +2537,23 @@ cmd_update() {
     coverage_hook="$(state_field "$target" coverage_hook 2>/dev/null || echo "false")"
     profile="$(state_field "$target" profile 2>/dev/null || echo "")"
     [ "$profile" = "None" ] && profile=""
+    local clients_csv
+    if [ -n "$client_filter" ]; then
+        # Override with --client flag
+        if [ "$client_filter" = "all" ]; then
+            clients_csv="codex,gemini,copilot,cursor,kilo"
+        elif [ "$client_filter" = "none" ]; then
+            clients_csv=""
+        else
+            clients_csv="$client_filter"
+        fi
+    else
+        # Read existing clients from state and expand to CSV
+        local existing_clients
+        existing_clients="$(state_field "$target" clients 2>/dev/null || echo "[]")"
+        # Parse JSON array ["codex", "gemini"] -> comma-separated
+        clients_csv=$(python3 -c "import json; print(','.join(json.loads('$existing_clients')))" 2>/dev/null || echo "")
+    fi
 
     # P0-02: 'npm' mode's whole point is that source_path (the durable local
     # copy) must NOT be diffed against its own prior self to detect
@@ -2584,7 +2620,7 @@ cmd_update() {
         local surfaces_json rendered_block install_id
         install_id="$(python3 -c 'import uuid; print(uuid.uuid4().hex[:8])')"
         rendered_block="$(render_core_instructions_block "$target" "$dry_run_skills_csv")"
-        surfaces_json="$(build_surfaces_spec "$target" "$rendered_block" "$dry_run_source_revision")"
+        surfaces_json="$(build_surfaces_spec "$target" "$rendered_block" "$dry_run_source_revision" "$clients_csv")"
         resolve_collisions_and_apply "$target" "$surfaces_json" "$install_id" "$force" "$dry_run" "$keep_existing" || {
             release_install_lock "$target"
             exit 1
@@ -2684,7 +2720,7 @@ cmd_update() {
     local surfaces_json rendered_block install_id
     install_id="$(python3 -c 'import uuid; print(uuid.uuid4().hex[:8])')"
     rendered_block="$(render_core_instructions_block "$target" "$new_skills_csv")"
-    surfaces_json="$(build_surfaces_spec "$target" "$rendered_block" "$source_revision")"
+    surfaces_json="$(build_surfaces_spec "$target" "$rendered_block" "$source_revision" "$clients_csv")"
     resolve_collisions_and_apply "$target" "$surfaces_json" "$install_id" "$force" "$dry_run" "$keep_existing" || {
         release_install_lock "$target"
         exit 1
@@ -2693,7 +2729,7 @@ cmd_update() {
 
     state_write "$target" "$mode" "$new_skills_csv" "$skills_filter" "$with_hook" \
         "$profile" "$source_path" "$source_revision" "$source_remote" "$hooks_path" "$coverage_hook" \
-        "$previous_hooks_path" "$previous_merge_ff"
+        "$previous_hooks_path" "$previous_merge_ff" "$clients_csv"
 
     warn_if_untracked "$target" false
 
