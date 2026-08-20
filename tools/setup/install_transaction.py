@@ -55,11 +55,25 @@ class Classification(Enum):
     HARD_FAIL = auto()            # malformed markers, symlink, or non-regular file
 
 
-def classify_path(path: Path, *, is_block_surface: bool) -> Classification:
+def classify_path(
+    path: Path, *, is_block_surface: bool, harness_owned: bool = False
+) -> Classification:
     """Classify a target path per spec section 4's three-way rule.
     is_block_surface=True for CLAUDE.md/AGENTS.md/GEMINI.md/copilot
     files (block-managed); False for directory-style generated assets
-    like .cursor/rules/*.mdc (whole-file collision candidates)."""
+    like .cursor/rules/*.mdc (whole-file collision candidates).
+
+    harness_owned=True means the caller already confirmed, via state,
+    that this exact path was last written by the harness itself and is
+    still byte-identical to that write — e.g. AGENTS.md under the codex
+    client, re-run on a plain `update` with no skill/content changes.
+    Without this, every whole-file surface would present itself as an
+    unresolved WHOLE_FILE_COLLISION on the very next run after the one
+    that created it, since classification is otherwise a pure
+    filesystem check with no memory of who wrote what: a harness-owned,
+    untouched file should refresh silently like a block surface does,
+    while a hand-edited or genuinely foreign file must still stop for
+    collision resolution."""
     path = Path(path)
 
     if path.is_symlink():
@@ -80,6 +94,9 @@ def classify_path(path: Path, *, is_block_surface: bool) -> Classification:
         except bi.MarkerError:
             return Classification.HARD_FAIL
         return Classification.BLOCK_MANAGED
+
+    if harness_owned:
+        return Classification.CREATE
 
     return Classification.WHOLE_FILE_COLLISION
 
@@ -197,8 +214,27 @@ def build_plan(
     collision_decisions: list[dict[str, Any]] = []
 
     for surface in surfaces:
+        harness_owned = False
+        if not surface.is_block_surface and surface.path.exists():
+            rel_for_ownership = _rel(surface.path, base_dir)
+            prior_owned = next(
+                (
+                    f
+                    for f in state.get("overwritten_files", [])
+                    if f["file"] == rel_for_ownership
+                ),
+                None,
+            )
+            harness_owned = bool(
+                prior_owned
+                and prior_owned.get("created_by_harness") is True
+                and prior_owned.get("written_sha256")
+                == sha256_of_file(surface.path)
+            )
         classification = classify_path(
-            surface.path, is_block_surface=surface.is_block_surface
+            surface.path,
+            is_block_surface=surface.is_block_surface,
+            harness_owned=harness_owned,
         )
 
         if classification is Classification.HARD_FAIL:

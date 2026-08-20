@@ -706,17 +706,6 @@ gen_dir = os.path.join(harness_dir, 'tools')
 
 surfaces = []
 
-# Always add the four block-managed instruction files
-block_files = ['CLAUDE.md', 'AGENTS.md', 'GEMINI.md', '.github/copilot-instructions.md']
-for f in block_files:
-    surfaces.append({
-        'path': f'{target}/{f}',
-        'is_block_surface': True,
-        'block_body': body,
-        'block_id': 'core-instructions',
-        'block_version': version
-    })
-
 # Parse selected clients
 if clients_str == 'all':
     selected = ['codex', 'gemini', 'copilot', 'cursor', 'kilo']
@@ -724,6 +713,34 @@ elif clients_str == 'none' or not clients_str:
     selected = []
 else:
     selected = [c.strip() for c in clients_str.split(',') if c.strip()]
+
+# A selected client that generates a whole-file surface for one of the four
+# block-managed files takes ownership of that file instead of the block: it
+# renders the harness's full, curated content there rather than splicing a
+# block into whatever else lives in the file. Without this exclusion, both
+# surfaces would target the same path — the block surface silently succeeds
+# first, then the whole-file surface treats the now-block-containing file as
+# an unexpected whole-file collision requiring interactive resolution, which
+# breaks unattended installs by default (codex is the default client).
+client_owns_block_file = {
+    'codex': 'AGENTS.md',
+    'gemini': 'GEMINI.md',
+    'copilot': '.github/copilot-instructions.md',
+}
+claimed_block_files = {client_owns_block_file[c] for c in selected if c in client_owns_block_file}
+
+# Always add the block-managed instruction files not claimed by a selected client
+block_files = ['CLAUDE.md', 'AGENTS.md', 'GEMINI.md', '.github/copilot-instructions.md']
+for f in block_files:
+    if f in claimed_block_files:
+        continue
+    surfaces.append({
+        'path': f'{target}/{f}',
+        'is_block_surface': True,
+        'block_body': body,
+        'block_id': 'core-instructions',
+        'block_version': version
+    })
 
 # Generate whole-file surfaces for each selected client
 for client in selected:
@@ -2595,11 +2612,15 @@ cmd_update() {
             clients_csv="$client_filter"
         fi
     else
-        # Read existing clients from state and expand to CSV
-        local existing_clients
-        existing_clients="$(state_field "$target" clients 2>/dev/null || echo "[]")"
-        # Parse JSON array ["codex", "gemini"] -> comma-separated
-        clients_csv=$(python3 -c "import json; print(','.join(json.loads('$existing_clients')))" 2>/dev/null || echo "")
+        # state_field already comma-joins list-typed fields (see its own
+        # `",".join(cur)` for `isinstance(cur, list)`), so this is already
+        # the CSV build_surfaces_spec wants — not a JSON array to re-parse.
+        # Re-parsing it as JSON here silently failed (empty is not valid
+        # JSON either), and the swallowed exception reset clients_csv to
+        # "" on every `update` that omits --client — dropping every
+        # client's whole-file ownership (e.g. codex's AGENTS.md) back to
+        # the plain block-managed surface one update after init set it up.
+        clients_csv="$(state_field "$target" clients 2>/dev/null || echo "")"
     fi
 
     # P0-02: 'npm' mode's whole point is that source_path (the durable local

@@ -996,8 +996,10 @@ with open('$1/.agentharness-state.json') as f:
 }
 
 @test "doctor: reports a leftover crash journal" {
+    # --client none: see the note on the drift-repair test above — this
+    # test's pre-existing AGENTS.md content is incidental to what it checks.
     echo "# My project" > "$TEST_PROJECT/AGENTS.md"
-    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client none
     echo '{"plan_summary": ["AGENTS.md: upsert_block"]}' > "$TEST_PROJECT/.agentharness-state.pending.json"
     run bash "$SCRIPT" doctor "$TEST_PROJECT"
     [ "$status" -ne 0 ]
@@ -1006,8 +1008,9 @@ with open('$1/.agentharness-state.json') as f:
 }
 
 @test "doctor: flags a managed block that has drifted from current render" {
+    # --client none: this tests block-drift detection specifically.
     echo "# My project" > "$TEST_PROJECT/AGENTS.md"
-    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client none
     sed -i 's/version=[^ ]* -->/version=0.0.1 -->/' "$TEST_PROJECT/AGENTS.md" 2>/dev/null || \
         sed -i '' 's/version=[^ ]* -->/version=0.0.1 -->/' "$TEST_PROJECT/AGENTS.md"
     run bash "$SCRIPT" doctor "$TEST_PROJECT"
@@ -1015,8 +1018,9 @@ with open('$1/.agentharness-state.json') as f:
 }
 
 @test "doctor: fails when pending journal is corrupted/unparseable" {
+    # --client none: see the note on the crash-journal test above.
     echo "# My project" > "$TEST_PROJECT/AGENTS.md"
-    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client none
     echo "not valid json" > "$TEST_PROJECT/.agentharness-state.pending.json"
     run bash "$SCRIPT" doctor "$TEST_PROJECT"
     [ "$status" -ne 0 ]
@@ -1630,19 +1634,38 @@ PYEOF
 }
 
 @test "init: renders managed block into pre-existing AGENTS.md" {
+    # --client none: codex (the default client since #241) owns AGENTS.md as
+    # a whole-file surface and would treat pre-existing foreign content as a
+    # collision needing resolution (see the dedicated collision test below).
+    # This test targets the plain block-merge path that other clients' block
+    # files (CLAUDE.md, and AGENTS.md when no client claims it) still use.
     echo "# My project" > "$TEST_PROJECT/AGENTS.md"
-    run bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    run bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client none
     [ "$status" -eq 0 ]
     grep -q "agentharness:begin id=core-instructions" "$TEST_PROJECT/AGENTS.md"
     grep -q "# My project" "$TEST_PROJECT/AGENTS.md"
 }
 
-@test "init: re-running is idempotent on the managed block" {
+@test "init: default client (codex) treats a pre-existing foreign AGENTS.md as a whole-file collision (#241)" {
+    # The other half of the above: since codex owns AGENTS.md by default,
+    # foreign pre-existing content must NOT be silently merged — it has to
+    # go through the same collision-resolution safety net as any other
+    # whole-file surface. --force here exercises the non-interactive path.
     echo "# My project" > "$TEST_PROJECT/AGENTS.md"
-    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    run bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --force
+    [ "$status" -eq 0 ]
+    ! grep -q "# My project" "$TEST_PROJECT/AGENTS.md"
+    grep -q "agentharness" "$TEST_PROJECT/AGENTS.md"
+}
+
+@test "init: re-running is idempotent on the managed block" {
+    # --client none: see the comment on the previous test — this exercises
+    # the plain block-merge path, not codex's whole-file AGENTS.md ownership.
+    echo "# My project" > "$TEST_PROJECT/AGENTS.md"
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client none
     local first_hash
     first_hash="$(sha256sum "$TEST_PROJECT/AGENTS.md" | cut -d' ' -f1)"
-    run bash "$SCRIPT" update "$TEST_PROJECT" --yes
+    run bash "$SCRIPT" update "$TEST_PROJECT" --yes --client none
     [ "$status" -eq 0 ]
     local second_hash
     second_hash="$(sha256sum "$TEST_PROJECT/AGENTS.md" | cut -d' ' -f1)"
@@ -1729,10 +1752,13 @@ PYEOF
 }
 
 @test "update: re-renders drifted managed block back to current content" {
-    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    # --client none: this targets pure block-managed drift repair. Under
+    # the default codex client AGENTS.md is whole-file generated content
+    # with no "Installed skills" block text to drift in the first place.
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client none
     sed -i 's/Installed skills/DRIFTED TEXT/' "$TEST_PROJECT/AGENTS.md" 2>/dev/null || \
         sed -i '' 's/Installed skills/DRIFTED TEXT/' "$TEST_PROJECT/AGENTS.md"
-    run bash "$SCRIPT" update "$TEST_PROJECT" --yes
+    run bash "$SCRIPT" update "$TEST_PROJECT" --yes --client none
     [ "$status" -eq 0 ]
     grep -q "Installed skills" "$TEST_PROJECT/AGENTS.md"
 }
@@ -1752,9 +1778,10 @@ PYEOF
 }
 
 @test "uninstall: removes managed block, preserves surrounding content" {
+    # --client none: see the note on the drift-repair test above.
     echo "# My project" > "$TEST_PROJECT/AGENTS.md"
     echo "custom line" >> "$TEST_PROJECT/AGENTS.md"
-    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client none
     run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
     [ "$status" -eq 0 ]
     ! grep -q "agentharness:begin" "$TEST_PROJECT/AGENTS.md"
@@ -1794,8 +1821,11 @@ PYEOF
 }
 
 @test "uninstall: called twice is a no-op the second time" {
+    # --client none: the pre-existing AGENTS.md here is incidental to what
+    # this test actually checks (double-uninstall); avoid the unrelated
+    # codex-ownership collision from a foreign pre-existing file.
     echo "# My project" > "$TEST_PROJECT/AGENTS.md"
-    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client none
     bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
     run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
     [ "$status" -ne 0 ]  # require_state fails: no state file left — expected message, not a crash
@@ -1833,6 +1863,29 @@ PYEOF
     run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
     [ "$status" -eq 0 ]
     [ ! -f "$TEST_PROJECT/AGENTS.md" ]
+}
+
+@test "update on an untouched codex-owned AGENTS.md refreshes silently, without a collision prompt (#241)" {
+    # classify_path had no notion of harness-owned whole-file surfaces: any
+    # existing AGENTS.md (even one the harness itself just wrote) looked
+    # identical to a genuinely foreign file, so a second plain 'update'
+    # always hit the interactive collision prompt and failed unattended.
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    run bash "$SCRIPT" update "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"stdin closed without resolving collisions"* ]]
+    [ -f "$TEST_PROJECT/AGENTS.md" ]
+}
+
+@test "update on a hand-edited codex-owned AGENTS.md still requires collision resolution (#241 safety)" {
+    # The other half: ownership must not become a blanket bypass — a file
+    # that diverged from what the harness wrote is exactly what the
+    # collision prompt exists to protect.
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    echo "# hand-edited by the user" >> "$TEST_PROJECT/AGENTS.md"
+    run bash "$SCRIPT" update "$TEST_PROJECT" --yes
+    [ "$status" -ne 0 ]
+    [[ "$output" =~ "collision" ]]
 }
 
 # ============================================================================
