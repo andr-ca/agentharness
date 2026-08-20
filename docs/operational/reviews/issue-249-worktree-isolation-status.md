@@ -37,7 +37,7 @@ operator first rather than folded into the same change.
   `git worktree add` mandatory before the first file edit, with the
   report's own ❌/✅ example (aligned to the repo's actual `feature/`
   branch prefix — Copilot's review caught my first draft using `feat/`,
-  which doesn't match this same file's own naming table).
+  which doesn't match the `branching` skill's own naming table).
 - `multi-agent-coordination` skill: the "no `agent-lock.sh`, fall back
   to plain git branch discipline" note now explicitly says that fallback
   is about coordinating with *other agents*, not license to skip
