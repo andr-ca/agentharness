@@ -24,6 +24,13 @@ doesn't apply to this repo yet — fall back to plain git branch
 discipline (check `git branch -a` / `git log` for other in-progress
 work before starting) rather than assuming the lock file exists.
 
+**This fallback covers coordination with *other agents* only — it does
+not weaken the `branching` skill's worktree-isolation rule.** Whether or
+not `tools/agent-lock.sh` exists, starting new feature/fix work on a
+dirty tree or an unrelated branch still requires a worktree first; a
+missing lock script is not license to `git checkout -b` on top of
+someone else's in-progress changes.
+
 Deeper reference: `patterns/multi-agent-coordination/COORDINATION.md`
 (full protocol, lock format, stale detection, worktree rules).
 

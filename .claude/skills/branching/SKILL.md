@@ -54,6 +54,33 @@ re-cloning.
 
 Skip it for a single quick edit — a plain branch switch is cheaper.
 
+**Mandatory, not a preference, before starting new feature/fix
+implementation work** (not Q&A, not read-only investigation) when either
+is true:
+
+- `git status --porcelain` is non-empty (a dirty tree), or
+- the current branch is unrelated to the task (someone else's topic
+  branch, a `chore/*` tree, anything not already scoped to this work).
+
+In that state, `git checkout -b` directly in the current checkout is
+disallowed — isolate first:
+
+```bash
+git fetch origin
+git worktree add -b feat/<short-name> .worktrees/feat-<short-name> origin/main
+cd .worktrees/feat-<short-name>
+```
+
+❌ `git checkout -b feat/foo` on top of a `chore/*` branch carrying 100
+modified files.
+✅ `git worktree add -b feat/foo .worktrees/feat-foo origin/main`.
+
+This check runs before the first file edit, on its own — it is not
+something to ask the user about. A prompt like "let's build X"
+authorizes starting the work, not skipping isolation. Only ask the user
+when choosing between multiple *clean* strategies (e.g. a branch name);
+never ask whether a dirty tree should be isolated — just do it.
+
 **The rules that bite:**
 
 - **One branch per worktree** — git refuses to check the same branch out
