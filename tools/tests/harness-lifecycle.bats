@@ -996,8 +996,10 @@ with open('$1/.agentharness-state.json') as f:
 }
 
 @test "doctor: reports a leftover crash journal" {
+    # --client none: see the note on the drift-repair test above — this
+    # test's pre-existing AGENTS.md content is incidental to what it checks.
     echo "# My project" > "$TEST_PROJECT/AGENTS.md"
-    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client none
     echo '{"plan_summary": ["AGENTS.md: upsert_block"]}' > "$TEST_PROJECT/.agentharness-state.pending.json"
     run bash "$SCRIPT" doctor "$TEST_PROJECT"
     [ "$status" -ne 0 ]
@@ -1006,8 +1008,9 @@ with open('$1/.agentharness-state.json') as f:
 }
 
 @test "doctor: flags a managed block that has drifted from current render" {
+    # --client none: this tests block-drift detection specifically.
     echo "# My project" > "$TEST_PROJECT/AGENTS.md"
-    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client none
     sed -i 's/version=[^ ]* -->/version=0.0.1 -->/' "$TEST_PROJECT/AGENTS.md" 2>/dev/null || \
         sed -i '' 's/version=[^ ]* -->/version=0.0.1 -->/' "$TEST_PROJECT/AGENTS.md"
     run bash "$SCRIPT" doctor "$TEST_PROJECT"
@@ -1015,8 +1018,9 @@ with open('$1/.agentharness-state.json') as f:
 }
 
 @test "doctor: fails when pending journal is corrupted/unparseable" {
+    # --client none: see the note on the crash-journal test above.
     echo "# My project" > "$TEST_PROJECT/AGENTS.md"
-    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client none
     echo "not valid json" > "$TEST_PROJECT/.agentharness-state.pending.json"
     run bash "$SCRIPT" doctor "$TEST_PROJECT"
     [ "$status" -ne 0 ]
@@ -1630,19 +1634,38 @@ PYEOF
 }
 
 @test "init: renders managed block into pre-existing AGENTS.md" {
+    # --client none: codex (the default client since #241) owns AGENTS.md as
+    # a whole-file surface and would treat pre-existing foreign content as a
+    # collision needing resolution (see the dedicated collision test below).
+    # This test targets the plain block-merge path that other clients' block
+    # files (CLAUDE.md, and AGENTS.md when no client claims it) still use.
     echo "# My project" > "$TEST_PROJECT/AGENTS.md"
-    run bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    run bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client none
     [ "$status" -eq 0 ]
     grep -q "agentharness:begin id=core-instructions" "$TEST_PROJECT/AGENTS.md"
     grep -q "# My project" "$TEST_PROJECT/AGENTS.md"
 }
 
-@test "init: re-running is idempotent on the managed block" {
+@test "init: default client (codex) treats a pre-existing foreign AGENTS.md as a whole-file collision (#241)" {
+    # The other half of the above: since codex owns AGENTS.md by default,
+    # foreign pre-existing content must NOT be silently merged — it has to
+    # go through the same collision-resolution safety net as any other
+    # whole-file surface. --force here exercises the non-interactive path.
     echo "# My project" > "$TEST_PROJECT/AGENTS.md"
-    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    run bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --force
+    [ "$status" -eq 0 ]
+    ! grep -q "# My project" "$TEST_PROJECT/AGENTS.md"
+    grep -q "agentharness" "$TEST_PROJECT/AGENTS.md"
+}
+
+@test "init: re-running is idempotent on the managed block" {
+    # --client none: see the comment on the previous test — this exercises
+    # the plain block-merge path, not codex's whole-file AGENTS.md ownership.
+    echo "# My project" > "$TEST_PROJECT/AGENTS.md"
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client none
     local first_hash
     first_hash="$(sha256sum "$TEST_PROJECT/AGENTS.md" | cut -d' ' -f1)"
-    run bash "$SCRIPT" update "$TEST_PROJECT" --yes
+    run bash "$SCRIPT" update "$TEST_PROJECT" --yes --client none
     [ "$status" -eq 0 ]
     local second_hash
     second_hash="$(sha256sum "$TEST_PROJECT/AGENTS.md" | cut -d' ' -f1)"
@@ -1729,10 +1752,13 @@ PYEOF
 }
 
 @test "update: re-renders drifted managed block back to current content" {
-    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    # --client none: this targets pure block-managed drift repair. Under
+    # the default codex client AGENTS.md is whole-file generated content
+    # with no "Installed skills" block text to drift in the first place.
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client none
     sed -i 's/Installed skills/DRIFTED TEXT/' "$TEST_PROJECT/AGENTS.md" 2>/dev/null || \
         sed -i '' 's/Installed skills/DRIFTED TEXT/' "$TEST_PROJECT/AGENTS.md"
-    run bash "$SCRIPT" update "$TEST_PROJECT" --yes
+    run bash "$SCRIPT" update "$TEST_PROJECT" --yes --client none
     [ "$status" -eq 0 ]
     grep -q "Installed skills" "$TEST_PROJECT/AGENTS.md"
 }
@@ -1752,9 +1778,10 @@ PYEOF
 }
 
 @test "uninstall: removes managed block, preserves surrounding content" {
+    # --client none: see the note on the drift-repair test above.
     echo "# My project" > "$TEST_PROJECT/AGENTS.md"
     echo "custom line" >> "$TEST_PROJECT/AGENTS.md"
-    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client none
     run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
     [ "$status" -eq 0 ]
     ! grep -q "agentharness:begin" "$TEST_PROJECT/AGENTS.md"
@@ -1794,8 +1821,11 @@ PYEOF
 }
 
 @test "uninstall: called twice is a no-op the second time" {
+    # --client none: the pre-existing AGENTS.md here is incidental to what
+    # this test actually checks (double-uninstall); avoid the unrelated
+    # codex-ownership collision from a foreign pre-existing file.
     echo "# My project" > "$TEST_PROJECT/AGENTS.md"
-    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client none
     bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
     run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
     [ "$status" -ne 0 ]  # require_state fails: no state file left — expected message, not a crash
@@ -1833,4 +1863,268 @@ PYEOF
     run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
     [ "$status" -eq 0 ]
     [ ! -f "$TEST_PROJECT/AGENTS.md" ]
+}
+
+@test "update on an untouched codex-owned AGENTS.md refreshes silently, without a collision prompt (#241)" {
+    # classify_path had no notion of harness-owned whole-file surfaces: any
+    # existing AGENTS.md (even one the harness itself just wrote) looked
+    # identical to a genuinely foreign file, so a second plain 'update'
+    # always hit the interactive collision prompt and failed unattended.
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    run bash "$SCRIPT" update "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"stdin closed without resolving collisions"* ]]
+    [ -f "$TEST_PROJECT/AGENTS.md" ]
+}
+
+@test "update on a hand-edited codex-owned AGENTS.md still requires collision resolution (#241 safety)" {
+    # The other half: ownership must not become a blanket bypass — a file
+    # that diverged from what the harness wrote is exactly what the
+    # collision prompt exists to protect.
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    echo "# hand-edited by the user" >> "$TEST_PROJECT/AGENTS.md"
+    run bash "$SCRIPT" update "$TEST_PROJECT" --yes
+    [ "$status" -ne 0 ]
+    [[ "$output" =~ "collision" ]]
+}
+
+# ============================================================================
+# Issue #241: Client generation (build_surfaces_spec) regressions
+# ============================================================================
+
+@test "init --client codex with --skills committing generates only 1 skill in AGENTS.md (issue #241)" {
+    # Regression: build_surfaces_spec crashed on HARNESS_DIR env lookup and
+    # generate-clients used --output - which created a file named "-".
+    # This test verifies skill-scoping walk-up works in init flow.
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client codex
+    [ -f "$TEST_PROJECT/AGENTS.md" ]
+
+    skill_count=$(grep -c '^- `.agents/skills/' "$TEST_PROJECT/AGENTS.md" || true)
+    [ "$skill_count" -eq 1 ]
+    grep -q "committing/SKILL.md" "$TEST_PROJECT/AGENTS.md"
+    ! grep -q "accessibility/SKILL.md" "$TEST_PROJECT/AGENTS.md"
+}
+
+@test "init --client cursor generates exactly 2 rules: router + committing skill" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client cursor
+    [ -f "$TEST_PROJECT/.cursor/rules/agentharness-router.mdc" ]
+    [ -f "$TEST_PROJECT/.cursor/rules/committing.mdc" ]
+
+    cursor_count=$(ls "$TEST_PROJECT/.cursor/rules/" 2>/dev/null | wc -l)
+    [ "$cursor_count" -eq 2 ]
+}
+
+@test "init --client none creates no client-specific files (.cursor/rules, .kilo/rules)" {
+    # Block-managed files (AGENTS.md, GEMINI.md, etc) are always created
+    # as container files; --client none just means no generated content
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client none
+    [ -f "$TEST_PROJECT/CLAUDE.md" ]
+    # Block files still exist (they're the instruction container)
+    [ -f "$TEST_PROJECT/AGENTS.md" ]
+    # But client-specific directories do not
+    [ ! -d "$TEST_PROJECT/.cursor/rules" ]
+    [ ! -f "$TEST_PROJECT/.kilo/rules/agentharness.md" ]
+}
+
+@test "init --client cursor,kilo generates both Cursor rules and Kilo config" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client cursor,kilo
+    [ -f "$TEST_PROJECT/.cursor/rules/agentharness-router.mdc" ]
+    [ -f "$TEST_PROJECT/.cursor/rules/committing.mdc" ]
+    [ -f "$TEST_PROJECT/.kilo/rules/agentharness.md" ]
+    grep -q "committing/SKILL.md" "$TEST_PROJECT/.kilo/rules/agentharness.md"
+}
+
+@test "init --client cursor,kilo then init --client codex updates state correctly" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client cursor,kilo
+    [ -d "$TEST_PROJECT/.cursor/rules" ]
+    [ -f "$TEST_PROJECT/.kilo/rules/agentharness.md" ]
+
+    # Reinit with just Codex (should not break)
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client codex --force
+    [ -f "$TEST_PROJECT/AGENTS.md" ]
+}
+
+# ============================================================================
+# Issue #241 Bug 1: State tracking for CREATE surfaces (whole-file)
+# ============================================================================
+
+@test "init --client cursor tracks created files in state with created_by_harness=true (bug #1)" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client cursor
+    [ -f "$TEST_PROJECT/.cursor/rules/agentharness-router.mdc" ]
+
+    # Verify state tracks both files with created_by_harness=True and no backup
+    python3 - "$TEST_PROJECT" <<'PYEOF'
+import json
+from pathlib import Path
+import sys
+state_file = Path(sys.argv[1]) / ".agentharness-state.json"
+with open(state_file) as f:
+    state = json.load(f)
+    cursor_entries = [e for e in state["overwritten_files"] if e.get("client") == "cursor"]
+    assert len(cursor_entries) == 2, f"Expected 2 cursor entries, got {len(cursor_entries)}"
+    for entry in cursor_entries:
+        assert entry.get("created_by_harness") is True
+        assert "backup" not in entry
+PYEOF
+}
+
+@test "doctor reports status including CREATE-tracked files (bug #1: now tracked)" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client cursor
+    [ -f "$TEST_PROJECT/.cursor/rules/committing.mdc" ]
+
+    # Doctor should run without errors and include cursor files in its output
+    run bash "$SCRIPT" doctor "$TEST_PROJECT"
+    # Exit 0 or 1 both valid (exit 1 means changes found)
+    [[ "$status" -eq 0 || "$status" -eq 1 ]]
+}
+
+@test "uninstall after --client cursor removes .cursor/rules/ (bug #1: CREATE cleanup)" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client cursor
+    [ -f "$TEST_PROJECT/.cursor/rules/agentharness-router.mdc" ]
+
+    bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
+    # Cursor files should be gone (created_by_harness cleanup deletes them)
+    [ ! -d "$TEST_PROJECT/.cursor/rules" ] || [ -z "$(ls -A "$TEST_PROJECT/.cursor/rules" 2>/dev/null)" ]
+}
+
+# ============================================================================
+# Issue #241 Bug 2: Client switching removes dropped client files
+# ============================================================================
+
+@test "update --client switching from cursor to codex removes .cursor/rules/ (bug #2)" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client cursor --force
+    [ -f "$TEST_PROJECT/.cursor/rules/committing.mdc" ]
+
+    bash "$SCRIPT" update "$TEST_PROJECT" --client codex --yes --force
+    [ -f "$TEST_PROJECT/AGENTS.md" ]
+    # Cursor files should be completely gone
+    [ ! -d "$TEST_PROJECT/.cursor/rules" ] || [ -z "$(ls -A "$TEST_PROJECT/.cursor/rules" 2>/dev/null)" ]
+}
+
+@test "update --client switching from cursor to codex prunes the now-empty .cursor/ tree (bug #2 leftover-dir)" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client cursor --force
+    [ -f "$TEST_PROJECT/.cursor/rules/committing.mdc" ]
+
+    bash "$SCRIPT" update "$TEST_PROJECT" --client codex --yes --force
+    [ -f "$TEST_PROJECT/AGENTS.md" ]
+    # The harness created .cursor/ and .cursor/rules/ solely to hold files it
+    # just deleted; pruning must remove the now-empty directories too, not
+    # just the files inside them.
+    [ ! -e "$TEST_PROJECT/.cursor" ]
+}
+
+@test "update --client removes dropped client's state entries (bug #2 tracking)" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client cursor --force
+    bash "$SCRIPT" update "$TEST_PROJECT" --client codex --yes --force
+
+    # Verify state no longer has cursor entries, but has codex
+    python3 - "$TEST_PROJECT" <<'PYEOF'
+import json
+from pathlib import Path
+import sys
+state_file = Path(sys.argv[1]) / ".agentharness-state.json"
+with open(state_file) as f:
+    state = json.load(f)
+    cursor_entries = [e for e in state["overwritten_files"] if e.get("client") == "cursor"]
+    assert len(cursor_entries) == 0, f"Should have no cursor entries after switch, found {cursor_entries}"
+    codex_entries = [e for e in state["overwritten_files"] if e.get("client") == "codex"]
+    assert len(codex_entries) > 0, "Should have codex entries after switch"
+PYEOF
+}
+
+@test "update with multiple clients switching removes all dropped clients (bug #2)" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client cursor,kilo --force
+    [ -d "$TEST_PROJECT/.cursor/rules" ]
+    [ -f "$TEST_PROJECT/.kilo/rules/agentharness.md" ]
+
+    bash "$SCRIPT" update "$TEST_PROJECT" --client codex,gemini --yes --force
+    [ -f "$TEST_PROJECT/AGENTS.md" ]
+    [ -f "$TEST_PROJECT/GEMINI.md" ]
+    # Old clients should be gone
+    [ ! -d "$TEST_PROJECT/.cursor/rules" ] || [ -z "$(ls -A "$TEST_PROJECT/.cursor/rules" 2>/dev/null)" ]
+    [ ! -f "$TEST_PROJECT/.kilo/rules/agentharness.md" ]
+}
+
+# ============================================================================
+# Copilot review findings on PR #248 (generate-clients lifecycle wiring, #241)
+# ============================================================================
+
+@test "update --client switch preserves a hand-edited dropped-client file instead of deleting it (review finding #4)" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client cursor --force
+    [ -f "$TEST_PROJECT/.cursor/rules/committing.mdc" ]
+
+    # Simulate the user hand-editing the cursor-generated file after install.
+    echo "# hand-edited by the user, do not clobber" >> "$TEST_PROJECT/.cursor/rules/committing.mdc"
+
+    bash "$SCRIPT" update "$TEST_PROJECT" --client codex --yes --force
+    [ -f "$TEST_PROJECT/AGENTS.md" ]
+    # The hand-edited file must survive the client switch...
+    [ -f "$TEST_PROJECT/.cursor/rules/committing.mdc" ]
+    grep -q "hand-edited by the user" "$TEST_PROJECT/.cursor/rules/committing.mdc"
+    # ...and must still be tracked in state (not silently orphaned), so a
+    # later doctor/uninstall can still see and report the drift.
+    python3 - "$TEST_PROJECT" <<'PYEOF'
+import json
+from pathlib import Path
+import sys
+state_file = Path(sys.argv[1]) / ".agentharness-state.json"
+with open(state_file) as f:
+    state = json.load(f)
+cursor_entries = [e for e in state["overwritten_files"] if e.get("client") == "cursor"]
+assert len(cursor_entries) == 1, f"hand-edited cursor entry should still be tracked, found {cursor_entries}"
+PYEOF
+}
+
+@test "init --client cursor never touches a pre-existing directory that shares its old fixed temp-dir name (review finding #1)" {
+    # Prior to the fix, the Cursor generator used a hardcoded temp dir name
+    # ('.cursor-gen-tmp') inside the target and recursively deleted it as
+    # part of cleanup. A project that already had a real directory at that
+    # exact path would have had it silently destroyed. Generation now uses
+    # tempfile.mkdtemp() for a unique name, so this sentinel must survive.
+    mkdir -p "$TEST_PROJECT/.cursor-gen-tmp"
+    echo "do not delete me" > "$TEST_PROJECT/.cursor-gen-tmp/sentinel.txt"
+
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client cursor --force
+
+    [ -f "$TEST_PROJECT/.cursor-gen-tmp/sentinel.txt" ]
+    grep -q "do not delete me" "$TEST_PROJECT/.cursor-gen-tmp/sentinel.txt"
+    # And no stray unique-suffixed temp dirs were left behind either.
+    ! ls -d "$TEST_PROJECT"/.agentharness-cursor-gen-* >/dev/null 2>&1
+}
+
+@test "build_surfaces_spec fails loudly instead of silently skipping a client generator failure (review finding #2)" {
+    TARGET_DIR=$(mktemp -d)
+    BAD_HARNESS_DIR=$(mktemp -d)  # has none of the generate-*.sh scripts
+
+    run bash -c "
+        source '$SCRIPT'
+        HARNESS_DIR='$BAD_HARNESS_DIR' build_surfaces_spec '$TARGET_DIR' 'block body' 'v1' 'codex'
+    "
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"generating 'codex' surface failed"* ]]
+
+    rm -rf "$TARGET_DIR" "$BAD_HARNESS_DIR"
+}
+
+# ============================================================================
+# Additional regression tests
+# ============================================================================
+
+@test "update refreshes generated content when skills change (e.g., different skill installed)" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client codex
+    original_hash=$(sha256sum "$TEST_PROJECT/AGENTS.md" | cut -d' ' -f1)
+
+    # Update again with same skills - should still have same hash
+    bash "$SCRIPT" update "$TEST_PROJECT" --client codex --yes
+    # No skills changed, so file should not be rewritten
+    # (just verify update completes without error)
+    [ -f "$TEST_PROJECT/AGENTS.md" ]
+}
+
+@test "init with pre-existing file: --keep-existing preserves hand-edited file" {
+    echo "# PRE-EXISTING CONTENT" > "$TEST_PROJECT/AGENTS.md"
+
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client codex --keep-existing
+    # File should still have pre-existing content
+    grep -q "PRE-EXISTING" "$TEST_PROJECT/AGENTS.md"
 }

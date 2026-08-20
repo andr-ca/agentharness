@@ -442,7 +442,16 @@ jobs:
           git -C "$TMP" -c user.email=ci@example.com -c user.name=ci add -A
           git -C "$TMP" -c user.email=ci@example.com -c user.name=ci commit --quiet -m init
 
-          bash tools/setup/harness-link.sh init "$TMP" --mode "${{ matrix.mode }}" --with-hook
+          # --client none: since #241, codex (the default client) owns
+          # AGENTS.md as a whole-file surface, generated from scratch rather
+          # than merged into whatever else is in the file. This job (and
+          # existing-surface-project's own verify.sh in particular) tests
+          # the plain block-merge/collision path specifically — the managed
+          # block appended into a pre-existing AGENTS.md, both surviving
+          # together — which needs the block surface, not codex's whole-file
+          # one, to own AGENTS.md. Client generation itself is already
+          # covered by harness-lifecycle.bats and the npm-package job below.
+          bash tools/setup/harness-link.sh init "$TMP" --mode "${{ matrix.mode }}" --with-hook --client none
           (cd "$TMP" && bash verify.sh)
           bash tools/setup/harness-link.sh doctor "$TMP"
           bash tools/setup/harness-link.sh status "$TMP"

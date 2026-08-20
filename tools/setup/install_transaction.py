@@ -55,11 +55,25 @@ class Classification(Enum):
     HARD_FAIL = auto()            # malformed markers, symlink, or non-regular file
 
 
-def classify_path(path: Path, *, is_block_surface: bool) -> Classification:
+def classify_path(
+    path: Path, *, is_block_surface: bool, harness_owned: bool = False
+) -> Classification:
     """Classify a target path per spec section 4's three-way rule.
     is_block_surface=True for CLAUDE.md/AGENTS.md/GEMINI.md/copilot
     files (block-managed); False for directory-style generated assets
-    like .cursor/rules/*.mdc (whole-file collision candidates)."""
+    like .cursor/rules/*.mdc (whole-file collision candidates).
+
+    harness_owned=True means the caller already confirmed, via state,
+    that this exact path was last written by the harness itself and is
+    still byte-identical to that write — e.g. AGENTS.md under the codex
+    client, re-run on a plain `update` with no skill/content changes.
+    Without this, every whole-file surface would present itself as an
+    unresolved WHOLE_FILE_COLLISION on the very next run after the one
+    that created it, since classification is otherwise a pure
+    filesystem check with no memory of who wrote what: a harness-owned,
+    untouched file should refresh silently like a block surface does,
+    while a hand-edited or genuinely foreign file must still stop for
+    collision resolution."""
     path = Path(path)
 
     if path.is_symlink():
@@ -80,6 +94,9 @@ def classify_path(path: Path, *, is_block_surface: bool) -> Classification:
         except bi.MarkerError:
             return Classification.HARD_FAIL
         return Classification.BLOCK_MANAGED
+
+    if harness_owned:
+        return Classification.CREATE
 
     return Classification.WHOLE_FILE_COLLISION
 
@@ -141,6 +158,7 @@ class Surface:
     content: str = ""
     block_id: str = "core-instructions"
     block_version: str = "0.0.0"
+    client: str = ""  # which client generated this surface (codex, cursor, etc), empty for core
 
 
 @dataclass
@@ -196,8 +214,27 @@ def build_plan(
     collision_decisions: list[dict[str, Any]] = []
 
     for surface in surfaces:
+        harness_owned = False
+        if not surface.is_block_surface and surface.path.exists():
+            rel_for_ownership = _rel(surface.path, base_dir)
+            prior_owned = next(
+                (
+                    f
+                    for f in state.get("overwritten_files", [])
+                    if f["file"] == rel_for_ownership
+                ),
+                None,
+            )
+            harness_owned = bool(
+                prior_owned
+                and prior_owned.get("created_by_harness") is True
+                and prior_owned.get("written_sha256")
+                == sha256_of_file(surface.path)
+            )
         classification = classify_path(
-            surface.path, is_block_surface=surface.is_block_surface
+            surface.path,
+            is_block_surface=surface.is_block_surface,
+            harness_owned=harness_owned,
         )
 
         if classification is Classification.HARD_FAIL:
@@ -353,6 +390,30 @@ def apply_plan(
         elif action.kind == "create":
             surface.path.parent.mkdir(parents=True, exist_ok=True)
             bi.atomic_write(surface.path, surface.content)
+            # Track created whole-file surfaces so doctor can detect drift and
+            # uninstall can clean them up. Use same created_by_harness logic
+            # as managed_blocks: check prior state first, fall back to whether
+            # the file already existed at plan time (created_by_harness=True).
+            prior = next(
+                (f for f in state["overwritten_files"] if f["file"] == rel_path),
+                None,
+            )
+            created_by_harness = (
+                prior.get("created_by_harness")
+                if prior and "created_by_harness" in prior
+                else True  # CREATE action means we're creating it, so it's ours
+            )
+            written_hash = bi.sha256_bytes(surface.content.encode())
+            entry = {
+                "file": rel_path,
+                "written_sha256": written_hash,
+                "created_by_harness": created_by_harness,
+            }
+            if surface.client:
+                entry["client"] = surface.client
+            state["overwritten_files"] = [
+                f for f in state["overwritten_files"] if f["file"] != rel_path
+            ] + [entry]
 
         elif action.kind == "overwrite_with_backup":
             backup = resolve_backup_path(
@@ -366,14 +427,17 @@ def apply_plan(
             backup_hash = sha256_of_file(backup)
             bi.atomic_write(surface.path, surface.content)
             written_hash = bi.sha256_bytes(surface.content.encode())
-            state["overwritten_files"] = [
-                f for f in state["overwritten_files"] if f["file"] != rel_path
-            ] + [{
+            entry = {
                 "file": rel_path,
                 "backup": _rel(backup, base_dir),
                 "written_sha256": written_hash,
                 "backup_sha256": backup_hash,
-            }]
+            }
+            if surface.client:
+                entry["client"] = surface.client
+            state["overwritten_files"] = [
+                f for f in state["overwritten_files"] if f["file"] != rel_path
+            ] + [entry]
 
     # Collision decisions (both "overwrite" and "keep-existing") were
     # already captured at plan time in plan.collision_decisions, using
@@ -425,6 +489,76 @@ def _prune_empty_parents(start: Path, base_dir: Path) -> None:
         current = current.parent
 
 
+def _restore_or_delete_entry(entry: dict[str, Any], base_dir: Path) -> tuple[str, bool]:
+    """Apply the harness's one safety rule for reversing a single
+    overwritten_files entry, shared by uninstall_all() (drops every
+    entry regardless of outcome) and remove_clients() (must know
+    whether cleanup actually happened, to decide whether to keep
+    tracking an entry it left in place). Returns (log_line, cleaned_up):
+    delete a harness-created file, or restore a pre-existing one from
+    backup, only when on-disk content still matches written_sha256 —
+    never touch a file a user has hand-edited since install."""
+    path = base_dir / entry["file"]
+
+    if entry.get("created_by_harness") is True:
+        if not path.exists():
+            return f"{entry['file']}: deleted since install, nothing to remove", True
+        current_hash = sha256_of_file(path)
+        if current_hash != entry["written_sha256"]:
+            return (
+                f"{entry['file']}: edited since install — left in place "
+                "(we created it and can't safely restore to nothing)",
+                False,
+            )
+        path.unlink(missing_ok=True)
+        _prune_empty_parents(path.parent, base_dir)
+        return (
+            f"{entry['file']}: removed (we created it from nothing, "
+            "and it matches what we wrote)",
+            True,
+        )
+
+    backup = base_dir / entry["backup"]
+    if not path.exists():
+        return f"{entry['file']}: deleted since install, nothing to restore", True
+    current_hash = sha256_of_file(path)
+    if current_hash != entry["written_sha256"]:
+        return (
+            f"{entry['file']}: edited since install — left in place; "
+            f"backup available at {entry['backup']}",
+            False,
+        )
+    if not backup.exists():
+        return f"{entry['file']}: backup missing ({entry['backup']}) — left in place", False
+    bi.atomic_write(path, backup.read_text())
+    return f"{entry['file']}: restored from backup", True
+
+
+def remove_clients(
+    state: dict[str, Any], base_dir: Path, removed_clients: set[str]
+) -> list[str]:
+    """Reverse only the overwritten_files entries belonging to clients no
+    longer selected (cmd_update's --client switch), using the exact same
+    per-file safety rule as uninstall_all(): delete/restore only when
+    on-disk content still matches what the harness wrote, never when a
+    user has hand-edited the file since. An entry a rule leaves in place
+    (drift or missing backup) stays tracked in overwritten_files rather
+    than being silently dropped, so 'doctor'/a later run can still see
+    and report it instead of the file going untracked with no trail."""
+    log: list[str] = []
+    remaining: list[dict[str, Any]] = []
+    for entry in state.get("overwritten_files", []):
+        if entry.get("client") in removed_clients:
+            line, cleaned_up = _restore_or_delete_entry(entry, base_dir)
+            log.append(line)
+            if not cleaned_up:
+                remaining.append(entry)
+        else:
+            remaining.append(entry)
+    state["overwritten_files"] = remaining
+    return log
+
+
 def uninstall_all(state: dict[str, Any], base_dir: Path) -> list[str]:
     """Reverse every managed block and overwritten file recorded in
     state, per the spec's per-file-class uninstall semantics. Returns a
@@ -463,25 +597,15 @@ def uninstall_all(state: dict[str, Any], base_dir: Path) -> list[str]:
         else:
             log.append(f"{entry['file']}: block not found, nothing to remove")
 
+    # Harness-created whole-file surfaces (CREATE action) have no backup: we
+    # created them from nothing, so uninstall deletes them (same logic as
+    # managed_blocks with created_by_harness=True and empty content). Files
+    # we overwrote (pre-existing) have a backup: restore from it. Both
+    # follow the one safety rule in _restore_or_delete_entry(), shared with
+    # remove_clients() — never touch a file the user has hand-edited since.
     for entry in state.get("overwritten_files", []):
-        path = base_dir / entry["file"]
-        backup = base_dir / entry["backup"]
-        if not path.exists():
-            log.append(f"{entry['file']}: deleted since install, nothing to restore")
-            continue
-        current_hash = sha256_of_file(path)
-        if current_hash != entry["written_sha256"]:
-            log.append(
-                f"{entry['file']}: edited since install — left in place; "
-                f"backup available at {entry['backup']}"
-            )
-            continue
-        if not backup.exists():
-            msg = f"{entry['file']}: backup missing ({entry['backup']}) — left in place"
-            log.append(msg)
-            continue
-        bi.atomic_write(path, backup.read_text())
-        log.append(f"{entry['file']}: restored from backup")
+        line, _ = _restore_or_delete_entry(entry, base_dir)
+        log.append(line)
 
     state["managed_blocks"] = []
     state["overwritten_files"] = []
@@ -491,6 +615,14 @@ def uninstall_all(state: dict[str, Any], base_dir: Path) -> list[str]:
 def _cli_uninstall(args: Any) -> None:
     state = load_state(Path(args.state))
     log = uninstall_all(state, base_dir=Path(args.base_dir))
+    save_state(Path(args.state), state)
+    print(json.dumps({"ok": True, "log": log}))
+
+
+def _cli_remove_clients(args: Any) -> None:
+    state = load_state(Path(args.state))
+    removed = {c for c in args.clients.split(",") if c}
+    log = remove_clients(state, Path(args.base_dir), removed)
     save_state(Path(args.state), state)
     print(json.dumps({"ok": True, "log": log}))
 
@@ -600,6 +732,17 @@ def main() -> None:
     p_uninstall.add_argument("--state", required=True)
     p_uninstall.add_argument("--base-dir", required=True)
     p_uninstall.set_defaults(func=_cli_uninstall)
+
+    p_remove_clients = sub.add_parser(
+        "remove-clients",
+        help="Reverse overwritten_files entries for clients no longer selected.",
+    )
+    p_remove_clients.add_argument("--state", required=True)
+    p_remove_clients.add_argument("--base-dir", required=True)
+    p_remove_clients.add_argument(
+        "--clients", required=True, help="comma-separated client names to remove"
+    )
+    p_remove_clients.set_defaults(func=_cli_remove_clients)
 
     args = parser.parse_args()
     args.func(args)

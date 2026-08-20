@@ -116,6 +116,11 @@ init options:
                                 docs/INTEGRATION.md#method-4-npmnpx)
   --skills a,b,c               Comma-separated list of skills (default:
                                 all; 'none' explicitly installs zero)
+  --client codex|gemini|copilot|cursor|kilo|all|none
+                                Which client router/instruction files to
+                                generate (default: codex). Comma-separated
+                                list also accepted. 'none' skips all client
+                                generation.
   --with-hook                   Install the trunk-protection hook (blocks
                                 direct commits to trunk branches). Does NOT
                                 enforce coverage on its own — see
@@ -135,6 +140,9 @@ init options:
 
 update options:
   --yes                         Skip the confirmation prompt
+  --client codex|gemini|copilot|cursor|kilo|all|none
+                                Which clients to regenerate (default: keep
+                                existing). Comma-separated list also accepted.
   --force                       Auto-overwrite whole-file collisions without prompting
   --dry-run                     Show what would happen, make no changes
   --keep-existing               Auto-keep all whole-file collisions
@@ -188,18 +196,12 @@ state_path() { echo "$1/$STATE_FILE_NAME"; }
 state_write() {
     # $1=target $2=mode $3=skills_csv $4=skills_filter(or "") $5=with_hook(true/false)
     # $6=profile(or "") $7=source_path $8=source_revision $9=source_remote(or "")
-    # $10=hooks_path(or "" — the exact core.hooksPath value this CLI actually
-    #     set; only present when with_hook installation genuinely succeeded)
-    # $11=coverage_hook(true/false — P0-03, whether the generated
-    #     enforce-profile-calling pre-push script was actually installed)
-    # $12=previous_hooks_path(or "" — the core.hooksPath value that existed
-    #     before this install; restored on uninstall when present)
-    # $13=previous_merge_ff(or "" — the merge.ff value that existed before
-    #     this install; restored on uninstall when present, issue #155)
+    # $10=hooks_path(or "") $11=coverage_hook(true/false) $12=previous_hooks_path(or "")
+    # $13=previous_merge_ff(or "") $14=clients_csv(or "")
     local target="$1" mode="$2" skills_csv="$3" skills_filter="$4" with_hook="$5"
     local profile="$6" source_path="$7" source_revision="$8" source_remote="$9"
     local hooks_path="${10:-}" coverage_hook="${11:-false}" previous_hooks_path="${12:-}"
-    local previous_merge_ff="${13:-}"
+    local previous_merge_ff="${13:-}" clients_csv="${14:-}"
     local existing_installed_at=""
     if [ -f "$(state_path "$target")" ]; then
         existing_installed_at="$(state_field "$target" "installed_at" || true)"
@@ -209,7 +211,7 @@ state_write() {
     AH_SOURCE_REVISION="$source_revision" AH_SOURCE_REMOTE="$source_remote" \
     AH_HOOKS_PATH="$hooks_path" AH_COVERAGE_HOOK="$coverage_hook" \
     AH_PREVIOUS_HOOKS_PATH="$previous_hooks_path" \
-    AH_PREVIOUS_MERGE_FF="$previous_merge_ff" \
+    AH_PREVIOUS_MERGE_FF="$previous_merge_ff" AH_CLIENTS_CSV="$clients_csv" \
     AH_EXISTING_INSTALLED_AT="$existing_installed_at" \
     python3 - "$(state_path "$target")" <<'PYEOF'
 import datetime
@@ -220,6 +222,7 @@ from pathlib import Path
 
 path = sys.argv[1]
 skills_csv = os.environ.get("AH_SKILLS_CSV", "")
+clients_csv = os.environ.get("AH_CLIENTS_CSV", "")
 now = datetime.datetime.now(datetime.timezone.utc).isoformat()
 existing_installed_at = os.environ.get("AH_EXISTING_INSTALLED_AT") or now
 
@@ -244,6 +247,7 @@ data = {
     },
     "skills": [s for s in skills_csv.split(",") if s],
     "skills_filter": os.environ.get("AH_SKILLS_FILTER") or None,
+    "clients": [c for c in clients_csv.split(",") if c],
     "with_hook": os.environ.get("AH_WITH_HOOK") == "true",
     "hooks_path": os.environ.get("AH_HOOKS_PATH") or None,
     "previous_hooks_path": os.environ.get("AH_PREVIOUS_HOOKS_PATH") or None,
@@ -477,6 +481,25 @@ resolve_wanted_skills() {
 # filesystem mutation — an invalid name aborts the whole command, atomically.
 # An explicit filter of exactly "none" is the one sanctioned way to request
 # zero skills; anything else that resolves to nothing is treated as an error.
+validate_client_filter() {
+    local source_path="$1" filter="${2:-}"
+    local known_clients="codex gemini copilot cursor kilo"
+    if [ "$filter" = "all" ] || [ "$filter" = "none" ]; then
+        return 0
+    fi
+    if [ -z "$filter" ]; then
+        return 0
+    fi
+    local client
+    for client in ${filter//,/ }; do
+        if ! echo "$known_clients" | grep -qw "$client"; then
+            echo "Error: unknown client '$client' (valid: codex, gemini, copilot, cursor, kilo, all, none)" >&2
+            return 1
+        fi
+    done
+    return 0
+}
+
 validate_skills_filter() {
     local skills_src_root="$1" filter="$2"
     [ "$filter" = "none" ] && return 0
@@ -675,17 +698,146 @@ EOF
 }
 
 build_surfaces_spec() {
-    local target="$1" block_body="$2" block_version="$3"
+    local target="$1" block_body="$2" block_version="$3" clients="${4:-}"
     python3 -c "
-import json, sys
-target, body, version = sys.argv[1], sys.argv[2], sys.argv[3]
+import json, sys, subprocess, os, tempfile
+target, body, version, clients_str, harness_dir = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5]
+gen_dir = os.path.join(harness_dir, 'tools')
+
+surfaces = []
+
+# Parse selected clients
+if clients_str == 'all':
+    selected = ['codex', 'gemini', 'copilot', 'cursor', 'kilo']
+elif clients_str == 'none' or not clients_str:
+    selected = []
+else:
+    selected = [c.strip() for c in clients_str.split(',') if c.strip()]
+
+# A selected client that generates a whole-file surface for one of the four
+# block-managed files takes ownership of that file instead of the block: it
+# renders the harness's full, curated content there rather than splicing a
+# block into whatever else lives in the file. Without this exclusion, both
+# surfaces would target the same path — the block surface silently succeeds
+# first, then the whole-file surface treats the now-block-containing file as
+# an unexpected whole-file collision requiring interactive resolution, which
+# breaks unattended installs by default (codex is the default client).
+client_owns_block_file = {
+    'codex': 'AGENTS.md',
+    'gemini': 'GEMINI.md',
+    'copilot': '.github/copilot-instructions.md',
+}
+claimed_block_files = {client_owns_block_file[c] for c in selected if c in client_owns_block_file}
+
+# Always add the block-managed instruction files not claimed by a selected client
 block_files = ['CLAUDE.md', 'AGENTS.md', 'GEMINI.md', '.github/copilot-instructions.md']
-print(json.dumps([
-    {'path': f'{target}/{f}', 'is_block_surface': True, 'block_body': body,
-     'block_id': 'core-instructions', 'block_version': version}
-    for f in block_files
-]))
-" "$target" "$block_body" "$block_version"
+for f in block_files:
+    if f in claimed_block_files:
+        continue
+    surfaces.append({
+        'path': f'{target}/{f}',
+        'is_block_surface': True,
+        'block_body': body,
+        'block_id': 'core-instructions',
+        'block_version': version
+    })
+
+# Generate whole-file surfaces for each selected client
+def _generation_failed(client, exc):
+    # A selected client that fails to generate is not a soft skip: for
+    # codex/gemini/copilot specifically it now OWNS one of the four core
+    # instruction files (see client_owns_block_file above), so a silently
+    # swallowed failure here means that file goes completely unmanaged
+    # while state still records the client as installed. Fail the whole
+    # spec build loudly instead — init/update must not report success
+    # while quietly leaving a requested client's surface missing.
+    print(f\"agentharness: generating '{client}' surface failed: {exc}\", file=sys.stderr)
+    sys.exit(1)
+
+for client in selected:
+    if client == 'codex':
+        try:
+            # Write to temp file inside target so skill-scoping walk-up works correctly
+            with tempfile.NamedTemporaryFile(dir=target, suffix='.md', delete=False, mode='w') as tmp:
+                tmp_path = tmp.name
+            try:
+                subprocess.check_call(['bash', f'{gen_dir}/generate-agents-md.sh', harness_dir, '--output', tmp_path], stderr=subprocess.DEVNULL)
+                with open(tmp_path) as f:
+                    content = f.read()
+                surfaces.append({'path': f'{target}/AGENTS.md', 'is_block_surface': False, 'content': content, 'client': 'codex'})
+            finally:
+                os.unlink(tmp_path)
+        except (subprocess.CalledProcessError, OSError) as exc:
+            _generation_failed(client, exc)
+    elif client == 'gemini':
+        try:
+            with tempfile.NamedTemporaryFile(dir=target, suffix='.md', delete=False, mode='w') as tmp:
+                tmp_path = tmp.name
+            try:
+                subprocess.check_call(['bash', f'{gen_dir}/generate-gemini-md.sh', harness_dir, '--output', tmp_path], stderr=subprocess.DEVNULL)
+                with open(tmp_path) as f:
+                    content = f.read()
+                surfaces.append({'path': f'{target}/GEMINI.md', 'is_block_surface': False, 'content': content, 'client': 'gemini'})
+            finally:
+                os.unlink(tmp_path)
+        except (subprocess.CalledProcessError, OSError) as exc:
+            _generation_failed(client, exc)
+    elif client == 'copilot':
+        try:
+            with tempfile.NamedTemporaryFile(dir=target, suffix='.md', delete=False, mode='w') as tmp:
+                tmp_path = tmp.name
+            try:
+                subprocess.check_call(['bash', f'{gen_dir}/generate-copilot-instructions.sh', harness_dir, '--output', tmp_path], stderr=subprocess.DEVNULL)
+                with open(tmp_path) as f:
+                    content = f.read()
+                surfaces.append({'path': f'{target}/.github/copilot-instructions.md', 'is_block_surface': False, 'content': content, 'client': 'copilot'})
+            finally:
+                os.unlink(tmp_path)
+        except (subprocess.CalledProcessError, OSError) as exc:
+            _generation_failed(client, exc)
+    elif client == 'cursor':
+        # mkdtemp mints a unique, freshly-created directory name inside
+        # target, so this can never collide with a pre-existing directory
+        # (unlike a fixed name such as '.cursor-gen-tmp', which risked the
+        # cleanup below recursively deleting user data that happened to
+        # already live at that path).
+        tmpdir = tempfile.mkdtemp(dir=target, prefix='.agentharness-cursor-gen-')
+        try:
+            subprocess.check_call(['bash', f'{gen_dir}/generate-cursor-rules.sh', harness_dir, '--output-dir', tmpdir], stderr=subprocess.DEVNULL)
+            # generate-cursor-rules.sh creates files at tmpdir/.cursor/rules/
+            rules_dir = os.path.join(tmpdir, '.cursor', 'rules')
+            if os.path.isdir(rules_dir):
+                for fname in os.listdir(rules_dir):
+                    if fname.endswith('.mdc'):
+                        with open(os.path.join(rules_dir, fname)) as f:
+                            content = f.read()
+                        surfaces.append({'path': f'{target}/.cursor/rules/{fname}', 'is_block_surface': False, 'content': content, 'client': 'cursor'})
+        except (subprocess.CalledProcessError, OSError) as exc:
+            _generation_failed(client, exc)
+        finally:
+            # Recursively clean up tmpdir tree
+            for root, dirs, files in os.walk(tmpdir, topdown=False):
+                for f in files:
+                    os.unlink(os.path.join(root, f))
+                for d in dirs:
+                    os.rmdir(os.path.join(root, d))
+            os.rmdir(tmpdir)
+    elif client == 'kilo':
+        try:
+            with tempfile.NamedTemporaryFile(dir=target, suffix='.md', delete=False, mode='w') as tmp:
+                tmp_path = tmp.name
+            try:
+                subprocess.check_call(['bash', f'{gen_dir}/generate-kilo-rules.sh', harness_dir, '--output', tmp_path], stderr=subprocess.DEVNULL)
+                with open(tmp_path) as f:
+                    content = f.read()
+                surfaces.append({'path': f'{target}/.kilo/rules/agentharness.md', 'is_block_surface': False, 'content': content, 'client': 'kilo'})
+            finally:
+                os.unlink(tmp_path)
+        except (subprocess.CalledProcessError, OSError) as exc:
+            _generation_failed(client, exc)
+
+print(json.dumps(surfaces))
+" "$target" "$block_body" "$block_version" "$clients" "$HARNESS_DIR"
 }
 
 resolve_collisions_and_apply() {
@@ -881,13 +1033,14 @@ warn_if_untracked() {
 # ----------------------------------------------------------------------------
 
 cmd_init() {
-    local target="" mode="copy" skills_filter="" with_hook=false force=false
+    local target="" mode="copy" skills_filter="" client_filter="codex" with_hook=false force=false
     local profile="" dry_run=false coverage_hook=false keep_existing=false
 
     while [ $# -gt 0 ]; do
         case "$1" in
             --mode) mode="$2"; shift 2 ;;
             --skills) skills_filter="$2"; shift 2 ;;
+            --client) client_filter="$2"; shift 2 ;;
             --with-hook) with_hook=true; shift ;;
             --with-coverage-hook) with_hook=true; coverage_hook=true; shift ;;
             --force) force=true; shift ;;
@@ -937,6 +1090,12 @@ cmd_init() {
     if ! validate_skills_filter "$skills_src_root" "$skills_filter"; then
         echo "Error: one or more requested skill names are invalid or unknown — aborting before making any changes." >&2
         echo "Use --skills none to explicitly install zero skills." >&2
+        exit 1
+    fi
+
+    if ! validate_client_filter "$skills_src_root" "$client_filter"; then
+        echo "Error: one or more requested client names are invalid or unknown — aborting before making any changes." >&2
+        echo "Use --client none to explicitly install zero clients." >&2
         exit 1
     fi
 
@@ -1287,6 +1446,17 @@ cmd_init() {
     local skills_csv
     skills_csv="$(IFS=,; echo "${linked_skills[*]}")"
 
+    # Expand client_filter to full CSV: "all" -> "codex,gemini,copilot,cursor,kilo",
+    # "none" -> "", or pass through as-is.
+    local clients_csv
+    if [ "$client_filter" = "all" ]; then
+        clients_csv="codex,gemini,copilot,cursor,kilo"
+    elif [ "$client_filter" = "none" ]; then
+        clients_csv=""
+    else
+        clients_csv="$client_filter"
+    fi
+
     # Existing-surface integration (docs/superpowers/specs/2026-07-17-existing-surface-integration-design.md):
     # render managed blocks into any instructions files the consumer
     # already has, and handle whole-file collisions on generated
@@ -1296,7 +1466,7 @@ cmd_init() {
     local surfaces_json rendered_block install_id
     install_id="$(python3 -c 'import uuid; print(uuid.uuid4().hex[:8])')"
     rendered_block="$(render_core_instructions_block "$target" "$skills_csv")"
-    surfaces_json="$(build_surfaces_spec "$target" "$rendered_block" "$source_revision")"
+    surfaces_json="$(build_surfaces_spec "$target" "$rendered_block" "$source_revision" "$clients_csv")"
 
     resolve_collisions_and_apply "$target" "$surfaces_json" "$install_id" "$force" "$dry_run" "$keep_existing" || {
         release_install_lock "$target"
@@ -1307,7 +1477,7 @@ cmd_init() {
     # Pass the pre-install hooks path so uninstall can restore it (F-05)
     state_write "$target" "$mode" "$skills_csv" "$skills_filter" "$with_hook" \
         "$profile" "$skills_src_root" "$source_revision" "$source_remote" "$installed_hooks_path" "$coverage_hook" \
-        "${existing_hooks_path:-}" "${existing_merge_ff:-}"
+        "${existing_hooks_path:-}" "${existing_merge_ff:-}" "$clients_csv"
 
     warn_if_untracked "$target" "$dry_run"
 
@@ -1550,6 +1720,7 @@ for s in json.load(sys.stdin)["summary"]:
 
     # Managed-block drift: does the block currently on disk still match
     # what was recorded (by hash) when it was last installed/updated?
+    # Also check whole-file surfaces (overwritten_files): did they change since install?
     python3 -c "
 import hashlib
 import sys
@@ -1559,6 +1730,8 @@ import block_installer as bi
 
 state = it.load_state('$(state_path "$target")')
 any_drift = False
+
+# Check managed blocks
 for entry in state.get('managed_blocks', []):
     path = '$target/' + entry['file']
     try:
@@ -1584,6 +1757,21 @@ for entry in state.get('managed_blocks', []):
         any_drift = True
     else:
         print(f'  OK: {entry[\"file\"]}: managed block matches last-recorded render')
+
+# Check whole-file surfaces (overwritten_files)
+for entry in state.get('overwritten_files', []):
+    path = '$target/' + entry['file']
+    try:
+        current_hash = bi.sha256_bytes(open(path, 'rb').read())
+    except FileNotFoundError:
+        print(f'  note: {entry[\"file\"]}: deleted since install, nothing to verify')
+        continue
+    if current_hash != entry.get('written_sha256'):
+        print(f'  drift: {entry[\"file\"]}: on-disk generated file does not match last-recorded render (hand-edited, or a version bump is pending — re-run update)')
+        any_drift = True
+    else:
+        print(f'  OK: {entry[\"file\"]}: generated file matches last-recorded render')
+
 sys.exit(1 if any_drift else 0)
 " || failed=1
 
@@ -2388,11 +2576,12 @@ confirm() {
 }
 
 cmd_update() {
-    local target="" yes=false force=false dry_run=false keep_existing=false
+    local target="" yes=false force=false dry_run=false keep_existing=false client_filter=""
     while [ $# -gt 0 ]; do
         case "$1" in
             --yes) yes=true; shift ;;
             --force) force=true; shift ;;
+            --client) client_filter="$2"; shift 2 ;;
             --dry-run) dry_run=true; shift ;;
             --keep-existing) keep_existing=true; shift ;;
             -h|--help) usage; exit 0 ;;
@@ -2402,6 +2591,16 @@ cmd_update() {
     target="${target:-.}"
     [ -d "$target" ] && target="$(cd "$target" && pwd)"
     require_state "$target"
+
+    # Validate before any mutation, same as cmd_init: an unknown client name
+    # here would otherwise flow straight into build_surfaces_spec's Python
+    # (untrusted string interpolation) and into state as a silently-recorded
+    # bogus client, rather than failing loudly up front.
+    if ! validate_client_filter "$target" "$client_filter"; then
+        echo "Error: one or more requested client names are invalid or unknown — aborting before making any changes." >&2
+        echo "Use --client none to explicitly install zero clients." >&2
+        exit 1
+    fi
 
     local mode source_path skills_filter with_hook profile hooks_path coverage_hook
     local previous_hooks_path previous_merge_ff
@@ -2425,6 +2624,27 @@ cmd_update() {
     coverage_hook="$(state_field "$target" coverage_hook 2>/dev/null || echo "false")"
     profile="$(state_field "$target" profile 2>/dev/null || echo "")"
     [ "$profile" = "None" ] && profile=""
+    local clients_csv
+    if [ -n "$client_filter" ]; then
+        # Override with --client flag
+        if [ "$client_filter" = "all" ]; then
+            clients_csv="codex,gemini,copilot,cursor,kilo"
+        elif [ "$client_filter" = "none" ]; then
+            clients_csv=""
+        else
+            clients_csv="$client_filter"
+        fi
+    else
+        # state_field already comma-joins list-typed fields (see its own
+        # `",".join(cur)` for `isinstance(cur, list)`), so this is already
+        # the CSV build_surfaces_spec wants — not a JSON array to re-parse.
+        # Re-parsing it as JSON here silently failed (empty is not valid
+        # JSON either), and the swallowed exception reset clients_csv to
+        # "" on every `update` that omits --client — dropping every
+        # client's whole-file ownership (e.g. codex's AGENTS.md) back to
+        # the plain block-managed surface one update after init set it up.
+        clients_csv="$(state_field "$target" clients 2>/dev/null || echo "")"
+    fi
 
     # P0-02: 'npm' mode's whole point is that source_path (the durable local
     # copy) must NOT be diffed against its own prior self to detect
@@ -2491,7 +2711,7 @@ cmd_update() {
         local surfaces_json rendered_block install_id
         install_id="$(python3 -c 'import uuid; print(uuid.uuid4().hex[:8])')"
         rendered_block="$(render_core_instructions_block "$target" "$dry_run_skills_csv")"
-        surfaces_json="$(build_surfaces_spec "$target" "$rendered_block" "$dry_run_source_revision")"
+        surfaces_json="$(build_surfaces_spec "$target" "$rendered_block" "$dry_run_source_revision" "$clients_csv")"
         resolve_collisions_and_apply "$target" "$surfaces_json" "$install_id" "$force" "$dry_run" "$keep_existing" || {
             release_install_lock "$target"
             exit 1
@@ -2587,11 +2807,39 @@ cmd_update() {
     new_skills_csv="$(IFS=,; echo "${current[*]}")"
 
     # Existing-surface integration: same as cmd_init
+    # Before applying new surfaces, handle client switching: if --client was
+    # specified and differs from state, reverse files for removed clients.
+    # Delegates to install_transaction.py's remove_clients(), which applies
+    # the exact same per-file safety rule as 'uninstall' (delete/restore
+    # only when on-disk content still matches what the harness wrote; a
+    # hand-edited file is left in place and stays tracked) rather than the
+    # unconditional delete this used to do inline.
+    if [ -n "$client_filter" ]; then
+        local old_clients_csv
+        old_clients_csv="$(state_field "$target" clients 2>/dev/null || echo "")"
+        local removed_clients_csv
+        removed_clients_csv="$(python3 -c "
+old = set('$old_clients_csv'.split(',')) if '$old_clients_csv' else set()
+new = set('$clients_csv'.split(',')) if '$clients_csv' else set()
+print(','.join(sorted(old - new)))
+")"
+        if [ -n "$removed_clients_csv" ]; then
+            local remove_clients_json
+            remove_clients_json="$(python3 "$HARNESS_DIR/tools/setup/install_transaction.py" remove-clients \
+                --state "$(state_path "$target")" --base-dir "$target" --clients "$removed_clients_csv")"
+            echo "$remove_clients_json" | python3 -c '
+import json, sys
+for line in json.load(sys.stdin)["log"]:
+    print("  " + line)
+'
+        fi
+    fi
+
     acquire_install_lock "$target" || exit 1
     local surfaces_json rendered_block install_id
     install_id="$(python3 -c 'import uuid; print(uuid.uuid4().hex[:8])')"
     rendered_block="$(render_core_instructions_block "$target" "$new_skills_csv")"
-    surfaces_json="$(build_surfaces_spec "$target" "$rendered_block" "$source_revision")"
+    surfaces_json="$(build_surfaces_spec "$target" "$rendered_block" "$source_revision" "$clients_csv")"
     resolve_collisions_and_apply "$target" "$surfaces_json" "$install_id" "$force" "$dry_run" "$keep_existing" || {
         release_install_lock "$target"
         exit 1
@@ -2600,7 +2848,7 @@ cmd_update() {
 
     state_write "$target" "$mode" "$new_skills_csv" "$skills_filter" "$with_hook" \
         "$profile" "$source_path" "$source_revision" "$source_remote" "$hooks_path" "$coverage_hook" \
-        "$previous_hooks_path" "$previous_merge_ff"
+        "$previous_hooks_path" "$previous_merge_ff" "$clients_csv"
 
     warn_if_untracked "$target" false
 
