@@ -68,9 +68,17 @@ to install every skill, or start narrow and widen later with `update
 - `.claude/skills/<name>/` (and `.agents/skills/<name>/` — the
   Agent-Skills-standard path most non-Claude clients also read) for
   each selected skill.
-- A managed block spliced into your existing `CLAUDE.md` (created fresh
-  if you don't have one) — your file's other content is left alone; see
+- A managed block spliced into `CLAUDE.md`, `GEMINI.md`, and
+  `.github/copilot-instructions.md` (created fresh if you don't have
+  them) — your file's other content is left alone; see
   [docs/DEMO.md](DEMO.md) for exactly what that block looks like.
+  `AGENTS.md` is the one exception: Codex CLI is the default client
+  (`--client codex`), and a selected client that owns one of these four
+  files (Codex → `AGENTS.md`) generates it whole-file instead of
+  splicing a block in. If you're migrating from an existing `AGENTS.md`,
+  that means a collision prompt (keep/overwrite/backup) on first `init`,
+  not a silent splice — pass `--client none` if you'd rather have
+  `AGENTS.md` treated the same block-splice way as the other three.
 - `.agentharness-state.json`, recording mode, source revision, and
   installed skills/clients — `status`/`doctor`/`update`/`uninstall` all
   read this to know what they're managing.
@@ -105,18 +113,25 @@ not instead of it.
 
 ### 5. Keeping it current
 
-`harness-link.sh update /path/to/your-project` (or `npx
-agentharness-toolkit@latest update ...` for npm mode) re-syncs the
-managed block and installed skills/clients to whatever revision you're
-pinned to — see [docs/RELEASING.md](RELEASING.md#pin-upgrade-rollback)
-for exactly when each install mode picks up a change. `doctor` verifies
-the install is healthy; `audit --json` gives a machine-readable status
-snapshot.
+```bash
+npx agentharness-toolkit@latest update /path/to/your-project
+```
+
+(or `harness-link.sh update ...` if you installed via `git clone`
+instead of `npx`) re-syncs the managed block and installed
+skills/clients to whatever revision you're pinned to — see
+[docs/RELEASING.md](RELEASING.md#pin-upgrade-rollback) for exactly when
+each install mode picks up a change. `doctor` verifies the install is
+healthy; `audit --json` gives a machine-readable status snapshot.
 
 ### 6. Backing out
 
-`harness-link.sh uninstall /path/to/your-project` removes the managed
-block (restoring your original content if the file predates the
+```bash
+npx agentharness-toolkit uninstall /path/to/your-project
+```
+
+(same `harness-link.sh uninstall ...` alternative as above) removes the
+managed block (restoring your original content if the file predates the
 install), deletes files the harness created from nothing, and cleans up
 `.agentharness-state.json`. Nothing installed by `init` is left behind
 — see [docs/DEMO.md](DEMO.md) if you want to watch this in a scripted
