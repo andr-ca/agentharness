@@ -691,7 +691,6 @@ EOF
 
 build_surfaces_spec() {
     local target="$1" block_body="$2" block_version="$3" clients="${4:-}"
-    local harness_dir="$HARNESS_DIR"
     python3 -c "
 import json, sys, subprocess, os
 target, body, version, clients_str = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
