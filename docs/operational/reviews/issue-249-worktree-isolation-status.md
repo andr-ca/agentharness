@@ -61,9 +61,9 @@ PR #250's review thread for the verified-against-current-code replies.
 
 ## Deferred items — request for the operator
 
-#3 (mechanical hook enforcement) and #7 (optional consumer script) are
-real, reasonable follow-ups, not rejected — they're new tooling
-decisions per the Recommendation Assessment mandate's "anything larger"
+Items #3 (mechanical hook enforcement) and #7 (optional consumer
+script) are real, reasonable follow-ups, not rejected — they're new
+tooling decisions per the Recommendation Assessment mandate's "anything larger"
 bar, so building them wasn't folded into this doc fix. Flagging on
 [#249](https://github.com/andr-ca/agentharness/issues/249) for the
 operator to scope explicitly if wanted; issue left open rather than
