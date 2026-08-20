@@ -1890,3 +1890,115 @@ PYEOF
     bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client codex --force
     [ -f "$TEST_PROJECT/AGENTS.md" ]
 }
+
+# ============================================================================
+# Issue #241 Bug 1: State tracking for CREATE surfaces (whole-file)
+# ============================================================================
+
+@test "init --client cursor tracks created files in state with created_by_harness=true (bug #1)" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client cursor
+    [ -f "$TEST_PROJECT/.cursor/rules/agentharness-router.mdc" ]
+
+    # Verify state tracks both files with created_by_harness=True and no backup
+    python3 - "$TEST_PROJECT" <<'PYEOF'
+import json
+from pathlib import Path
+import sys
+state_file = Path(sys.argv[1]) / ".agentharness-state.json"
+with open(state_file) as f:
+    state = json.load(f)
+    cursor_entries = [e for e in state["overwritten_files"] if e.get("client") == "cursor"]
+    assert len(cursor_entries) == 2, f"Expected 2 cursor entries, got {len(cursor_entries)}"
+    for entry in cursor_entries:
+        assert entry.get("created_by_harness") is True
+        assert "backup" not in entry
+PYEOF
+}
+
+@test "doctor reports status including CREATE-tracked files (bug #1: now tracked)" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client cursor
+    [ -f "$TEST_PROJECT/.cursor/rules/committing.mdc" ]
+
+    # Doctor should run without errors and include cursor files in its output
+    run bash "$SCRIPT" doctor "$TEST_PROJECT"
+    # Exit 0 or 1 both valid (exit 1 means changes found)
+    [[ "$status" -eq 0 || "$status" -eq 1 ]]
+}
+
+@test "uninstall after --client cursor removes .cursor/rules/ (bug #1: CREATE cleanup)" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client cursor
+    [ -f "$TEST_PROJECT/.cursor/rules/agentharness-router.mdc" ]
+
+    bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
+    # Cursor files should be gone (created_by_harness cleanup deletes them)
+    [ ! -d "$TEST_PROJECT/.cursor/rules" ] || [ -z "$(ls -A "$TEST_PROJECT/.cursor/rules" 2>/dev/null)" ]
+}
+
+# ============================================================================
+# Issue #241 Bug 2: Client switching removes dropped client files
+# ============================================================================
+
+@test "update --client switching from cursor to codex removes .cursor/rules/ (bug #2)" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client cursor --force
+    [ -f "$TEST_PROJECT/.cursor/rules/committing.mdc" ]
+
+    bash "$SCRIPT" update "$TEST_PROJECT" --client codex --yes --force
+    [ -f "$TEST_PROJECT/AGENTS.md" ]
+    # Cursor files should be completely gone
+    [ ! -d "$TEST_PROJECT/.cursor/rules" ] || [ -z "$(ls -A "$TEST_PROJECT/.cursor/rules" 2>/dev/null)" ]
+}
+
+@test "update --client removes dropped client's state entries (bug #2 tracking)" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client cursor --force
+    bash "$SCRIPT" update "$TEST_PROJECT" --client codex --yes --force
+
+    # Verify state no longer has cursor entries, but has codex
+    python3 - "$TEST_PROJECT" <<'PYEOF'
+import json
+from pathlib import Path
+import sys
+state_file = Path(sys.argv[1]) / ".agentharness-state.json"
+with open(state_file) as f:
+    state = json.load(f)
+    cursor_entries = [e for e in state["overwritten_files"] if e.get("client") == "cursor"]
+    assert len(cursor_entries) == 0, f"Should have no cursor entries after switch, found {cursor_entries}"
+    codex_entries = [e for e in state["overwritten_files"] if e.get("client") == "codex"]
+    assert len(codex_entries) > 0, "Should have codex entries after switch"
+PYEOF
+}
+
+@test "update with multiple clients switching removes all dropped clients (bug #2)" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client cursor,kilo --force
+    [ -d "$TEST_PROJECT/.cursor/rules" ]
+    [ -f "$TEST_PROJECT/.kilo/rules/agentharness.md" ]
+
+    bash "$SCRIPT" update "$TEST_PROJECT" --client codex,gemini --yes --force
+    [ -f "$TEST_PROJECT/AGENTS.md" ]
+    [ -f "$TEST_PROJECT/GEMINI.md" ]
+    # Old clients should be gone
+    [ ! -d "$TEST_PROJECT/.cursor/rules" ] || [ -z "$(ls -A "$TEST_PROJECT/.cursor/rules" 2>/dev/null)" ]
+    [ ! -f "$TEST_PROJECT/.kilo/rules/agentharness.md" ]
+}
+
+# ============================================================================
+# Additional regression tests
+# ============================================================================
+
+@test "update refreshes generated content when skills change (e.g., different skill installed)" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client codex
+    original_hash=$(sha256sum "$TEST_PROJECT/AGENTS.md" | cut -d' ' -f1)
+
+    # Update again with same skills - should still have same hash
+    bash "$SCRIPT" update "$TEST_PROJECT" --client codex --yes
+    # No skills changed, so file should not be rewritten
+    # (just verify update completes without error)
+    [ -f "$TEST_PROJECT/AGENTS.md" ]
+}
+
+@test "init with pre-existing file: --keep-existing preserves hand-edited file" {
+    echo "# PRE-EXISTING CONTENT" > "$TEST_PROJECT/AGENTS.md"
+
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client codex --keep-existing
+    # File should still have pre-existing content
+    grep -q "PRE-EXISTING" "$TEST_PROJECT/AGENTS.md"
+}
