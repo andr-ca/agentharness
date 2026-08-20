@@ -14,8 +14,7 @@ doesn't prove" below.
 agentharness-toolkit@latest update`.
 **Source:** compiled from `andr-ca/recalium`'s own
 [`docs/operational/harness-feedback.md`](https://github.com/andr-ca/recalium/blob/main/docs/operational/harness-feedback.md)
-(520 lines, 7 dated entries) and the 7 upstream issues it produced (#76,
-#77, #78, #79, #88, #149, #154 — all closed, all fixed upstream).
+(520 lines, 7 dated entries) and the 7 upstream issues it produced (#76, #77, #78, #79, #88, #149, #154 — all closed, all fixed upstream).
 
 ## Why this doc exists
 
