@@ -6,6 +6,8 @@ section into a tagged version.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-08-21
+
 ### Added
 - **Context Plane: `context.yaml` asset registry (Slice 1, issue #196).**
   A new registry lists this repo's assets (skills, guides,
