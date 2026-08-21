@@ -584,6 +584,21 @@ print(os.path.relpath(sys.argv[1], os.path.dirname(sys.argv[2])))
 # "0.2.0" tells a consumer far more than a git SHA they can't independently
 # look up) and falls back to a git revision for link/copy/submodule modes,
 # whose skills_src_root is a real git checkout.
+#
+# Requires src_root to have its own .git before shelling out, matching
+# source_head_rev()'s guard above — found live-verifying a real --mode copy
+# install into a *fresh, unborn-branch* consumer repo (git init, no commits
+# yet, the ordinary first-run state before an operator's first commit):
+# src_root (an npm-installed, .git-less copy) has no .git of its own, so
+# plain 'git -C "$src_root" rev-parse HEAD' walks up and finds the
+# *consumer's* unborn repo instead. On an unborn branch, `rev-parse HEAD`
+# prints the literal string "HEAD" to stdout before failing with exit 128
+# — the `2>/dev/null || echo unknown` fallback only ever suppressed
+# stderr, so that leading "HEAD" line survived into the captured value,
+# producing a malformed two-line revision string ("HEAD\nunknown") that
+# then broke the block-splice marker it gets embedded into: `update`
+# failed outright with "malformed markers or unsafe target" on every one
+# of the 4 always-on files (issue #247 live verification).
 source_revision_for() {
     local src_root="$1" mode="$2"
     if [ "$mode" = "npm" ] && [ -f "$src_root/package.json" ]; then
@@ -596,7 +611,11 @@ with open(sys.argv[1] + '/package.json') as f:
     print(json.load(f)['version'])
 " "$src_root" 2>/dev/null && return
     fi
-    git -C "$src_root" rev-parse HEAD 2>/dev/null || echo unknown
+    if [ -e "$src_root/.git" ]; then
+        git -C "$src_root" rev-parse HEAD 2>/dev/null || echo unknown
+    else
+        echo unknown
+    fi
 }
 
 # ----------------------------------------------------------------------------
@@ -3319,6 +3338,9 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
             ;;
         __test_resolve_collisions_and_apply)
             shift; resolve_collisions_and_apply "$@"; exit $?
+            ;;
+        __test_source_revision_for)
+            shift; source_revision_for "$@"; exit $?
             ;;
         init|plan|status|doctor|audit|audit-prs|enforce-profile|generate-clients|update|uninstall)
             cmd="$1"; shift

@@ -33,6 +33,22 @@ section into a tagged version.
   `.kilo/rules/agentharness.md` wrap the phrase across two lines and
   never matched. Fixed by matching across the whole file
   (`grep -Pzo` with `[\s\S]`) instead of one line.
+- **`update` failed outright with "malformed markers or unsafe target"
+  on every one of the 4 always-on files, for any real npm/copy install
+  into a fresh consumer repo with no commits yet.** Also found
+  live-verifying v0.8.0 against the real npm registry per issue #247.
+  `source_revision_for()` never got the same `.git`-presence guard
+  `source_head_rev()` was already fixed to use (v0.7.1): a real
+  install's source directory (`node_modules/agentharness-toolkit`, or a
+  durable `--mode copy`/`npm` copy) has no `.git` of its own, so plain
+  `git -C "$src_root" rev-parse HEAD` walks up and finds the
+  *consumer's* `.git` instead. On a genuinely unborn branch (`git init`,
+  no commit yet — the ordinary state before an operator's first
+  commit), `rev-parse HEAD` prints the literal string `HEAD` to stdout
+  before failing, so the `2>/dev/null || echo unknown` fallback only
+  ever suppressed stderr — the leading `HEAD` line survived into the
+  recorded revision (`HEAD\nunknown`), corrupting the block-splice
+  marker it gets embedded into.
 
 ## [0.8.0] - 2026-08-21
 
