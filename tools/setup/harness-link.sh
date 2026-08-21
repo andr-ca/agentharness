@@ -3207,7 +3207,20 @@ with open(state_path) as f:
     data = json.load(f)
 
 blocks = data.get("managed_blocks", [])
-if not any(b.get("file") == file_rel for b in blocks):
+# Only a block this harness created from nothing (matching the bar
+# _gc_is_state_managed_block already requires before letting the write
+# through unforced) is safe to re-record as an overwritten_files entry
+# with created_by_harness=True. A managed_blocks entry with
+# created_by_harness=False means init spliced its block into a file the
+# operator already owned — reachable here only via --force overwriting
+# it. That prior content is already gone from disk by the time this
+# runs, so there is no way to construct the "backup" field
+# _restore_or_delete_entry() requires for a non-harness-created
+# overwritten_files entry; recording it as True instead would make a
+# later uninstall delete a file this harness never actually created.
+# Leave state as-is for that case — doctor's resulting drift/malformed-
+# markers report is the correct signal, not a bug to paper over.
+if not any(b.get("file") == file_rel and b.get("created_by_harness") is True for b in blocks):
     sys.exit(0)
 data["managed_blocks"] = [b for b in blocks if b.get("file") != file_rel]
 
