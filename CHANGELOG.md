@@ -6,6 +6,14 @@ section into a tagged version.
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-08-21
+
+PATCH, not MINOR: both fixes below make an already-documented path
+(the `init` then `generate-clients` flow; `update` against a fresh
+consumer repo) work as documented, with no behavior change for a
+caller not hitting these bugs — no flag, subcommand, or `--mode` value
+is added, renamed, or removed.
+
 ### Fixed
 - **`generate-clients --client copilot` (or `codex`/`gemini`) falsely
   reported a file `init` had just written as "not created by this
