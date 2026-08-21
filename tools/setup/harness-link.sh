@@ -23,10 +23,10 @@
 #   enforce-profile
 #             Read .agentharness-profile and gate on it for real for a
 #             detected Python (pytest --cov-fail-under), Go (go test +
-#             go tool cover), or Vitest JS/TS project at the selected
+#             go tool cover), or Vitest/Jest JS/TS project at the selected
 #             tier's coverage_min; skips entirely if the tier doesn't
 #             require tests. An unrecognized project type or JS runner
-#             (Jest/Mocha) reports "not implemented yet" and exits 0
+#             (Mocha) reports "not implemented yet" and exits 0
 #             rather than falsely passing or blocking — pass --strict to
 #             make that a failure instead (for a CI job that must cover
 #             every project). Not wired into pre-push automatically;
@@ -2154,15 +2154,16 @@ profile_field() {
 }
 
 # JS/TS + Go runner adapters (B4 was Python-only; P1-02 extends
-# enforcement to Go and one mainstream JS runner, Vitest, plus a
-# --strict mode so CI can fail on "unsupported" instead of quietly
+# enforcement to Go and two mainstream JS runners, Vitest and Jest, plus
+# a --strict mode so CI can fail on "unsupported" instead of quietly
 # passing). The guiding rule is unchanged: only run a check this repo
 # can invoke and parse deterministically with no guessing —
 #   * Python  → pytest + pytest-cov (`--cov-fail-under`)
 #   * Go      → `go test -coverprofile` + `go tool cover -func` total
-#   * JS/TS   → Node's built-in `node --test` OR Vitest's
-#               `coverage-summary.json` (both stable, machine-readable)
-# Anything else (Jest, Mocha, an unrecognized project type) gets an
+#   * JS/TS   → Node's built-in `node --test`, Vitest's, or Jest's
+#               `coverage-summary.json` (all stable, machine-readable —
+#               Jest and Vitest share the same Istanbul-based format)
+# Anything else (Mocha, an unrecognized project type) gets an
 # honest "not implemented yet". By default that is a non-blocking exit 0
 # (never a false pass framed as a real check); under --strict it is a
 # failure, so a CI job can require that every project it runs against is
@@ -2348,6 +2349,69 @@ enforce_js_vitest_profile() {
     echo "  Coverage $pct% meets the '$profile_name' tier's minimum of $coverage_min%."
 }
 
+# Jest: `--coverageReporters=json-summary` writes the exact same
+# coverage/coverage-summary.json shape Vitest's istanbul-based reporter
+# does (both are Istanbul under the hood) — `total.lines.pct` parses
+# identically, verified by hand against a real `npx jest` run before
+# writing this, not assumed from Vitest's behavior. Unlike Vitest, Jest
+# bundles its own coverage collector (also Istanbul) rather than
+# requiring a separate provider package, so there is no provider
+# preflight here — `--coverage` alone is enough. Uses the project's own
+# local jest binary when present, else npx --no-install (never silently
+# pulls jest from the network).
+enforce_js_jest_profile() {
+    local target="$1" profile_name="$2" coverage_min="$3"
+
+    echo "  JS/TS project detected (Jest); tests.required: true, coverage_min: ${coverage_min:-none}"
+
+    local -a runner
+    if [ -x "$target/node_modules/.bin/jest" ]; then
+        runner=("$target/node_modules/.bin/jest")
+    elif command -v npx >/dev/null 2>&1; then
+        runner=(npx --no-install jest)
+    else
+        echo "Error: jest not found (no node_modules/.bin/jest and no npx) — cannot enforce the '$profile_name' tier's test requirement." >&2
+        return 1
+    fi
+
+    # Only ask for coverage when a floor actually applies, mirroring the
+    # Vitest adapter's reasoning — a tier with no coverage_min shouldn't
+    # pay for (or require) a coverage collection pass it doesn't need.
+    local -a coverage_args=()
+    if [ -n "$coverage_min" ]; then
+        coverage_args=(--coverage --coverageReporters=json-summary)
+    fi
+
+    local out
+    if ! out="$(cd "$target" && "${runner[@]}" "${coverage_args[@]+"${coverage_args[@]}"}" 2>&1)"; then
+        echo "$out"
+        return 1
+    fi
+    echo "$out"
+
+    if [ -z "$coverage_min" ]; then
+        return 0
+    fi
+
+    local summary="$target/coverage/coverage-summary.json"
+    if [ ! -f "$summary" ]; then
+        echo "Error: Jest produced no coverage/coverage-summary.json (is coverage collection enabled for this project's source files?) — cannot enforce coverage_min=$coverage_min." >&2
+        return 1
+    fi
+    local pct
+    pct="$(node -p "require(process.argv[1]).total.lines.pct" "$summary" 2>/dev/null)"
+    if [ -z "$pct" ]; then
+        echo "Error: could not parse total line coverage from coverage-summary.json — cannot enforce coverage_min=$coverage_min." >&2
+        return 1
+    fi
+
+    if awk -v pct="$pct" -v min="$coverage_min" 'BEGIN { exit !(pct < min) }'; then
+        echo "Coverage $pct% is below the '$profile_name' tier's minimum of $coverage_min%."
+        return 1
+    fi
+    echo "  Coverage $pct% meets the '$profile_name' tier's minimum of $coverage_min%."
+}
+
 # Dispatch a JS/TS project to the right runner adapter by reading its
 # package.json `scripts.test`. $target is passed as an argv argument, not
 # interpolated into the JS source string — avoids both module-resolution
@@ -2375,8 +2439,10 @@ enforce_js_ts_profile() {
             enforce_js_node_test "$target" "$profile_name" "$coverage_min" ;;
         *vitest*)
             enforce_js_vitest_profile "$target" "$profile_name" "$coverage_min" ;;
+        *jest*)
+            enforce_js_jest_profile "$target" "$profile_name" "$coverage_min" ;;
         *)
-            echo "  JS/TS project detected, but its 'test' script ('$test_script') isn't Node's built-in test runner or Vitest — profile enforcement currently supports \`node --test\` and Vitest (v1 scope). See ROADMAP.md."
+            echo "  JS/TS project detected, but its 'test' script ('$test_script') isn't Node's built-in test runner, Vitest, or Jest — profile enforcement currently supports \`node --test\`, Vitest, and Jest (v1 scope). See ROADMAP.md."
             unsupported_exit "$strict" ;;
     esac
 }
