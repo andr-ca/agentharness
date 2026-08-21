@@ -8,6 +8,15 @@ section into a tagged version.
 
 ## [0.8.0] - 2026-08-21
 
+MINOR, not PATCH: `init`/`update` gain a new `--client` flag, `doctor`
+gains drift detection on generated whole-file client surfaces, and
+`uninstall` gains provenance-based cleanup for them — none of these
+change what an existing flag or subcommand does for a caller not using
+`--client`, but they are real CLI-surface additions a consumer should
+know about. Nothing here meets this repo's breaking-change definition —
+no skill, subcommand, flag, or `--mode` value is renamed or removed, and
+`.agentharness-state.json`'s schema is extended, not broken.
+
 ### Added
 - **Context Plane: `context.yaml` asset registry (Slice 1, issue #196).**
   A new registry lists this repo's assets (skills, guides,
