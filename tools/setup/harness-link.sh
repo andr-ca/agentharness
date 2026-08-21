@@ -3127,16 +3127,42 @@ _gc_is_harness_generated() {
     [ -f "$f" ] && grep -qE "Generated (from|by) .*(generate-|agentharness)" "$f" 2>/dev/null
 }
 
-# _gc_check_file FILE LABEL DRY_RUN FORCE
+# _gc_is_state_managed_block TARGET FILE_REL
+# Returns 0 if .agentharness-state.json records FILE_REL as a
+# harness-created managed block. init writes the 4 core always-on files
+# (CLAUDE.md/AGENTS.md/GEMINI.md/.github/copilot-instructions.md) via the
+# block-splice writer, not the whole-file generators, so they carry the
+# `agentharness:begin` block marker instead of the
+# `_gc_is_harness_generated` grep marker above — without this check, a
+# consumer's documented `init` then `generate-clients --client copilot`
+# flow hits a false "not created by this harness" SKIP on a file the
+# harness itself just wrote (issue #247 live verification).
+_gc_is_state_managed_block() {
+    local target="$1" file_rel="$2"
+    local state
+    state="$(state_path "$target")"
+    [ -f "$state" ] || return 1
+    python3 - "$state" "$file_rel" <<'PYEOF'
+import json, sys
+with open(sys.argv[1]) as f:
+    data = json.load(f)
+for block in data.get("managed_blocks", []):
+    if block.get("file") == sys.argv[2] and block.get("created_by_harness"):
+        sys.exit(0)
+sys.exit(1)
+PYEOF
+}
+
+# _gc_check_file FILE LABEL DRY_RUN FORCE [TARGET]
 # Checks whether FILE can be safely written.
 # Returns 0 if safe (or dry-run); 1 if should be skipped.
 _gc_check_file() {
-    local f="$1" label="$2" dry_run="$3" force="$4"
+    local f="$1" label="$2" dry_run="$3" force="$4" target="${5:-}"
     if [ ! -f "$f" ]; then
         [ "$dry_run" = true ] && echo "  [dry-run] would create: $label"
         return 0
     fi
-    if _gc_is_harness_generated "$f"; then
+    if _gc_is_harness_generated "$f" || { [ -n "$target" ] && _gc_is_state_managed_block "$target" "$label"; }; then
         [ "$dry_run" = true ] && echo "  [dry-run] would update (harness-owned): $label"
         return 0
     fi
@@ -3193,14 +3219,14 @@ cmd_generate_clients() {
     for c in "${client_list[@]}"; do
         case "$c" in
             codex)
-                if _gc_check_file "$target/AGENTS.md" "AGENTS.md" "$dry_run" "$force"; then
+                if _gc_check_file "$target/AGENTS.md" "AGENTS.md" "$dry_run" "$force" "$target"; then
                     [ "$dry_run" = false ] && bash "$gen/generate-agents-md.sh" "$HARNESS_DIR" --output "$target/AGENTS.md"
                     echo "  codex/opencode/zed -> AGENTS.md"
                 else
                     skipped=$((skipped+1))
                 fi ;;
             gemini)
-                if _gc_check_file "$target/GEMINI.md" "GEMINI.md" "$dry_run" "$force"; then
+                if _gc_check_file "$target/GEMINI.md" "GEMINI.md" "$dry_run" "$force" "$target"; then
                     [ "$dry_run" = false ] && bash "$gen/generate-gemini-md.sh" "$HARNESS_DIR" --output "$target/GEMINI.md"
                     echo "  gemini/antigravity -> GEMINI.md"
                 else
@@ -3209,7 +3235,7 @@ cmd_generate_clients() {
             copilot)
                 # Guard primary file and also check for non-harness .github/instructions/ files
                 local copilot_ok=true
-                if ! _gc_check_file "$target/.github/copilot-instructions.md" ".github/copilot-instructions.md" "$dry_run" "$force"; then
+                if ! _gc_check_file "$target/.github/copilot-instructions.md" ".github/copilot-instructions.md" "$dry_run" "$force" "$target"; then
                     copilot_ok=false
                 fi
                 if [ "$copilot_ok" = true ] && [ -d "$target/.github/instructions" ]; then
@@ -3250,7 +3276,7 @@ cmd_generate_clients() {
                     skipped=$((skipped+1))
                 fi ;;
             kilo)
-                if _gc_check_file "$target/.kilo/rules/agentharness.md" ".kilo/rules/agentharness.md" "$dry_run" "$force"; then
+                if _gc_check_file "$target/.kilo/rules/agentharness.md" ".kilo/rules/agentharness.md" "$dry_run" "$force" "$target"; then
                     [ "$dry_run" = false ] && mkdir -p "$target/.kilo/rules" && bash "$gen/generate-kilo-rules.sh" "$HARNESS_DIR" --output "$target/.kilo/rules/agentharness.md"
                     echo "  kilo -> .kilo/rules/agentharness.md"
                 else

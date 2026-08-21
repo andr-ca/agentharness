@@ -6,6 +6,20 @@ section into a tagged version.
 
 ## [Unreleased]
 
+### Fixed
+- **`generate-clients --client copilot` (and `codex`/`gemini`/`kilo`)
+  falsely reported a file `init` had just written as "not created by
+  this harness" and refused to update it without `--force`.** Found
+  live-verifying v0.8.0 against the real npm registry per issue #247:
+  the documented `init` then `generate-clients` flow (also
+  `docs/COMPARE.md`'s own walkthrough) hits this on any of the 4
+  always-on files, since `init` writes them via the block-splice writer
+  (`agentharness:begin` marker), not the whole-file generators'
+  provenance marker `_gc_is_harness_generated()` looked for.
+  `generate-clients` now also recognizes a file `.agentharness-state.json`
+  records as a harness-created managed block, matching ownership the
+  install already tracked.
+
 ## [0.8.0] - 2026-08-21
 
 MINOR, not PATCH: `init`/`update` gain a new `--client` flag, `doctor`

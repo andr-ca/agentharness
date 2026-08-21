@@ -150,3 +150,31 @@ teardown() {
     [[ "$output" != *"WARNING"* ]]
     [[ "$output" == *"codex/opencode/zed"* ]]
 }
+
+# ---------------------------------------------------------------------------
+# init's block-managed files, then a later standalone generate-clients call
+# (issue #247 live-verification, real npm-registry repro on v0.8.0):
+# _gc_is_harness_generated only recognizes the whole-file-generator's
+# "Generated from/by" marker, not the `agentharness:begin` block-splice
+# marker `init` writes for the 4 always-on files — so the documented
+# init-then-generate-clients flow (also docs/COMPARE.md's own walkthrough)
+# hit a false "not created by this harness" SKIP on a file the harness
+# itself had just written moments earlier.
+# ---------------------------------------------------------------------------
+
+@test "generate-clients: recognizes a file init wrote as a block-managed surface, not foreign" {
+    local consumer
+    consumer="$(mktemp -d)"
+    git -C "$consumer" init -q
+    bash "$SCRIPT" init "$consumer" --mode copy --skills committing >/dev/null
+
+    run bash "$SCRIPT" generate-clients "$consumer" --client copilot
+    local content
+    content="$(cat "$consumer/.github/copilot-instructions.md" 2>/dev/null || echo '')"
+    rm -rf "$consumer"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"SKIP"* ]]
+    [[ "$output" == *"copilot ->"* ]]
+    [[ "$content" == *"Generated"* ]]
+}
