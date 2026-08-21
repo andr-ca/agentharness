@@ -3,13 +3,16 @@
 # harness-session-start.sh — dirty-tree worktree reminder for consumer repos
 # ============================================================================
 #
-# Prints a warning (never blocks — always exits 0) when the current working
-# tree is dirty or the current branch isn't dedicated to the work at hand,
-# and the caller isn't already inside a git worktree. Closes the gap the
-# `branching` skill's own "mandatory, not a preference" worktree rule leaves
-# for a consumer that hasn't wired up full hook integration (issue #249,
-# item 7): without this, there's no session-start signal at all, only a
-# rule buried in a skill doc an agent may or may not re-read every turn.
+# Prints a warning (exits 0 unless argv is invalid — never blocks a
+# non-erroring call) when the current working tree is dirty
+# (`git status --porcelain` non-empty) and the caller isn't already inside
+# a git worktree. Does not evaluate branch naming or relatedness — a
+# clean tree on an unrelated branch is not detected here, only the dirty-
+# tree half of the `branching` skill's rule. Closes the gap that rule
+# otherwise leaves for a consumer that hasn't wired up full hook
+# integration (issue #249, item 7): without this, there's no session-start
+# signal at all, only a rule buried in a skill doc an agent may or may not
+# re-read every turn.
 #
 # This is guidance-that-prints, not enforcement — deliberately not a
 # PreToolUse/pre-commit hook (see issue #249's item 3, declined: the gap
