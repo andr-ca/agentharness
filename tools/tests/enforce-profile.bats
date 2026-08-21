@@ -330,7 +330,11 @@ EOF
 #!/usr/bin/env bash
 wants_coverage=0
 for arg in "\$@"; do
-    case "\$arg" in --coverage*) wants_coverage=1 ;; esac
+    # Exact match on the enabling flag itself, not a prefix match —
+    # --coverage* would also match --coverage.enabled/--coverage.reporter=...
+    # (this adapter's own config flags), which would let the stub pass
+    # even if the real --coverage flag were dropped by a future change.
+    case "\$arg" in --coverage) wants_coverage=1 ;; esac
 done
 if [ "\$wants_coverage" -eq 1 ] \\
     && [ ! -d node_modules/@vitest/coverage-v8 ] \\
@@ -454,7 +458,11 @@ EOF
 #!/usr/bin/env bash
 wants_coverage=0
 for arg in "\$@"; do
-    case "\$arg" in --coverage*) wants_coverage=1 ;; esac
+    # Exact match on the enabling flag itself, not a prefix match —
+    # --coverage* would also match --coverageReporters=... (this
+    # adapter's own config flag), which would let the stub pass even if
+    # the real --coverage flag were dropped by a future change.
+    case "\$arg" in --coverage) wants_coverage=1 ;; esac
 done
 if [ "\$wants_coverage" -eq 1 ]; then
     mkdir -p coverage
