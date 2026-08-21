@@ -8,7 +8,7 @@ section into a tagged version.
 
 ## [0.8.1] - 2026-08-21
 
-PATCH, not MINOR: both fixes below make an already-documented path
+PATCH, not MINOR: the three fixes below make an already-documented path
 (the `init` then `generate-clients` flow; `update` against a fresh
 consumer repo) work as documented, with no behavior change for a
 caller not hitting these bugs — no flag, subcommand, or `--mode` value
