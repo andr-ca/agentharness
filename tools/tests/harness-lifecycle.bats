@@ -1311,6 +1311,44 @@ print('ok')
     [[ "$output" != *"source has moved on"* ]]
 }
 
+@test "lifecycle: source_revision_for does not corrupt the recorded revision when src_root has no .git and sits inside an unborn-branch target (issue #247 live verification)" {
+    # A real live-npm-registry find, not a synthetic one: source_revision_for()
+    # (used for the block-marker version + init/update's recorded state)
+    # never got the same .git-presence guard source_head_rev() (used for
+    # status/audit's reporting, tested above) already has. A real npm
+    # install's src_root (node_modules/agentharness-toolkit, or
+    # --mode copy/npm's durable .git-less copy) has no .git of its own, so
+    # plain 'git -C "$src_root" rev-parse HEAD' walks up and finds the
+    # *consumer's* .git instead — and on a genuinely fresh *unborn* branch
+    # (git init, no commit yet — the ordinary first-run state before an
+    # operator's first commit), 'rev-parse HEAD' prints the literal string
+    # "HEAD" to stdout before failing with exit 128. The
+    # '2>/dev/null || echo unknown' fallback only ever suppressed stderr,
+    # so that leading "HEAD" line survived into the captured value,
+    # producing a malformed two-line revision ("HEAD\nunknown") that then
+    # broke the block-splice marker it gets embedded into — `update`
+    # failed outright with "malformed markers or unsafe target" on every
+    # one of the 4 always-on files.
+    #
+    # Exercised directly via source_revision_for() rather than a full
+    # init/update round-trip through $SCRIPT: in this dev checkout,
+    # --mode npm's src_root always has a package.json (short-circuiting
+    # before the buggy branch) and --mode copy's src_root is $SCRIPT's own
+    # HARNESS_DIR, which always has a real .git of its own — neither
+    # structural shape actually nests a .git-less src_root inside an
+    # unborn target the way a real npm/copy install does.
+    local git_less_src
+    git_less_src="$(mktemp -d)"
+    git -C "$TEST_PROJECT" init --quiet
+    mkdir -p "$TEST_PROJECT/node_modules"
+    mv "$git_less_src" "$TEST_PROJECT/node_modules/agentharness-toolkit"
+    git_less_src="$TEST_PROJECT/node_modules/agentharness-toolkit"
+
+    run bash "$SCRIPT" __test_source_revision_for "$git_less_src" copy
+    [ "$status" -eq 0 ]
+    [ "$output" = "unknown" ]
+}
+
 @test "lifecycle: --mode npm copies a durable source into the target instead of symlinking HARNESS_DIR (P0-02)" {
     bash "$SCRIPT" init "$TEST_PROJECT" --mode npm --skills agentic-loops
 
