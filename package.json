@@ -38,6 +38,7 @@
     "tools/generate-copilot-instructions.sh",
     "tools/generate-cursor-rules.sh",
     "tools/generate-kilo-rules.sh",
+    "tools/harness-session-start.sh",
     ".github/hooks/prevent-trunk-commit",
     ".github/hooks/pre-commit",
     ".github/hooks/pre-merge-commit",

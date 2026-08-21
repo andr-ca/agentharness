@@ -437,6 +437,10 @@ sections:
     path: tools/safe-pr-merge.sh
     type: script
     when_to_use: "Merge a PR safely while enforcing CLAUDE.md checklist: verify CI is green, detect automated reviewer, wait for review comments, verify all comments have replies, merge, poll post-merge CI"
+  - asset: Session-start worktree reminder
+    path: tools/harness-session-start.sh
+    type: script
+    when_to_use: "Optional, standalone (no hook wiring): warns — never blocks — when the working tree is dirty and not already inside a git worktree, printing the exact `git worktree add` command; call from a consumer's AGENTS.md 'start of every session' step (issue #249, item 7)"
   - asset: Structure analyzer
     path: tools/analyze_structure.py
     type: script
