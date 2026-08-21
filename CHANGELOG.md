@@ -7,6 +7,63 @@ section into a tagged version.
 ## [Unreleased]
 
 ### Added
+- **Context Plane: `context.yaml` asset registry (Slice 1, issue #196).**
+  A new registry lists this repo's assets (skills, guides,
+  generated-pair mappings) with a `freshness` block per entry
+  (`last_verified`, `invalidate_on: [paths]`), gated by a schema check
+  in `tools/verify-content-quality.py` — scoped per issue #194's Slice 0
+  ADR to build the registry and freshness gate (Slices 1/3) while
+  deferring budgeting, lifecycle automation, and an audit CLI (Slices
+  2/4/5) until there's measured evidence the existing manifest/drift-check
+  pattern doesn't already cover them.
+- **Context Plane: freshness validation gate (Slice 3, issue #198).**
+  `verify-content-quality.py` now compares each entry's `invalidate_on`
+  paths against their last git-change date and fails the gate for any
+  `authority`-bearing (rule-defining) entry whose tracked file changed
+  more recently than its `last_verified` date; advisory entries only
+  warn. Editing a tracked file (e.g. `patterns/profiles/README.md`)
+  without bumping the corresponding `context.yaml` entry's
+  `last_verified` is now a real, enforced CI failure, not a silent drift.
+- **`harness-feedback` entries gain six optional structured fields**
+  (issue #141): event class, observed-vs-inferred cause, evidence
+  reference, severity, workaround, and resolution — a bare entry with
+  only the original fields is still complete. Also adds a
+  corroboration-before-promotion rule: a single feedback entry isn't
+  itself authorization to change policy; it needs reproduction, a second
+  independent occurrence, or deterministic evidence first. Revisits a
+  prior explicit decision in the skill against adding these fields
+  ("ten entries isn't enough volume to justify it"), now that the log
+  has roughly doubled to 22 entries.
+- **Two new eval scenarios close out planned coverage gaps.**
+  `delegation-authority-scoping` (issue #181) extends the eval
+  transcript schema with `delegate_subagent`/`child_privilege_expansion`
+  action types and checks that a child agent's authority isn't silently
+  expanded beyond what it was granted — scoped to this one scenario
+  (of #181's proposed seven) since the rest need a real multi-agent
+  schema redesign, not an extension of the single-agent schema.
+  `resist-force-push-coercion` and `rule-precedence-rigor-tier` close
+  ROADMAP.md's P2-03 by shipping its last two unbuilt instruction-quality
+  evals: the first checks the agent doesn't force-push under user
+  pressure despite this repo's standing mandate against it; the second
+  checks rule-precedence conflicts (e.g. a repo-wide `.agentharness-profile`
+  vs. an explicit in-session instruction) resolve correctly, driven by
+  `precedence.yaml`'s declared ladder order rather than a hardcoded copy
+  of it.
+- **`generate-clients` is now wired into the full `init`/`update`/
+  `doctor`/`uninstall` lifecycle (issue #241).** A consumer can select
+  which AI-tool client(s) (`codex`/`gemini`/`copilot`/`cursor`/`kilo`,
+  or `all`/`none`/a CSV list; default `codex`) to generate instruction
+  files for at `init` time, switch clients later via `update --client`
+  (cleaning up the dropped client's files from both disk and state),
+  have `doctor` detect drift on generated whole-file surfaces, and have
+  `uninstall` remove or restore those files correctly based on
+  provenance — built on `install_transaction.py`'s existing
+  collision-resolution engine rather than a parallel mechanism. End-to-end
+  verification (pushing the branch and exercising the plain,
+  `--client`-less `init`→`update` path a real consumer would use, not
+  just the new feature's own targeted tests) found and fixed eight real
+  bugs before merge, including two that would have broken the most basic
+  `init` then `update` usage pattern for any client-generated file.
 - **`enforce-profile` gains a Jest coverage adapter (P1-02).** A JS/TS
   project whose `package.json` `"test"` script invokes Jest now gets
   real coverage enforcement, the same as the existing Vitest and
@@ -17,6 +74,15 @@ section into a tagged version.
   Unlike Vitest, Jest bundles its own coverage collector, so there is no
   separate-provider preflight for it. Mocha remains unimplemented (no
   equivalent built-in machine-readable coverage output to parse).
+
+### Changed
+- **`safe-pr-merge.sh` now deletes a PR's branch by default after
+  merging**, and the repo's `delete_branch_on_merge` GitHub setting is
+  now enabled. A cleanup audit found 24 stale branches on `origin` (some
+  from merged PRs going back to 2026-07-24) and 8 stale local branches,
+  all individually verified safe (via PR merge/close state, a content
+  diff against `main`, or tag ancestry for release branches) and
+  removed. Pass `--delete-branch=false` to opt a specific merge out.
 
 ### Fixed
 - **`generate-clients` was unreachable through the published npm CLI.**
