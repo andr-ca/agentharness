@@ -178,3 +178,60 @@ teardown() {
     [[ "$output" == *"copilot ->"* ]]
     [[ "$content" == *"Generated"* ]]
 }
+
+# ---------------------------------------------------------------------------
+# copilot/cursor/kilo's provenance header wraps "Generated from/by ..."
+# across two source lines; _gc_is_harness_generated()'s original same-line
+# regex only matched AGENTS.md/GEMINI.md's single-line variant, so a
+# second run of these three clients falsely treated their own prior output
+# as foreign and required --force (Copilot review, PR #258).
+# ---------------------------------------------------------------------------
+
+@test "generate-clients: recognizes copilot's own multi-line provenance header on re-run" {
+    local consumer
+    consumer="$(mktemp -d)"
+    git -C "$consumer" init -q
+    bash "$SCRIPT" generate-clients "$consumer" --client copilot >/dev/null
+
+    run bash "$SCRIPT" generate-clients "$consumer" --client copilot
+    rm -rf "$consumer"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"SKIP"* ]]
+    [[ "$output" == *"copilot ->"* ]]
+}
+
+# Unlike copilot/kilo's single output file, --client cursor writes one
+# .mdc per skill, most of which are direct skill copies carrying no
+# provenance marker of any kind — a re-run legitimately SKIPs on those
+# (guarding against silently clobbering a hand-edited skill copy), so a
+# full-command round-trip isn't a clean test of the router-file marker
+# fix. Test _gc_is_harness_generated() directly against the router file
+# instead, matching what the reviewer's finding actually concerned.
+@test "generate-clients: recognizes cursor router's own multi-line provenance header" {
+    local consumer
+    consumer="$(mktemp -d)"
+    git -C "$consumer" init -q
+    bash "$SCRIPT" generate-clients "$consumer" --client cursor >/dev/null
+
+    # shellcheck source=/dev/null
+    source "$SCRIPT"
+    run _gc_is_harness_generated "$consumer/.cursor/rules/agentharness-router.mdc"
+    rm -rf "$consumer"
+
+    [ "$status" -eq 0 ]
+}
+
+@test "generate-clients: recognizes kilo's own multi-line provenance header on re-run" {
+    local consumer
+    consumer="$(mktemp -d)"
+    git -C "$consumer" init -q
+    bash "$SCRIPT" generate-clients "$consumer" --client kilo >/dev/null
+
+    run bash "$SCRIPT" generate-clients "$consumer" --client kilo
+    rm -rf "$consumer"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"SKIP"* ]]
+    [[ "$output" == *"kilo ->"* ]]
+}

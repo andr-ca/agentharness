@@ -3122,9 +3122,15 @@ for line in json.load(sys.stdin)["log"]:
 
 # _gc_is_harness_generated FILE
 # Returns 0 if FILE contains the harness provenance marker, 1 otherwise.
+# Several generators (copilot, cursor, kilo) wrap the "Generated from/by
+# ... generate-*.sh/agentharness" phrase across multiple lines — a
+# same-line `-qE` match misses those and false-SKIPs a harness-generated
+# file as foreign on every re-run. `-Pzo` treats the whole file as one
+# NUL-terminated record and `[\s\S]` (not `.`, which -Pz does not treat
+# as matching newlines) spans the line break between the two halves.
 _gc_is_harness_generated() {
     local f="$1"
-    [ -f "$f" ] && grep -qE "Generated (from|by) .*(generate-|agentharness)" "$f" 2>/dev/null
+    [ -f "$f" ] && grep -Pzoq "Generated (from|by)[\s\S]{0,400}(generate-|agentharness)" "$f" 2>/dev/null
 }
 
 # _gc_is_state_managed_block TARGET FILE_REL
