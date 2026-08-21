@@ -6,6 +6,20 @@ section into a tagged version.
 
 ## [Unreleased]
 
+### Fixed
+- **`doctor` reported stale drift ("expected one managed block, found
+  0") after `generate-clients` legitimately converted an init-written
+  block-managed file to a whole-file surface.** Standalone
+  `generate-clients` predates `install_transaction.py`'s state-aware
+  collision engine and never updated `.agentharness-state.json` after
+  a successful write, so a file moved from `managed_blocks[]` to
+  whole-file generated content on disk while state still recorded the
+  old block marker. `audit` was unaffected — only `doctor` regressed
+  (issue #257). `generate-clients` now moves the entry from
+  `managed_blocks[]` to `overwritten_files[]` when this transition
+  happens, matching what `init --client`/`update --client` already
+  record for their own client-selection path.
+
 ## [0.8.1] - 2026-08-21
 
 PATCH, not MINOR: the three fixes below make an already-documented path
