@@ -559,6 +559,78 @@ def remove_clients(
     return log
 
 
+# Client label inferred from the always-on managed_blocks paths -- these
+# entries predate --client (P1-01) and were never given a 'client' field of
+# their own, unlike overwritten_files (see cmd_generate_clients). The
+# mapping mirrors generate-clients' own per-client target file names.
+_MANAGED_BLOCK_CLIENT_BY_FILE = {
+    "CLAUDE.md": "claude",
+    "AGENTS.md": "codex",
+    "GEMINI.md": "gemini",
+    ".github/copilot-instructions.md": "copilot",
+}
+
+
+def client_surface_status(state: dict[str, Any], base_dir: Path) -> list[dict[str, Any]]:
+    """Drift status for every client-facing surface this install tracks --
+    the always-on managed_blocks files and any --client-generated
+    overwritten_files -- for 'audit --json' (P2-07). A new function rather
+    than reusing 'doctor's inline check: doctor prints human-readable lines
+    and exits non-zero on drift; audit needs structured per-file status
+    with no side effect on exit code, and this is the one place both could
+    share the comparison logic without duplicating it a second time."""
+    results: list[dict[str, Any]] = []
+
+    for entry in state.get("managed_blocks", []):
+        file_rel = entry["file"]
+        client = _MANAGED_BLOCK_CLIENT_BY_FILE.get(file_rel)
+        path = base_dir / file_rel
+        status = "ok"
+        if not path.exists():
+            status = "missing"
+        else:
+            try:
+                content = path.read_text(encoding="utf-8")
+                matches = bi.find_blocks(content, entry["block_id"])
+            except (OSError, bi.MarkerError):
+                status = "malformed"
+            else:
+                if len(matches) != 1:
+                    status = "malformed"
+                else:
+                    m = matches[0]
+                    current_hash = bi.sha256_bytes(content[m.start : m.end].encode("utf-8"))
+                    status = "ok" if current_hash == entry.get("rendered_sha256") else "drift"
+        results.append(
+            {
+                "file": file_rel,
+                "client": client,
+                "kind": "managed_block",
+                "status": status,
+            }
+        )
+
+    for entry in state.get("overwritten_files", []):
+        file_rel = entry["file"]
+        path = base_dir / file_rel
+        status = "ok"
+        if not path.exists():
+            status = "missing"
+        else:
+            current_hash = sha256_of_file(path)
+            status = "ok" if current_hash == entry.get("written_sha256") else "drift"
+        results.append(
+            {
+                "file": file_rel,
+                "client": entry.get("client"),
+                "kind": "overwritten_file",
+                "status": status,
+            }
+        )
+
+    return results
+
+
 def uninstall_all(state: dict[str, Any], base_dir: Path) -> list[str]:
     """Reverse every managed block and overwritten file recorded in
     state, per the spec's per-file-class uninstall semantics. Returns a

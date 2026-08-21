@@ -584,6 +584,206 @@ print('ok')
     [[ "$output" =~ "ok" ]]
 }
 
+@test "lifecycle: audit --json reports state_schema_version (P2-07)" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing --mode copy
+
+    run bash "$SCRIPT" audit "$TEST_PROJECT" --json
+    [ "$status" -eq 0 ]
+
+    run python3 -c "
+import json
+d = json.loads('''$output''')
+assert d['state_schema_version'] == 2, d
+print('ok')
+"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "ok" ]]
+}
+
+@test "lifecycle: audit --json reports clients drift status for the always-on managed-block files (P2-07)" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing --mode copy --client none
+
+    run bash "$SCRIPT" audit "$TEST_PROJECT" --json
+    [ "$status" -eq 0 ]
+
+    run python3 -c "
+import json
+d = json.loads('''$output''')
+by_file = {c['file']: c for c in d['clients']}
+assert by_file['CLAUDE.md']['client'] == 'claude', by_file
+assert by_file['AGENTS.md']['client'] == 'codex', by_file
+assert by_file['GEMINI.md']['client'] == 'gemini', by_file
+assert by_file['.github/copilot-instructions.md']['client'] == 'copilot', by_file
+for f in ('CLAUDE.md', 'AGENTS.md', 'GEMINI.md', '.github/copilot-instructions.md'):
+    assert by_file[f]['status'] == 'ok', by_file
+    assert by_file[f]['kind'] == 'managed_block', by_file
+print('ok')
+"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "ok" ]]
+}
+
+@test "lifecycle: audit --json flags client drift after a managed block is hand-edited (P2-07)" {
+    echo "# My project" > "$TEST_PROJECT/AGENTS.md"
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client none
+    sed -i 's/version=[^ ]* -->/version=0.0.1 -->/' "$TEST_PROJECT/AGENTS.md" 2>/dev/null || \
+        sed -i '' 's/version=[^ ]* -->/version=0.0.1 -->/' "$TEST_PROJECT/AGENTS.md"
+
+    run bash "$SCRIPT" audit "$TEST_PROJECT" --json
+    [ "$status" -eq 0 ]
+
+    run python3 -c "
+import json
+d = json.loads('''$output''')
+by_file = {c['file']: c for c in d['clients']}
+assert by_file['AGENTS.md']['status'] == 'drift', by_file
+assert by_file['CLAUDE.md']['status'] == 'ok', by_file
+print('ok')
+"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "ok" ]]
+}
+
+@test "lifecycle: audit --json reports hook_ownership for a healthy --with-hook install (P2-07)" {
+    git -C "$TEST_PROJECT" init --quiet
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing --mode link --with-hook
+
+    run bash "$SCRIPT" audit "$TEST_PROJECT" --json
+    [ "$status" -eq 0 ]
+
+    run python3 -c "
+import json
+d = json.loads('''$output''')
+ho = d['hook_ownership']
+assert ho['hooks_path_matches_recorded'] is True, ho
+assert ho['pre_commit_present'] is True, ho
+assert ho['pre_merge_commit_present'] is True, ho
+assert ho['merge_ff_false'] is True, ho
+assert ho['pre_push_owned_by_harness'] is None, ho
+print('ok')
+"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "ok" ]]
+}
+
+@test "lifecycle: audit --json reports hook_ownership all null when with_hook is false (P2-07)" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing --mode copy
+
+    run bash "$SCRIPT" audit "$TEST_PROJECT" --json
+    [ "$status" -eq 0 ]
+
+    run python3 -c "
+import json
+d = json.loads('''$output''')
+ho = d['hook_ownership']
+assert all(v is None for v in ho.values()), ho
+print('ok')
+"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "ok" ]]
+}
+
+@test "lifecycle: audit --json reports profile_runner for a recognized Python project (P2-07)" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing --mode copy
+    touch "$TEST_PROJECT/pyproject.toml"
+
+    run bash "$SCRIPT" audit "$TEST_PROJECT" --json
+    [ "$status" -eq 0 ]
+
+    run python3 -c "
+import json
+d = json.loads('''$output''')
+pr = d['profile_runner']
+assert pr['project_type'] == 'python', pr
+assert pr['runner'] == 'pytest', pr
+assert pr['supported'] is True, pr
+assert pr['reason'] is None, pr
+print('ok')
+"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "ok" ]]
+}
+
+@test "lifecycle: audit --json reports profile_runner unsupported when no recognized project type is present (P2-07)" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing --mode copy
+
+    run bash "$SCRIPT" audit "$TEST_PROJECT" --json
+    [ "$status" -eq 0 ]
+
+    run python3 -c "
+import json
+d = json.loads('''$output''')
+pr = d['profile_runner']
+assert pr['project_type'] == 'unsupported', pr
+assert pr['runner'] is None, pr
+assert pr['supported'] is False, pr
+assert pr['reason'] is not None, pr
+print('ok')
+"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "ok" ]]
+}
+
+@test "lifecycle: audit --json reports package_source for --mode npm (P2-07)" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode npm --skills committing
+
+    run bash "$SCRIPT" audit "$TEST_PROJECT" --json
+    [ "$status" -eq 0 ]
+
+    run python3 -c "
+import json
+d = json.loads('''$output''')
+ps = d['package_source']
+assert ps['mode'] == 'npm', ps
+assert ps['durable_copy_present'] is True, ps
+assert ps['durable_copy_healthy'] is True, ps
+assert ps['durable_copy_version'], ps
+print('ok')
+"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "ok" ]]
+}
+
+@test "lifecycle: audit --json reports package_source unhealthy when the npm durable copy's package.json is missing (P2-07)" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode npm --skills committing
+    rm "$TEST_PROJECT/.agentharness-pkg/package.json"
+
+    run bash "$SCRIPT" audit "$TEST_PROJECT" --json
+    [ "$status" -eq 0 ]
+
+    run python3 -c "
+import json
+d = json.loads('''$output''')
+ps = d['package_source']
+assert ps['durable_copy_present'] is True, ps
+assert ps['durable_copy_healthy'] is False, ps
+assert ps['durable_copy_version'] is None, ps
+print('ok')
+"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "ok" ]]
+}
+
+@test "lifecycle: audit --json reports package_source all null for non-npm modes (P2-07)" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing --mode copy
+
+    run bash "$SCRIPT" audit "$TEST_PROJECT" --json
+    [ "$status" -eq 0 ]
+
+    run python3 -c "
+import json
+d = json.loads('''$output''')
+ps = d['package_source']
+assert ps['mode'] == 'copy', ps
+assert ps['durable_copy_present'] is None, ps
+assert ps['durable_copy_healthy'] is None, ps
+assert ps['durable_copy_version'] is None, ps
+print('ok')
+"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "ok" ]]
+}
+
 @test "lifecycle: update declining the confirmation prompt does not regenerate the check wrapper (Copilot review)" {
     bash "$SCRIPT" init "$TEST_PROJECT" --skills committing,branching --mode link
     rm -f "$TEST_PROJECT/.agentharness-bin/check"
