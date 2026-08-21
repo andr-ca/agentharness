@@ -79,6 +79,12 @@ authorizes starting the work, not skipping isolation. Only ask the user
 when choosing between multiple *clean* strategies (e.g. a branch name);
 never ask whether a dirty tree should be isolated — just do it.
 
+A consumer project without full harness-hook wiring has no automatic
+signal for this rule — `tools/harness-session-start.sh` is an optional,
+standalone script (no hook installation required) that prints this same
+warning at session start when the tree is dirty; wire it into a
+project's own session-start step if useful (issue #249, item 7).
+
 **The rules that bite:**
 
 - **One branch per worktree** — git refuses to check the same branch out
