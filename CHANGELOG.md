@@ -6,6 +6,34 @@ section into a tagged version.
 
 ## [Unreleased]
 
+### Fixed
+- **`generate-clients --client copilot` (or `codex`/`gemini`) falsely
+  reported a file `init` had just written as "not created by this
+  harness" and refused to update it without `--force`.** Found
+  live-verifying v0.8.0 against the real npm registry per issue #247:
+  the documented `init` then `generate-clients` flow (also
+  `docs/COMPARE.md`'s own walkthrough) hits this on any of the 4
+  always-on files `init` writes (`CLAUDE.md`/`AGENTS.md`/`GEMINI.md`/
+  `.github/copilot-instructions.md`), since `init` writes them via the
+  block-splice writer (`agentharness:begin` marker), not the whole-file
+  generators' provenance marker `_gc_is_harness_generated()` looked for.
+  `generate-clients` now also recognizes a file `.agentharness-state.json`
+  records as a harness-created managed block, matching ownership the
+  install already tracked. `kilo` writes a different path
+  (`.kilo/rules/agentharness.md`) not in this init-written set, so it
+  was never affected by this specific bug.
+- **`generate-clients`'s own harness-ownership check missed
+  `copilot`/`cursor`/`kilo`'s multi-line provenance header, risking a
+  false "not created by this harness" on every re-run of those three
+  clients even without the bug above.** `_gc_is_harness_generated()`'s
+  regex required the "Generated from/by" phrase and the
+  `generate-*.sh`/`agentharness` marker on the same source line;
+  `AGENTS.md`/`GEMINI.md` happen to fit both on one line, but
+  `.github/copilot-instructions.md`, `.cursor/rules/*.mdc`, and
+  `.kilo/rules/agentharness.md` wrap the phrase across two lines and
+  never matched. Fixed by matching across the whole file
+  (`grep -Pzo` with `[\s\S]`) instead of one line.
+
 ## [0.8.0] - 2026-08-21
 
 MINOR, not PATCH: `init`/`update` gain a new `--client` flag, `doctor`
