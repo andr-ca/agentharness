@@ -6,6 +6,18 @@ section into a tagged version.
 
 ## [Unreleased]
 
+### Added
+- **`enforce-profile` gains a Jest coverage adapter (P1-02).** A JS/TS
+  project whose `package.json` `"test"` script invokes Jest now gets
+  real coverage enforcement, the same as the existing Vitest and
+  `node --test` adapters — Jest's `--coverageReporters=json-summary`
+  writes the same Istanbul-based `coverage-summary.json` shape Vitest's
+  does, so `total.lines.pct` parses identically (verified by hand
+  against a real `npx jest` run, not assumed from Vitest's behavior).
+  Unlike Vitest, Jest bundles its own coverage collector, so there is no
+  separate-provider preflight for it. Mocha remains unimplemented (no
+  equivalent built-in machine-readable coverage output to parse).
+
 ### Fixed
 - **`generate-clients` was unreachable through the published npm CLI.**
   `bin/cli.js` defaults unrecognized subcommands to `--mode npm`, and

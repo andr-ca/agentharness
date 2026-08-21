@@ -120,12 +120,11 @@ EOF
 
 # --- JS/TS (extends B4's Python-only v1) -----------------------------------
 #
-# Scope: only projects whose package.json "test" script already invokes
-# Node's built-in `node --test` get real enforcement (zero-dependency,
-# stable output format) — this repo has no reliable way to invoke and
-# parse coverage from Jest/Vitest/Mocha without guessing at a specific
-# version's output shape, so those get an honest "not implemented for
-# this test runner yet" instead of a guessed-at, possibly-wrong result.
+# Scope: node --test, Vitest, and Jest each get real enforcement (all
+# three have a stable, machine-readable coverage output this repo can
+# parse without guessing). Mocha has no equivalent built-in coverage
+# format, so it still gets an honest "not implemented for this test
+# runner yet" instead of a guessed-at, possibly-wrong result.
 
 write_covered_js_project() {
     cat > "$TEST_PROJECT/package.json" <<'EOF'
@@ -194,14 +193,14 @@ EOF
     [[ "$output" =~ "coverage_min: none" ]]
 }
 
-@test "enforce-profile (JS/TS): a non-node-test runner (e.g. Jest) reports 'not implemented' and exits 0" {
+@test "enforce-profile (JS/TS): an unsupported runner (e.g. Mocha) reports 'not implemented' and exits 0" {
     cat > "$TEST_PROJECT/package.json" <<'EOF'
-{"name": "fixture", "scripts": {"test": "jest"}}
+{"name": "fixture", "scripts": {"test": "mocha"}}
 EOF
     echo "production" > "$TEST_PROJECT/.agentharness-profile"
     run bash "$SCRIPT" enforce-profile "$TEST_PROJECT"
     [ "$status" -eq 0 ]
-    [[ "$output" =~ "isn't Node's built-in test runner" ]]
+    [[ "$output" =~ "isn't Node's built-in test runner, Vitest, or Jest" ]]
 }
 
 @test "enforce-profile (JS/TS): missing 'test' script is a hard error, not a silent pass" {
@@ -331,7 +330,11 @@ EOF
 #!/usr/bin/env bash
 wants_coverage=0
 for arg in "\$@"; do
-    case "\$arg" in --coverage*) wants_coverage=1 ;; esac
+    # Exact match on the enabling flag itself, not a prefix match —
+    # --coverage* would also match --coverage.enabled/--coverage.reporter=...
+    # (this adapter's own config flags), which would let the stub pass
+    # even if the real --coverage flag were dropped by a future change.
+    case "\$arg" in --coverage) wants_coverage=1 ;; esac
 done
 if [ "\$wants_coverage" -eq 1 ] \\
     && [ ! -d node_modules/@vitest/coverage-v8 ] \\
@@ -434,6 +437,85 @@ EOF
     [[ "$output" != *"MISSING DEPENDENCY"* ]]
 }
 
+# --- Jest (P1-02) -----------------------------------------------------------
+#
+# Jest's `--coverageReporters=json-summary` writes the exact same
+# coverage/coverage-summary.json shape Vitest's does (both are
+# Istanbul-based) — `total.lines.pct` parses identically, verified by
+# hand against a real `npx jest` run before this adapter was written.
+# Unlike Vitest, Jest bundles its own coverage collector, so there is no
+# separate-provider preflight to test here. These tests stub the local
+# `node_modules/.bin/jest` binary so the real invoke->parse->gate path is
+# exercised hermetically — no Jest install, no network.
+
+write_jest_project() {
+    local pct="$1" exit_code="${2:-0}"
+    cat > "$TEST_PROJECT/package.json" <<'EOF'
+{"name": "fixture", "scripts": {"test": "jest"}}
+EOF
+    mkdir -p "$TEST_PROJECT/node_modules/.bin"
+    cat > "$TEST_PROJECT/node_modules/.bin/jest" <<EOF
+#!/usr/bin/env bash
+wants_coverage=0
+for arg in "\$@"; do
+    # Exact match on the enabling flag itself, not a prefix match —
+    # --coverage* would also match --coverageReporters=... (this
+    # adapter's own config flag), which would let the stub pass even if
+    # the real --coverage flag were dropped by a future change.
+    case "\$arg" in --coverage) wants_coverage=1 ;; esac
+done
+if [ "\$wants_coverage" -eq 1 ]; then
+    mkdir -p coverage
+    printf '%s' '{"total":{"lines":{"total":10,"covered":$pct,"skipped":0,"pct":$pct}}}' > coverage/coverage-summary.json
+fi
+exit $exit_code
+EOF
+    chmod +x "$TEST_PROJECT/node_modules/.bin/jest"
+}
+
+@test "enforce-profile (Jest): production tier passes a fully covered project" {
+    command -v node >/dev/null || skip "node not installed"
+    write_jest_project 100
+    echo "production" > "$TEST_PROJECT/.agentharness-profile"
+    run bash "$SCRIPT" enforce-profile "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Jest" ]]
+    [[ "$output" =~ "meets the 'production' tier's minimum" ]]
+}
+
+@test "enforce-profile (Jest): production tier fails an undercovered project" {
+    command -v node >/dev/null || skip "node not installed"
+    write_jest_project 50
+    echo "production" > "$TEST_PROJECT/.agentharness-profile"
+    run bash "$SCRIPT" enforce-profile "$TEST_PROJECT"
+    [ "$status" -ne 0 ]
+    [[ "$output" =~ "is below the 'production' tier's minimum" ]]
+}
+
+@test "enforce-profile (Jest): a failing test run fails enforcement" {
+    command -v node >/dev/null || skip "node not installed"
+    write_jest_project 100 1
+    echo "production" > "$TEST_PROJECT/.agentharness-profile"
+    run bash "$SCRIPT" enforce-profile "$TEST_PROJECT"
+    [ "$status" -ne 0 ]
+}
+
+@test "enforce-profile (Jest): no coverage flag is passed when no coverage floor applies" {
+    # The 'internal' tier requires tests but sets no coverage_min, so
+    # jest IS invoked but must be invoked without --coverage — the stub
+    # only writes coverage-summary.json when it sees that flag, so a
+    # missing summary here would surface as a false "could not parse"
+    # error instead of a clean pass.
+    command -v node >/dev/null || skip "node not installed"
+    write_jest_project 100
+    echo "internal" > "$TEST_PROJECT/.agentharness-profile"
+
+    run bash "$SCRIPT" enforce-profile "$TEST_PROJECT"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "coverage_min: none" ]]
+}
+
 # --- --strict (P1-02) ------------------------------------------------------
 
 @test "enforce-profile --strict: unrecognized project type fails instead of exit 0" {
@@ -444,9 +526,9 @@ EOF
     [[ "$output" =~ "strict" ]]
 }
 
-@test "enforce-profile --strict: an unsupported JS runner (Jest) fails instead of exit 0" {
+@test "enforce-profile --strict: an unsupported JS runner (Mocha) fails instead of exit 0" {
     cat > "$TEST_PROJECT/package.json" <<'EOF'
-{"name": "fixture", "scripts": {"test": "jest"}}
+{"name": "fixture", "scripts": {"test": "mocha"}}
 EOF
     echo "production" > "$TEST_PROJECT/.agentharness-profile"
     run bash "$SCRIPT" enforce-profile "$TEST_PROJECT" --strict

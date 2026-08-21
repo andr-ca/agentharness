@@ -93,10 +93,11 @@ custom-agent table.
   force-pushes on every branch.
 - **Profile enforcement** (`harness-link.sh enforce-profile`) gates for
   real on **Python** (`pytest`), **Go** (`go test` + `go tool cover`),
-  and **`node --test`/Vitest JS/TS** projects at the selected tier's
-  coverage floor; Jest/Mocha and unrecognized project types are advisory
-  (exit 0, or fail under `--strict`). Not yet wired into the pre-push
-  hook. Source of truth: [patterns/profiles/README.md](../patterns/profiles/README.md).
+  and **`node --test`/Vitest/Jest JS/TS** projects at the selected
+  tier's coverage floor; Mocha and unrecognized project types are
+  advisory (exit 0, or fail under `--strict`). Not yet wired into the
+  pre-push hook. Source of truth:
+  [patterns/profiles/README.md](../patterns/profiles/README.md).
 - **Publish authority** defaults to verify-and-stage; push/PR requires
   the opt-in `.agentharness-publish-mode` flag. See
   [DECISIONS.md](./DECISIONS.md).

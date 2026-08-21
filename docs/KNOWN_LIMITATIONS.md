@@ -50,10 +50,10 @@ noted — resolve any label against the review filename cited next to it in
 ## Enforcement
 
 - **Profile enforcement is partial.** `harness-link.sh enforce-profile`
-  gates for real on Python, Go, and `node --test`/Vitest JS/TS projects;
-  Jest/Mocha and unrecognized project types are advisory (exit 0, or fail
-  under `--strict`). It is also **not wired into the pre-push hook** — it
-  ships as an explicitly-invoked subcommand. → ROADMAP P1-02.
+  gates for real on Python, Go, and `node --test`/Vitest/Jest JS/TS
+  projects; Mocha and unrecognized project types are advisory (exit 0,
+  or fail under `--strict`). It is also **not wired into the pre-push
+  hook** — it ships as an explicitly-invoked subcommand. → ROADMAP P1-02.
 
 ## Runtime upgrades
 

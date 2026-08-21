@@ -33,12 +33,12 @@ skips entirely):
   the `go tool cover -func` total against the tier's `coverage_min` —
   both standard-toolchain, no third-party dependency.
 - **JS/TS** (`package.json` present): a project whose `"test"` script
-  invokes Node's built-in `node --test` (per-file coverage summary) or
-  Vitest (`coverage-summary.json`'s `total.lines.pct`) gets real
-  enforcement — the two JS runners with a stable, machine-readable
-  coverage output this repo can parse without guessing. Jest, Mocha, or
-  anything else gets a clear "not implemented for this runner" and, by
-  default, exits 0.
+  invokes Node's built-in `node --test` (per-file coverage summary),
+  Vitest, or Jest (both share the same Istanbul-based
+  `coverage-summary.json`'s `total.lines.pct`) gets real enforcement —
+  the three JS runners with a stable, machine-readable coverage output
+  this repo can parse without guessing. Mocha, or anything else, gets a
+  clear "not implemented for this runner" and, by default, exits 0.
 
 A project this can't classify at all (no recognizable project file)
 gets "not implemented yet" and exits 0 — it never falsely blocks or

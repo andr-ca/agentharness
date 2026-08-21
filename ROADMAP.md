@@ -183,23 +183,12 @@ GitHub Copilot, and Gemini CLI via the Agent Skills open standard.
   `LOGGING_STANDARDS.md`.
 
 - **Profile-enforcement wiring in `.github/hooks/pre-push`, and wider
-  JS/TS + Go enforcement.** Partially done. `harness-link.sh
-  enforce-profile` reads `.agentharness-profile` and gates on it for
-  real for Python (`pytest --cov-fail-under` at the selected tier's
-  `coverage_min`) and for JS/TS projects whose `package.json` `"test"`
-  script already invokes Node's own built-in `node --test` (the one
-  JS/TS runner with a stable, dependency-free coverage output this repo
-  can parse). Still "not implemented yet" and a clean exit 0: Go
-  projects, and JS/TS projects using Jest/Vitest/Mocha/anything else —
-  extending to those needs a per-tool coverage-output parser (fragile
-  across versions) or a per-tool convention this repo would have to pick
-  and document, not a small addition. Also still not started: wiring
-  `enforce-profile` into `.github/hooks/pre-push` itself. The hook
-  currently only ever runs *this* repo's own hardcoded test suites and
-  no-ops for a consumer's push; changing that default for every project
-  that already has `--with-hook` installed is its own decision, kept
-  separate from shipping the enforcement logic itself (see
-  `patterns/profiles/README.md`'s "Current state").
+  JS/TS + Go enforcement — superseded by P1-02 below.** This entry
+  predates the Go/Vitest/Jest adapters (now shipped) and had drifted
+  into describing a state that no longer matches the code; rather than
+  maintain two independent descriptions of the same gap and risk them
+  drifting apart again, see the "P1 — coherence and maintainability"
+  section's P1-02 entry for the current, accurate status.
 
 - ~~Duplicate-policy detection in CI (part of P1-08).~~ — **IMPLEMENTED**
   (B7). `check_duplicate_policy_numbers()` in
@@ -311,11 +300,15 @@ label by the review filename cited next to it, never by number alone.
   routing files) into the same generation flow.
 - **P1-02 — Complete profile enforcement for mainstream projects.**
   Largely **done**: `enforce-profile` now has real runner adapters for
-  **Go** (`go test -coverprofile` + `go tool cover`) and **Vitest**
-  (`coverage-summary.json`), plus a **`--strict`** flag that turns an
-  unsupported project/runner into a failure instead of a non-blocking
-  exit 0. Still open: Jest and Mocha adapters, and wiring
-  `enforce-profile` into `.github/hooks/pre-push` (its own decision — see
+  **Go** (`go test -coverprofile` + `go tool cover`), **Vitest**, and
+  **Jest** (both share the same Istanbul-based `coverage-summary.json`
+  format, verified by hand against a real `npx jest` run), plus a
+  **`--strict`** flag that turns an unsupported project/runner into a
+  failure instead of a non-blocking exit 0. Still open: a Mocha adapter
+  (no equivalent built-in machine-readable coverage format to parse —
+  would need a third-party reporter convention this repo would have to
+  pick and document) and wiring `enforce-profile` into
+  `.github/hooks/pre-push` (its own decision — see
   `patterns/profiles/README.md`).
 - **P1-03 — Fix profile/workflow documentation drift.** The four concrete
   contradictions are now **fixed** (verified by hand against ground truth
