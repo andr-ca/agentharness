@@ -52,7 +52,7 @@ section into a tagged version.
 - **`generate-clients` is now wired into the full `init`/`update`/
   `doctor`/`uninstall` lifecycle (issue #241).** A consumer can select
   which AI-tool client(s) (`codex`/`gemini`/`copilot`/`cursor`/`kilo`,
-  or `all`/`none`/a csv list; default `codex`) to generate instruction
+  or `all`/`none`/a CSV list; default `codex`) to generate instruction
   files for at `init` time, switch clients later via `update --client`
   (cleaning up the dropped client's files from both disk and state),
   have `doctor` detect drift on generated whole-file surfaces, and have
