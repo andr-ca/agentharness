@@ -3178,6 +3178,56 @@ sys.exit(1)
 PYEOF
 }
 
+# _gc_record_wholefile_transition TARGET FILE_REL CLIENT
+# When _gc_is_state_managed_block (above) let a write through, this
+# standalone generate-clients run just legitimately converted a
+# block-managed file into a whole-file surface — but cmd_generate_clients
+# doesn't otherwise touch state (it predates install_transaction.py's
+# state-aware collision engine; see this function's header comment). Left
+# alone, the stale managed_blocks[] entry (the block marker the file no
+# longer contains) makes `doctor` report "expected one managed block,
+# found 0" after this ordinary, documented transition (issue #257). Moves
+# the entry to overwritten_files[] instead, matching what
+# build_surfaces_spec()/install_transaction.py already record for
+# init --client/update --client's own client-selection path. No-ops if
+# no state file exists, or the file was never a managed block (a plain
+# generate-clients run with no prior init has nothing to reconcile).
+_gc_record_wholefile_transition() {
+    local target="$1" file_rel="$2" client="$3"
+    local state
+    state="$(state_path "$target")"
+    [ -f "$state" ] || return 0
+    python3 - "$state" "$target" "$file_rel" "$client" <<'PYEOF'
+import hashlib
+import json
+import sys
+
+state_path, target, file_rel, client = sys.argv[1:5]
+with open(state_path) as f:
+    data = json.load(f)
+
+blocks = data.get("managed_blocks", [])
+if not any(b.get("file") == file_rel for b in blocks):
+    sys.exit(0)
+data["managed_blocks"] = [b for b in blocks if b.get("file") != file_rel]
+
+with open(f"{target}/{file_rel}", "rb") as f:
+    written_sha256 = hashlib.sha256(f.read()).hexdigest()
+overwritten = [o for o in data.get("overwritten_files", []) if o.get("file") != file_rel]
+overwritten.append({
+    "file": file_rel,
+    "written_sha256": written_sha256,
+    "created_by_harness": True,
+    "client": client,
+})
+data["overwritten_files"] = overwritten
+
+with open(state_path, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+PYEOF
+}
+
 # _gc_check_file FILE LABEL DRY_RUN FORCE [TARGET]
 # Checks whether FILE can be safely written.
 # Returns 0 if safe (or dry-run); 1 if should be skipped.
@@ -3245,14 +3295,20 @@ cmd_generate_clients() {
         case "$c" in
             codex)
                 if _gc_check_file "$target/AGENTS.md" "AGENTS.md" "$dry_run" "$force" "$target"; then
-                    [ "$dry_run" = false ] && bash "$gen/generate-agents-md.sh" "$HARNESS_DIR" --output "$target/AGENTS.md"
+                    if [ "$dry_run" = false ]; then
+                        bash "$gen/generate-agents-md.sh" "$HARNESS_DIR" --output "$target/AGENTS.md"
+                        _gc_record_wholefile_transition "$target" "AGENTS.md" codex
+                    fi
                     echo "  codex/opencode/zed -> AGENTS.md"
                 else
                     skipped=$((skipped+1))
                 fi ;;
             gemini)
                 if _gc_check_file "$target/GEMINI.md" "GEMINI.md" "$dry_run" "$force" "$target"; then
-                    [ "$dry_run" = false ] && bash "$gen/generate-gemini-md.sh" "$HARNESS_DIR" --output "$target/GEMINI.md"
+                    if [ "$dry_run" = false ]; then
+                        bash "$gen/generate-gemini-md.sh" "$HARNESS_DIR" --output "$target/GEMINI.md"
+                        _gc_record_wholefile_transition "$target" "GEMINI.md" gemini
+                    fi
                     echo "  gemini/antigravity -> GEMINI.md"
                 else
                     skipped=$((skipped+1))
@@ -3275,7 +3331,10 @@ cmd_generate_clients() {
                     done
                 fi
                 if [ "$copilot_ok" = true ]; then
-                    [ "$dry_run" = false ] && bash "$gen/generate-copilot-instructions.sh" "$HARNESS_DIR" --output-dir "$target"
+                    if [ "$dry_run" = false ]; then
+                        bash "$gen/generate-copilot-instructions.sh" "$HARNESS_DIR" --output-dir "$target"
+                        _gc_record_wholefile_transition "$target" ".github/copilot-instructions.md" copilot
+                    fi
                     echo "  copilot -> .github/copilot-instructions.md (+ .github/instructions/)"
                 else
                     skipped=$((skipped+1))

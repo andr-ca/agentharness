@@ -180,6 +180,57 @@ teardown() {
 }
 
 # ---------------------------------------------------------------------------
+# Once generate-clients converts an init-written block-managed file into a
+# whole-file surface (the test above), state must reflect the transition —
+# otherwise doctor reports stale drift against a block marker the file no
+# longer contains ("expected one managed block, found 0", issue #257).
+# ---------------------------------------------------------------------------
+
+@test "generate-clients: converting an init-written file to whole-file moves it from managed_blocks to overwritten_files" {
+    local consumer
+    consumer="$(mktemp -d)"
+    git -C "$consumer" init -q
+    bash "$SCRIPT" init "$consumer" --mode copy --skills committing >/dev/null
+    bash "$SCRIPT" generate-clients "$consumer" --client copilot >/dev/null
+
+    run python3 -c "
+import json
+d = json.load(open('$consumer/.agentharness-state.json'))
+assert not any(b['file'] == '.github/copilot-instructions.md' for b in d['managed_blocks']), d['managed_blocks']
+entry = next(o for o in d['overwritten_files'] if o['file'] == '.github/copilot-instructions.md')
+assert entry['client'] == 'copilot', entry
+assert entry['created_by_harness'] is True, entry
+print('ok')
+"
+    local py_status="$status" py_output="$output"
+
+    run bash "$SCRIPT" doctor "$consumer"
+    local doctor_status="$status" doctor_output="$output"
+    rm -rf "$consumer"
+
+    [ "$py_status" -eq 0 ]
+    [[ "$py_output" =~ "ok" ]]
+    [ "$doctor_status" -eq 0 ]
+    [[ "$doctor_output" != *"expected one managed block"* ]]
+}
+
+@test "generate-clients --dry-run does not mutate managed_blocks/overwritten_files state" {
+    local consumer
+    consumer="$(mktemp -d)"
+    git -C "$consumer" init -q
+    bash "$SCRIPT" init "$consumer" --mode copy --skills committing >/dev/null
+    local state_before
+    state_before="$(cat "$consumer/.agentharness-state.json")"
+
+    bash "$SCRIPT" generate-clients "$consumer" --client copilot --dry-run >/dev/null
+    local state_after
+    state_after="$(cat "$consumer/.agentharness-state.json")"
+    rm -rf "$consumer"
+
+    [ "$state_before" = "$state_after" ]
+}
+
+# ---------------------------------------------------------------------------
 # copilot/cursor/kilo's provenance header wraps "Generated from/by ..."
 # across two source lines; _gc_is_harness_generated()'s original same-line
 # regex only matched AGENTS.md/GEMINI.md's single-line variant, so a
