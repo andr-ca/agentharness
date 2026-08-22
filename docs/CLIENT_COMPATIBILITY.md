@@ -132,8 +132,8 @@ the top level. `.codex/hooks.json` carried its port notes as
 `_comment`/`_shared_script`/`_matcher_note` fields — exactly the kind of
 documentation-as-JSON-comment pattern this port itself used for Gemini
 too — and Codex refused to parse the whole file, silently disabling the
-guard entirely (`warning: failed to parse hooks config ...: unknown
-field \`_comment\`, expected \`description\` or \`hooks\``). Fixed by
+guard entirely — Codex's own warning named the culprit: "unknown field
+`_comment`, expected `description` or `hooks`". Fixed by
 consolidating the port notes into a single `description` field; a
 live re-run confirms the parse warning is gone. The guard's actual
 blocking behavior is still unverified — Codex's usage limit was
