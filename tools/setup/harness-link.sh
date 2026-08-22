@@ -2233,18 +2233,32 @@ PYEOF
     fi
 
     echo ""
-    echo "Client adapter freshness:"
-    python3 -c "
+    # $target and the state path are passed as argv, never interpolated
+    # into the Python source (Copilot review, PR #263) -- a target
+    # containing a quote or backslash would otherwise break out of the
+    # embedded string literal.
+    #
+    # state_schema_version is read via install_transaction.load_state()
+    # here (not the raw state_field helper) to match --json: load_state()
+    # migrates an older on-disk state in memory, so a healthy pre-v2
+    # install correctly reports schema_version=2 -- the version this run
+    # of the tool actually treats it as -- instead of "unknown" just
+    # because cmd_init's own state-writing path predates schema_version
+    # and never persisted the key.
+    python3 - "$target" "$(state_path "$target")" "$HARNESS_DIR" <<'PYEOF'
 import sys
-sys.path.insert(0, '$HARNESS_DIR/tools/setup')
+target, state_json_path, harness_dir = sys.argv[1:4]
+sys.path.insert(0, harness_dir + "/tools/setup")
 import install_transaction as it
 from pathlib import Path
 
-state = it.load_state('$(state_path "$target")')
-for c in it.client_surface_status(state, Path('$target')):
+state = it.load_state(state_json_path)
+print(f"State schema version: {state.get('schema_version')}")
+print("Client adapter freshness:")
+for c in it.client_surface_status(state, Path(target)):
     label = c['client'] or '(unlabeled)'
-    print(f\"  {c['status']:>8}  {c['file']}  [{label}, {c['kind']}]\")
-"
+    print(f"  {c['status']:>8}  {c['file']}  [{label}, {c['kind']}]")
+PYEOF
 
     echo ""
     echo "Selected profile: $selected_profile"
@@ -2308,7 +2322,6 @@ except (subprocess.SubprocessError, json.JSONDecodeError, OSError, KeyError):
         echo "  merge.ff=false: $merge_ff_false"
         [ "$coverage_hook" = "true" ] && echo "  pre-push is the generated coverage hook: $pre_push_owned_by_harness"
     fi
-    echo "State schema version: $(state_field "$target" schema_version 2>/dev/null || echo "unknown")"
     if [ "$mode" = "npm" ]; then
         local durable_copy_version_display="$durable_copy_version"
         [ "$durable_copy_version_display" = "null" ] && durable_copy_version_display="unknown"

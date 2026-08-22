@@ -7,7 +7,7 @@ section into a tagged version.
 ## [Unreleased]
 
 ### Added
-- **`audit --json` reports six new adoption-diagnostic fields** (P2-07,
+- **`audit --json` reports five new adoption-diagnostic fields** (P2-07,
   ROADMAP.md): `state_schema_version`; `clients[]` (per-client-surface
   drift status — `ok`/`drift`/`missing`/`malformed` — covering both the
   always-on `managed_blocks` files and any `--client`-generated
