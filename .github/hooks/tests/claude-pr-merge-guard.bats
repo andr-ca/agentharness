@@ -184,3 +184,26 @@ _cmd_payload() {
     run _run_guard '{"tool_name":"Bash","tool_input":{"command":{"nested":"object"}}}'
     [ "$status" -eq 0 ]
 }
+
+# --- Cursor's flat payload shape -----------------------------------------
+#
+# Cursor's beforeShellExecution event passes {"command": "..."} with no
+# tool_input wrapper at all — the other three clients all nest it. The
+# guard checks the nested shape first, then falls back to a top-level
+# command key, so it works unmodified across both payload families.
+
+@test "pr-merge guard: blocks Cursor's flat command payload" {
+    run _run_guard '{"command":"gh pr merge 42"}'
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "safe-pr-merge" ]]
+}
+
+@test "pr-merge guard: allows an unrelated command under Cursor's flat payload" {
+    run _run_guard '{"command":"echo hello"}'
+    [ "$status" -eq 0 ]
+}
+
+@test "pr-merge guard: a non-string top-level command does not crash the guard" {
+    run _run_guard '{"command":{"nested":"object"}}'
+    [ "$status" -eq 0 ]
+}

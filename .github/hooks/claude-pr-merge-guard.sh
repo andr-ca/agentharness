@@ -44,13 +44,18 @@ try:
 except Exception:
     print('')
     sys.exit(0)
-# Keyed on the PRESENCE of tool_input.command, not on a tool-name
+# Keyed on the PRESENCE of a command string, not on a tool-name
 # allowlist. Claude Code calls its shell tool 'Bash', Gemini CLI calls
 # it 'run_shell_command', and a name check written against one client
 # silently allows everything on the others — the guard would look
-# installed and do nothing. Every client that runs a shell command
-# passes it as tool_input.command, so that is the portable signal.
+# installed and do nothing. Claude Code, Codex, and Gemini all nest it
+# under tool_input.command; Cursor's beforeShellExecution payload is
+# flat (just a top-level command key, no tool_input wrapper at all) —
+# checked second so the nested shape (the common case across clients)
+# doesn't pay an extra lookup.
 command = data.get('tool_input', {}).get('command', '')
+if not isinstance(command, str) or not command:
+    command = data.get('command', '')
 print(command if isinstance(command, str) else '')
 " 2>/dev/null || true)"
 

@@ -5,9 +5,10 @@ instructions, on-demand skills, and custom-agent/sub-agent delegation,
 and what this harness currently does about it. Researched from each
 tool's public documentation as of 2026-07-14 (custom-agent section:
 2026-07-13) — **not verified against a live session of any tool except
-Claude Code and, as of 2026-08-19, Cursor's always-on router and
-on-demand skill rules (not its subagent porting or hook support — see
-the two Cursor rows marked below, and
+Claude Code and Cursor: Cursor's always-on router and on-demand skill
+rules as of 2026-08-19, and its `beforeShellExecution` pre-tool guard
+as of 2026-08-22 (not its subagent porting, which remains unverified —
+see the Cursor rows marked below, and
 [docs/operational/reviews/issue-240-client-live-verification-2026-08-19.md](operational/reviews/issue-240-client-live-verification-2026-08-19.md)).**
 Treat every other row's "built" claim the same way this repo already
 treats its Codex support: implemented against the tool's published
@@ -90,7 +91,7 @@ only refuse to let the session finish. A `Stop` hook cannot prevent a
 | OpenCode | ❓ unverified | ❓ unverified | ❌ none |
 | Gemini CLI | ✅ **`BeforeTool`** (not `PreToolUse`) — `hooks` object in `.gemini/settings.json`; blocks via exit code 2 with `stderr` as the reason, or `{"decision":"deny","reason":…}` on stdout | ❓ unverified | ⚠️ `.gemini/settings.json` **now confirmed detected** as a project-level hook by a live session (2026-08-22, see below); whether it actually blocks a `gh pr merge` remains unverified — the session errored out on an account-tier issue before any tool call fired |
 | Antigravity | ❓ unverified | ❓ unverified | ❌ none |
-| Cursor | ❓ unverified | ❓ unverified | ❌ none |
+| Cursor | ✅ **`beforeShellExecution`** — `hooks.json` (schema `version: 1`) at `.cursor/hooks.json`; payload is flat `{"command": …}` (no `tool_input` wrapper); blocks via exit code 2, `stderr` shown to the agent | ❓ unverified | ✅ `.cursor/hooks.json` wires `.github/hooks/claude-pr-merge-guard.sh` — **live-verified 2026-08-22**: a real `cursor-agent` session attempting `gh pr merge 1` was blocked, with the guard's own message surfaced back to the agent verbatim; a benign command in the same session ran untouched (negative control) |
 | Zed | ❓ unverified | ❓ unverified | ❌ none |
 | Kilo Code | ❓ unverified | ❓ unverified | ❌ none |
 
@@ -152,21 +153,53 @@ account/product-tier issue, not a bug in this repo, but worth recording:
 Gemini CLI's free tier appears to be sunsetting in favor of Antigravity,
 which is already this table's other ❓-unverified, ❌-unconfigured row.
 
+**Cursor ported and live-verified, 2026-08-22 (issue #266, closing
+part of #240's Cursor leg).** Unlike Codex and Gemini, Cursor's own
+`create-hook` skill documentation names `beforeShellExecution` as the
+purpose-built event for gating shell commands, with a documented,
+stable payload shape and blocking contract (exit 2 = deny, matching
+Claude Code and Codex) — no guessing from a strict-schema error message
+required, and no equivalent of Codex's usage-limit or Gemini's
+account-tier wall blocked the live test. `.cursor/hooks.json` wires the
+same shared `claude-pr-merge-guard.sh`. One real shape difference
+surfaced immediately: Cursor's `beforeShellExecution` payload is flat
+(`{"command": "gh pr merge 1"}`) — Claude Code, Codex, and Gemini all
+nest it under `tool_input.command`. The shared script now checks the
+nested shape first, then falls back to the flat top-level `command`
+key. A fixture repo (a throwaway `git init` outside this repo, with
+only `.cursor/hooks.json` and the guard script copied in) plus a real
+`cursor-agent --print --force --trust` session confirmed both directions:
+asking the agent to run `gh pr merge 1` was blocked, with the guard's
+stderr message relayed back to the agent verbatim (plus Cursor's own
+"do not suggest workarounds to the blocked tool" note); asking it to run
+a benign `echo` in the same session ran through untouched, ruling out a
+hook that blocks indiscriminately. `.cursor/hooks.json` deliberately
+carries no `description` or other documentation field at its top level
+— Codex's parse bug (above) was caused by exactly that pattern, and
+Cursor's tolerance for unknown top-level keys was not independently
+checked, so the port notes live here instead.
+
 **The three are not drop-in compatible with each other.** Claude Code uses `PreToolUse` in `.claude/settings.json`;
 Codex uses `PreToolUse` in `.codex/hooks.json` or `.codex/config.toml`;
-Gemini calls the event **`BeforeTool`** in `.gemini/settings.json`. Blocking
-semantics differ too — Gemini documents both an exit-code-2 path and a
-`{"decision":"deny"}` JSON path. A port is three config formats and one
-shared script, not a copied file; the existing guards read their payload
-from stdin as JSON, which is the part that does transfer.
+Gemini calls the event **`BeforeTool`** in `.gemini/settings.json`; Cursor
+calls it **`beforeShellExecution`** in `.cursor/hooks.json`, with a flat
+(not `tool_input`-nested) payload. Blocking semantics differ too — Gemini
+documents both an exit-code-2 path and a `{"decision":"deny"}` JSON path.
+A port is four config formats and one shared script, not a copied file;
+the existing guards read their payload from stdin as JSON, which is the
+part that does transfer.
 
-**Consequence today:** every *pre-tool* guard this repo has is
-Claude-Code-only. Copilot shares the completion gate, but a `Stop` hook
-fires after the fact — it cannot refuse a merge, only refuse to call the
-session done afterwards. So for the rules that must be caught *before* an
-action, sessions on the other eight clients are governed by prose alone.
-That is not an argument for deleting the prose — it is the reason the
-prose cannot be deleted.
+**Consequence today:** Claude Code and Cursor have a *pre-tool* guard
+that is both configured and live-verified to block. Codex and Gemini
+have one configured but not yet confirmed to block. OpenCode,
+Antigravity, Zed, and Kilo Code have none. Copilot shares the
+completion gate, but a `Stop` hook fires after the fact — it cannot
+refuse a merge, only refuse to call the session done afterwards. So for
+the rules that must be caught *before* an action, sessions on every
+client but Claude Code and Cursor are governed by prose alone (Codex
+and Gemini only as far as the unverified half goes). That is not an
+argument for deleting the prose — it is the reason the prose cannot be
+deleted.
 
 **Git hooks are the portable half.** `.github/hooks/pre-push`,
 `pre-commit` and `prevent-trunk-commit` fire for every client, because

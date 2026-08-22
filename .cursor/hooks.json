@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeShellExecution": [
+      {
+        "command": "bash .github/hooks/claude-pr-merge-guard.sh",
+        "matcher": ".*",
+        "timeout": 30
+      }
+    ]
+  }
+}
