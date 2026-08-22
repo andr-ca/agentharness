@@ -99,7 +99,17 @@ jobs:
 
   hook-tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Was 10; bumped 2026-08-22 after three separate PRs (#264, #265 x2)
+    # all landed a "canceled" hook-tests job at 10m03s-10m15s, matching
+    # this ceiling almost exactly -- not the transient-infra flakiness
+    # this repo has seen elsewhere (a genuine cancellation mid-suite,
+    # zero real test failures, always a different downstream test each
+    # time). This is the growing bats/pytest suite this job runs now
+    # regularly bumping the old limit under normal CI runner speed, not
+    # a fluke -- local pre-push runs of the same suite take ~9-10
+    # minutes too. 20m gives real headroom instead of making a rerun's
+    # success a coin flip on runner speed.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

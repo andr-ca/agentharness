@@ -467,14 +467,19 @@ label by the review filename cited next to it, never by number alone.
   but an unusual delivery channel for Markdown policy content, and
   requires Node plus Bash plus Python. Choose channels based on measured
   onboarding success, not ubiquity alone.
-- **P2-07 — Add telemetry-free local adoption diagnostics.** Extend
-  `audit --json` (already reports `publish_mode_active`/`selected_profile`/
-  `validation_commands` — see `tools/tests/harness-lifecycle.bats`'s
-  `audit --json reports publish_mode_active, selected_profile, and
-  validation_commands` tests) to also report client adapter freshness,
-  managed router state (once P1-01 exists), unsupported profile runner,
-  broken/stale package source, hook ownership, and state-schema version —
-  local and deterministic, no remote telemetry.
+- ~~P2-07 — Add telemetry-free local adoption diagnostics.~~ —
+  **IMPLEMENTED** (#263). `audit --json` (already reporting
+  `publish_mode_active`/`selected_profile`/`validation_commands`) gained
+  five more fields: `state_schema_version`; `clients[]` (per-surface
+  drift status, covering both the always-on `managed_blocks` files and
+  any `--client`-generated `overwritten_files` — the "managed router
+  state" half, unblocked by P1-01 landing first); `hook_ownership`;
+  `profile_runner` (reuses `enforce-profile`'s own detection cascade,
+  read-only); and `package_source` (`--mode npm`'s durable-copy
+  health/version). All local and deterministic, no remote telemetry.
+  Text-mode `audit` output carries the same five as human-readable
+  lines. See `tools/tests/harness-lifecycle.bats`'s `(P2-07)`-tagged
+  tests.
 - ~~P2-08 — Publish a concise comparison and migration story.~~ —
   **IMPLEMENTED** (#242). [`docs/COMPARE.md`](docs/COMPARE.md) covers
   when to use agentharness vs. a single `CLAUDE.md`/`AGENTS.md`, a native
