@@ -40,6 +40,22 @@ section into a tagged version.
   `managed_blocks[]` to `overwritten_files[]` when this transition
   happens, matching what `init --client`/`update --client` already
   record for their own client-selection path.
+- **`.codex/hooks.json` failed to parse in a live Codex CLI session,
+  silently disabling the `gh pr merge` guard it ports from Claude
+  Code.** Codex's hooks schema is strict (`deny_unknown_fields`,
+  top level accepts only `description`/`hooks`); the file's own
+  `_comment`/`_shared_script`/`_matcher_note` port-documentation fields
+  — added 2026-07-31 and explicitly marked "unverified" at the time —
+  tripped it. Found running `codex exec` against this repo for the
+  first time (issue #240). Fixed by consolidating the port notes into
+  a single `description` field; live-verified the parse warning is
+  gone. The guard's actual blocking behavior is still unverified —
+  Codex's usage limit was exhausted before any tool call could fire
+  it. `.gemini/settings.json` carries the same annotation-field
+  pattern but was unaffected — Gemini's `settings.json` schema
+  tolerates unknown top-level keys, confirmed via a live `gemini`
+  session that reported the hook detected (see
+  `docs/CLIENT_COMPATIBILITY.md` for both sessions' full findings).
 
 ## [0.8.1] - 2026-08-21
 
