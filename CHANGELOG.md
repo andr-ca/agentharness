@@ -26,6 +26,18 @@ section into a tagged version.
   subcommand's existing no-remote-telemetry stance — no registry call,
   no test/build execution. Text-mode `audit` output gained matching
   human-readable lines for all five.
+- **Ported the `gh pr merge` PreToolUse guard to Cursor CLI** (issue
+  #266, closing part of #240's Cursor leg): `.cursor/hooks.json` wires
+  `.github/hooks/claude-pr-merge-guard.sh` via Cursor's
+  `beforeShellExecution` event, the event its own hooks documentation
+  names for gating shell commands. **Live-verified 2026-08-22**: a real
+  `cursor-agent --print --force --trust` session attempting
+  `gh pr merge 1` in a throwaway fixture repo was blocked, with the
+  guard's message relayed back to the agent verbatim; a benign command
+  in the same session ran through untouched. Cursor's payload shape
+  differs from Claude Code/Codex/Gemini's shared `tool_input.command`
+  nesting — it is flat (`{"command": …}`) — so the shared guard script
+  now checks both shapes.
 
 ### Fixed
 - **`doctor` reported stale drift ("expected one managed block, found
