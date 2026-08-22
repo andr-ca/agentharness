@@ -86,9 +86,9 @@ only refuse to let the session finish. A `Stop` hook cannot prevent a
 |---|---|---|---|
 | Claude Code | ✅ `PreToolUse` via `.claude/settings.json` | ✅ `Stop` | ✅ 3 `PreToolUse` guards + `Stop` completion gate, tested in `.github/hooks/tests/` |
 | GitHub Copilot | ❓ unverified | ✅ `Stop` | ✅ completion gate (`.github/hooks/completion-gate.json`) |
-| Codex CLI | ✅ `PreToolUse` — `<repo>/.codex/hooks.json` or `[[hooks.PreToolUse]]` in `.codex/config.toml`; `matcher` + `command`, a blocking hook prevents the tool running | ❓ unverified | ⚠️ `.codex/hooks.json` written, **never fired** — proposed port, not a demonstrated guard |
+| Codex CLI | ✅ `PreToolUse` — `<repo>/.codex/hooks.json` or `[[hooks.PreToolUse]]` in `.codex/config.toml`; `matcher` + `command`, a blocking hook prevents the tool running | ❓ unverified | ⚠️ `.codex/hooks.json` config **now confirmed to load** (2026-08-22) after fixing a real parse bug (below); whether it actually blocks a `gh pr merge` remains unverified — Codex hit its usage limit before any tool call fired |
 | OpenCode | ❓ unverified | ❓ unverified | ❌ none |
-| Gemini CLI | ✅ **`BeforeTool`** (not `PreToolUse`) — `hooks` object in `.gemini/settings.json`; blocks via exit code 2 with `stderr` as the reason, or `{"decision":"deny","reason":…}` on stdout | ❓ unverified | ⚠️ `.gemini/settings.json` written, **never fired** — proposed port, not a demonstrated guard |
+| Gemini CLI | ✅ **`BeforeTool`** (not `PreToolUse`) — `hooks` object in `.gemini/settings.json`; blocks via exit code 2 with `stderr` as the reason, or `{"decision":"deny","reason":…}` on stdout | ❓ unverified | ⚠️ `.gemini/settings.json` **now confirmed detected** as a project-level hook by a live session (2026-08-22, see below); whether it actually blocks a `gh pr merge` remains unverified — the session errored out on an account-tier issue before any tool call fired |
 | Antigravity | ❓ unverified | ❓ unverified | ❌ none |
 | Cursor | ❓ unverified | ❓ unverified | ❌ none |
 | Zed | ❓ unverified | ❓ unverified | ❌ none |
@@ -123,6 +123,34 @@ client silently allows everything on the others — the guard would look
 installed and do nothing, which is worse than absent because it reads as
 covered. It now keys on the presence of `tool_input.command`, which every
 client supplies and no non-shell tool does.
+
+**First live sessions, 2026-08-22 (issue #240's Codex/Gemini leg).**
+Running `codex exec` against this repo for the first time surfaced a
+second real bug: Codex's `hooks.json` schema is strict
+(`deny_unknown_fields`) and accepts only `description` and `hooks` at
+the top level. `.codex/hooks.json` carried its port notes as
+`_comment`/`_shared_script`/`_matcher_note` fields — exactly the kind of
+documentation-as-JSON-comment pattern this port itself used for Gemini
+too — and Codex refused to parse the whole file, silently disabling the
+guard entirely (`warning: failed to parse hooks config ...: unknown
+field \`_comment\`, expected \`description\` or \`hooks\``). Fixed by
+consolidating the port notes into a single `description` field; a
+live re-run confirms the parse warning is gone. The guard's actual
+blocking behavior is still unverified — Codex's usage limit was
+exhausted before any tool call could fire it (resets 2026-08-23).
+
+Running `gemini -p` the same day got further: the CLI's own startup log
+showed `WARNING: The following project-level hooks have been detected in
+this workspace: - pr-merge-guard`, confirming `.gemini/settings.json`
+parses and its hook is recognized — Gemini's `settings.json` schema
+tolerates the same `_comment`/`_naming_note`/`_timeout_note`/
+`_matcher_note` fields that broke Codex, so no equivalent fix was
+needed there. The session then errored out (`IneligibleTierError: This
+client is no longer supported for Gemini Code Assist for individuals...
+migrate to the Antigravity suite`) before any tool call — an
+account/product-tier issue, not a bug in this repo, but worth recording:
+Gemini CLI's free tier appears to be sunsetting in favor of Antigravity,
+which is already this table's other ❓-unverified, ❌-unconfigured row.
 
 **The three are not drop-in compatible with each other.** Claude Code uses `PreToolUse` in `.claude/settings.json`;
 Codex uses `PreToolUse` in `.codex/hooks.json` or `.codex/config.toml`;
