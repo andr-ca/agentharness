@@ -6,6 +6,27 @@ section into a tagged version.
 
 ## [Unreleased]
 
+### Added
+- **`audit --json` reports five new adoption-diagnostic fields** (P2-07,
+  ROADMAP.md): `state_schema_version`; `clients[]` (per-client-surface
+  drift status — `ok`/`drift`/`missing`/`malformed` — covering both the
+  always-on `managed_blocks` files and any `--client`-generated
+  `overwritten_files`); `hook_ownership` (structured booleans for the
+  same hooks-path/pre-commit/pre-merge-commit/merge.ff/coverage-hook
+  signals `doctor` already verifies, named for exactly what's checked —
+  e.g. `pre_commit_present`, not `pre_commit_owned_by_harness`, since no
+  content marker exists to verify provenance against); `profile_runner`
+  (the same project/runner detection `enforce-profile` uses to dispatch,
+  run read-only so a consumer can see upfront whether their project type
+  is recognized, instead of only discovering "not implemented yet" the
+  first time CI calls it); and `package_source` (`--mode npm`'s durable
+  copy presence/health/version — the one install mode the existing
+  revision-comparison logic can't see into, since the durable copy has
+  no `.git` of its own). Local/deterministic only, matching this
+  subcommand's existing no-remote-telemetry stance — no registry call,
+  no test/build execution. Text-mode `audit` output gained matching
+  human-readable lines for all five.
+
 ### Fixed
 - **`doctor` reported stale drift ("expected one managed block, found
   0") after `generate-clients` legitimately converted an init-written

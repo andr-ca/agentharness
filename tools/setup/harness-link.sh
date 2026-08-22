@@ -1948,6 +1948,42 @@ cmd_audit() {
     coverage_hook="$(state_field "$target" coverage_hook 2>/dev/null || echo "false")"
     core_hooks_path="$(git -C "$target" config --get core.hooksPath 2>/dev/null || echo "")"
 
+    # hook_ownership (P2-07): the same signals doctor already verifies
+    # (issue #76/#155), re-exposed as structured booleans instead of
+    # human-readable lines. Deliberately not claiming provenance doctor
+    # itself doesn't check -- pre-commit/pre-merge-commit are only ever
+    # verified present+executable (no content marker exists to check
+    # against), so these fields are named for what's actually verified,
+    # not "owned_by_harness", to avoid overclaiming a check that isn't
+    # there (the exact mistake issue #249 item 7's header comment made
+    # and Copilot caught on PR #262).
+    local hooks_path_matches_recorded="null" pre_commit_present="null" \
+        pre_merge_commit_present="null" merge_ff_false="null" pre_push_owned_by_harness="null"
+    if [ "$with_hook" = "true" ]; then
+        local recorded_hooks_path
+        recorded_hooks_path="$(state_field "$target" hooks_path 2>/dev/null || echo "")"
+        [ "$recorded_hooks_path" = "None" ] && recorded_hooks_path=""
+        if [ -n "$recorded_hooks_path" ] && [ -n "$core_hooks_path" ]; then
+            [ "$core_hooks_path" = "$recorded_hooks_path" ] && hooks_path_matches_recorded=true || hooks_path_matches_recorded=false
+        else
+            hooks_path_matches_recorded=false
+        fi
+        if [ -n "$core_hooks_path" ]; then
+            [ -x "$core_hooks_path/pre-commit" ] && pre_commit_present=true || pre_commit_present=false
+            [ -x "$core_hooks_path/pre-merge-commit" ] && pre_merge_commit_present=true || pre_merge_commit_present=false
+            local actual_merge_ff
+            actual_merge_ff="$(git -C "$target" config --get merge.ff 2>/dev/null || true)"
+            [ "$actual_merge_ff" = "false" ] && merge_ff_false=true || merge_ff_false=false
+            if [ "$coverage_hook" = "true" ]; then
+                if [ -x "$core_hooks_path/pre-push" ] && grep -qF "$COVERAGE_HOOK_MARKER" "$core_hooks_path/pre-push" 2>/dev/null; then
+                    pre_push_owned_by_harness=true
+                else
+                    pre_push_owned_by_harness=false
+                fi
+            fi
+        fi
+    fi
+
     local wrapper_path wrapper_available=false
     wrapper_path="$(echo_check_wrapper_path "$target")"
     [ -x "$wrapper_path" ] && wrapper_available=true
@@ -1969,6 +2005,76 @@ cmd_audit() {
     [ "$mode" != "copy" ] && [ "$wrapper_available" = true ] && [ "$delegate_target_available" = true ] \
         && can_mechanically_enforce=true
 
+    # package_source (P2-07): --mode npm is the one install mode audit's
+    # existing revision-comparison logic can't see into -- $NPM_DURABLE_PATH
+    # has no .git of its own, so rev_comparable above is always false and
+    # a broken/empty durable copy previously surfaced no signal at all.
+    # Local/deterministic only (no registry call, matching this repo's own
+    # no-remote-telemetry stance for audit -- see ROADMAP.md P2-07): can
+    # only tell you the durable copy itself is intact and parseable, not
+    # whether a newer version has since been published.
+    local durable_copy_present="null" durable_copy_healthy="null" durable_copy_version="null"
+    if [ "$mode" = "npm" ]; then
+        if [ -e "$target/$NPM_DURABLE_PATH" ]; then
+            durable_copy_present=true
+            local durable_pkg_json="$target/$NPM_DURABLE_PATH/package.json"
+            local durable_version
+            durable_version="$(python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        print(json.load(f)['version'])
+except (OSError, KeyError, json.JSONDecodeError):
+    sys.exit(1)
+" "$durable_pkg_json" 2>/dev/null || true)"
+            if [ -n "$durable_version" ]; then
+                durable_copy_healthy=true
+                durable_copy_version="$durable_version"
+            else
+                durable_copy_healthy=false
+            fi
+        else
+            durable_copy_present=false
+            durable_copy_healthy=false
+        fi
+    fi
+
+    # profile_runner (P2-07): the same project/runner detection cascade
+    # cmd_enforce_profile and enforce_js_ts_profile use to dispatch, run
+    # here read-only (no pytest/go test/vitest/jest invocation) so audit
+    # can report up front whether 'enforce-profile' would recognize this
+    # project at all, instead of a consumer only discovering "not
+    # implemented yet for this project type" the first time CI calls it.
+    local profile_runner_type="unsupported" profile_runner_name="" \
+        profile_runner_supported="false" profile_runner_reason=""
+    if [ -f "$target/pyproject.toml" ] || [ -f "$target/setup.py" ] || [ -f "$target/requirements.txt" ]; then
+        profile_runner_type="python"; profile_runner_name="pytest"; profile_runner_supported="true"
+    elif [ -f "$target/go.mod" ]; then
+        profile_runner_type="go"; profile_runner_name="go test"; profile_runner_supported="true"
+    elif [ -f "$target/package.json" ]; then
+        profile_runner_type="js-ts"
+        if ! command -v node >/dev/null 2>&1; then
+            profile_runner_reason="node not available"
+        else
+            local audit_test_script
+            audit_test_script="$(node -p "(require(process.argv[1] + '/package.json').scripts || {}).test || ''" "$target" 2>/dev/null || true)"
+            case "$audit_test_script" in
+                *"node --test"*|*"node:test"*)
+                    profile_runner_name="node --test"; profile_runner_supported="true" ;;
+                *vitest*)
+                    profile_runner_name="vitest"; profile_runner_supported="true" ;;
+                *jest*)
+                    profile_runner_name="jest"; profile_runner_supported="true" ;;
+                "")
+                    profile_runner_reason="no 'test' script defined in package.json" ;;
+                *)
+                    profile_runner_reason="'test' script ('$audit_test_script') isn't node --test, Vitest, or Jest" ;;
+            esac
+        fi
+    else
+        profile_runner_reason="project type not recognized (no pyproject.toml/setup.py/requirements.txt, go.mod, or package.json)"
+    fi
+
     # --json (P2-01, expanded for P2-01/B5): machine-readable form of the
     # same drift this subcommand already computes, for CI or scripted
     # consumption instead of parsing the human-readable text below.
@@ -1977,7 +2083,11 @@ cmd_audit() {
             "$(printf '%s\n' "${not_installed[@]}")" "$(printf '%s\n' "${no_longer_available[@]}")" \
             "$commits_since" "$publish_mode_active" "$selected_profile" "$validation_report" \
             "$with_hook" "$coverage_hook" "$core_hooks_path" "$wrapper_path" "$wrapper_available" \
-            "$can_mechanically_enforce" <<'PYEOF'
+            "$can_mechanically_enforce" "$(state_path "$target")" "$HARNESS_DIR" \
+            "$hooks_path_matches_recorded" "$pre_commit_present" "$pre_merge_commit_present" \
+            "$merge_ff_false" "$pre_push_owned_by_harness" \
+            "$mode" "$durable_copy_present" "$durable_copy_healthy" "$durable_copy_version" \
+            "$profile_runner_type" "$profile_runner_name" "$profile_runner_supported" "$profile_runner_reason" <<'PYEOF'
 import json
 import sys
 
@@ -1986,6 +2096,16 @@ not_installed_raw, no_longer_available_raw, commits_raw = sys.argv[6:9]
 publish_mode_active, selected_profile, validation_raw = sys.argv[9:12]
 with_hook, coverage_hook, core_hooks_path = sys.argv[12:15]
 wrapper_path, wrapper_available, can_mechanically_enforce = sys.argv[15:18]
+state_json_path, harness_dir = sys.argv[18:20]
+hooks_path_matches_recorded, pre_commit_present, pre_merge_commit_present = sys.argv[20:23]
+merge_ff_false, pre_push_owned_by_harness = sys.argv[23:25]
+install_mode, durable_copy_present, durable_copy_healthy, durable_copy_version = sys.argv[25:29]
+profile_runner_type, profile_runner_name, profile_runner_supported, profile_runner_reason = sys.argv[29:33]
+
+
+def tri(s):
+    # "true"/"false"/"null" sentinel (bash has no None) -> real bool or None.
+    return None if s == "null" else s == "true"
 
 
 def lines(s):
@@ -2009,6 +2129,19 @@ for line in lines(validation_raw):
         "executable": executable == "true",
         "requires_executable": needs_exec == "yes",
     })
+
+# state_schema_version + clients (P2-07): loaded straight from state.json
+# rather than threaded through as more argv strings, since both need the
+# real state dict (client_surface_status does its own file-hashing against
+# `target`) — install_transaction is already the one place that owns state
+# schema, matching how doctor imports it for the same reason.
+sys.path.insert(0, harness_dir + "/tools/setup")
+import install_transaction as it  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+state = it.load_state(state_json_path)
+state_schema_version = state.get("schema_version")
+clients = it.client_surface_status(state, Path(target))
 
 import subprocess
 
@@ -2045,6 +2178,13 @@ print(json.dumps({
         "coverage_hook": coverage_hook == "true",
         "core_hooks_path": core_hooks_path or None,
     },
+    "hook_ownership": {
+        "hooks_path_matches_recorded": tri(hooks_path_matches_recorded),
+        "pre_commit_present": tri(pre_commit_present),
+        "pre_merge_commit_present": tri(pre_merge_commit_present),
+        "merge_ff_false": tri(merge_ff_false),
+        "pre_push_owned_by_harness": tri(pre_push_owned_by_harness),
+    },
     "helper_commands": {
         "check": {
             "available": wrapper_available == "true",
@@ -2053,6 +2193,20 @@ print(json.dumps({
     },
     "can_mechanically_enforce": can_mechanically_enforce == "true",
     "authority": authority,
+    "state_schema_version": state_schema_version,
+    "clients": clients,
+    "profile_runner": {
+        "project_type": profile_runner_type,
+        "runner": profile_runner_name or None,
+        "supported": profile_runner_supported == "true",
+        "reason": profile_runner_reason or None,
+    },
+    "package_source": {
+        "mode": install_mode,
+        "durable_copy_present": tri(durable_copy_present),
+        "durable_copy_healthy": tri(durable_copy_healthy),
+        "durable_copy_version": durable_copy_version if durable_copy_version != "null" else None,
+    },
 }, indent=2))
 PYEOF
         return
@@ -2079,8 +2233,41 @@ PYEOF
     fi
 
     echo ""
+    # $target and the state path are passed as argv, never interpolated
+    # into the Python source (Copilot review, PR #263) -- a target
+    # containing a quote or backslash would otherwise break out of the
+    # embedded string literal.
+    #
+    # state_schema_version is read via install_transaction.load_state()
+    # here (not the raw state_field helper) to match --json: load_state()
+    # migrates an older on-disk state in memory, so a healthy pre-v2
+    # install correctly reports schema_version=2 -- the version this run
+    # of the tool actually treats it as -- instead of "unknown" just
+    # because cmd_init's own state-writing path predates schema_version
+    # and never persisted the key.
+    python3 - "$target" "$(state_path "$target")" "$HARNESS_DIR" <<'PYEOF'
+import sys
+target, state_json_path, harness_dir = sys.argv[1:4]
+sys.path.insert(0, harness_dir + "/tools/setup")
+import install_transaction as it
+from pathlib import Path
+
+state = it.load_state(state_json_path)
+print(f"State schema version: {state.get('schema_version')}")
+print("Client adapter freshness:")
+for c in it.client_surface_status(state, Path(target)):
+    label = c['client'] or '(unlabeled)'
+    print(f"  {c['status']:>8}  {c['file']}  [{label}, {c['kind']}]")
+PYEOF
+
+    echo ""
     echo "Selected profile: $selected_profile"
     echo "Publish-authority flag active: $publish_mode_active"
+    if [ -n "$profile_runner_name" ]; then
+        echo "Profile runner: $profile_runner_type ($profile_runner_name) — supported"
+    else
+        echo "Profile runner: $profile_runner_type — NOT supported by enforce-profile (${profile_runner_reason:-project type not recognized})"
+    fi
 
     # Try to show authority summary (graceful degradation if unavailable).
     # The target path is passed via argv, never interpolated into the code
@@ -2129,6 +2316,17 @@ except (subprocess.SubprocessError, json.JSONDecodeError, OSError, KeyError):
 
     echo ""
     echo "Hook state: with_hook=$with_hook, coverage_hook=$coverage_hook, core.hooksPath=${core_hooks_path:-(unset)}"
+    if [ "$with_hook" = "true" ]; then
+        echo "  hooks_path matches recorded: $hooks_path_matches_recorded"
+        echo "  pre-commit present: $pre_commit_present, pre-merge-commit present: $pre_merge_commit_present"
+        echo "  merge.ff=false: $merge_ff_false"
+        [ "$coverage_hook" = "true" ] && echo "  pre-push is the generated coverage hook: $pre_push_owned_by_harness"
+    fi
+    if [ "$mode" = "npm" ]; then
+        local durable_copy_version_display="$durable_copy_version"
+        [ "$durable_copy_version_display" = "null" ] && durable_copy_version_display="unknown"
+        echo "Package source ($NPM_DURABLE_PATH): present=$durable_copy_present, healthy=$durable_copy_healthy, version=$durable_copy_version_display"
+    fi
     if [ "$mode" = "copy" ]; then
         echo "Consumer-local completion gate: not available for --mode copy (no live harness checkout stays reachable)"
     elif [ "$wrapper_available" = true ]; then
