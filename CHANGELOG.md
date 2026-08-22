@@ -26,7 +26,7 @@ section into a tagged version.
   subcommand's existing no-remote-telemetry stance — no registry call,
   no test/build execution. Text-mode `audit` output gained matching
   human-readable lines for all five.
-- **Ported the `gh pr merge` PreToolUse guard to Cursor CLI** (issue
+- **Ported the `gh pr merge` pre-tool guard to Cursor CLI** (issue
   #266, closing part of #240's Cursor leg): `.cursor/hooks.json` wires
   `.github/hooks/claude-pr-merge-guard.sh` via Cursor's
   `beforeShellExecution` event, the event its own hooks documentation

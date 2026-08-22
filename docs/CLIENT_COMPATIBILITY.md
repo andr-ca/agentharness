@@ -5,10 +5,10 @@ instructions, on-demand skills, and custom-agent/sub-agent delegation,
 and what this harness currently does about it. Researched from each
 tool's public documentation as of 2026-07-14 (custom-agent section:
 2026-07-13) — **not verified against a live session of any tool except
-Claude Code and Cursor: Cursor's always-on router and on-demand skill
-rules as of 2026-08-19, and its `beforeShellExecution` pre-tool guard
-as of 2026-08-22 (not its subagent porting, which remains unverified —
-see the Cursor rows marked below, and
+Claude Code (fully live-verified) and Cursor (partially live-verified:
+its always-on router and on-demand skill rules as of 2026-08-19, and its
+`beforeShellExecution` pre-tool guard as of 2026-08-22; its subagent
+porting remains unverified — see the Cursor rows marked below, and
 [docs/operational/reviews/issue-240-client-live-verification-2026-08-19.md](operational/reviews/issue-240-client-live-verification-2026-08-19.md)).**
 Treat every other row's "built" claim the same way this repo already
 treats its Codex support: implemented against the tool's published
