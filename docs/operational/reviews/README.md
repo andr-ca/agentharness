@@ -61,6 +61,12 @@ across the INDEX.md and inter-file references.
 |---|---|
 | [issue-143-recurring-loop-contract-evidence-2026-08-23.md](issue-143-recurring-loop-contract-evidence-2026-08-23.md) | Post-hoc test of the proposed 8-field loop contract (invariant/signal/proof/authority/durable-state/retry/human-attention/retirement) against Dependabot and the scheduled link check; 6 of 8 fields generalize cleanly, durable-state and retry/escalation don't transfer for either loop; recommends re-scoping to a 6-field contract rather than building the full 8-field version |
 
+### Cycle 8 — Issue #240 Codex live verification (2026-08-23)
+
+| File | Purpose |
+|---|---|
+| [issue-240-codex-live-verification-2026-08-23.md](issue-240-codex-live-verification-2026-08-23.md) | Closes #240's Codex leg: `AGENTS.md` always-on/skill-routing confirmed live-verified working; `PreToolUse` guard confirmed live-verified **not** working — `codex_hooks` is a disabled-by-default "under development" feature flag, and even force-enabled produces zero hook-execution activity in a debug trace |
+
 ---
 
 *For active documents not in this directory, see [../INDEX.md](../INDEX.md).*
