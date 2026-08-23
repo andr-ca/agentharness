@@ -141,7 +141,7 @@ nothing to fix here beyond documenting it accurately, which
 
 ## What this means for #240 and #229
 
-#240's Codex leg is now **closed** — both halves have a real, dated
+Issue #240's Codex leg is now **closed** — both halves have a real, dated
 answer instead of "blocked externally." #229 (qwen support), gated on
 "two existing non-Claude adapters have dated live-session notes," now
 has its second adapter: Cursor (2026-08-19/2026-08-22) plus Codex
