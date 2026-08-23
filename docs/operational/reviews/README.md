@@ -55,6 +55,12 @@ across the INDEX.md and inter-file references.
 |---|---|
 | [issue-240-client-live-verification-2026-08-19.md](issue-240-client-live-verification-2026-08-19.md) | Partial — setup for live Cursor/Codex verification surfaced and fixed 3 real `generate-clients` defects (PR #243); the live-agent runs themselves remain blocked externally (Codex quota, OpenCode server error, Cursor login pending) and are not yet done |
 
+### Cycle 7 — Issue #143 recurring-loop-contract evidence pass (2026-08-23)
+
+| File | Purpose |
+|---|---|
+| [issue-143-recurring-loop-contract-evidence-2026-08-23.md](issue-143-recurring-loop-contract-evidence-2026-08-23.md) | Post-hoc test of the proposed 8-field loop contract (invariant/signal/proof/authority/durable-state/retry/human-attention/retirement) against Dependabot and the scheduled link check; 6 of 8 fields generalize cleanly, durable-state and retry/escalation don't transfer for either loop; recommends re-scoping to a 6-field contract rather than building the full 8-field version |
+
 ---
 
 *For active documents not in this directory, see [../INDEX.md](../INDEX.md).*
