@@ -279,6 +279,14 @@ See archives/ for historical documents and superseded research
 5. Move promoted items to harness
 
 ### Quarterly Review (Seasonal)
+
+**Next review due: 2026-11-01.** Move this date forward one quarter each
+time the review runs, so the policy is a calendar fact owned by whoever
+runs it, not a sentence nobody is on the hook for. (See issue #199 —
+this line is the cheap process fix that makes the project-lifetime
+promote/archive/delete workflow enforceable without building tooling
+that would report zero candidates today.)
+
 1. Evaluate archived documents
 2. Consolidate duplicate research
 3. Update planning documents
