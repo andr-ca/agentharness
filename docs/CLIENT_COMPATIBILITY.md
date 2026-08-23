@@ -108,20 +108,28 @@ to trust one. Settling a row needs the same evidence the other tables
 here rest on: a documented config surface, plus a hook that demonstrably
 fires in a live session of that client.
 
-**Codex and Gemini rows are half-settled (researched 2026-07-31):** both
-vendors document a project-local pre-tool hook that can block a call, so
-the *config surface* half is established from primary sources. Neither
-has been fired in a live session from this repo, so the second half is
-still open — which is why the "configured here" column carries ⚠️ rather
-than a checkmark.
+**Codex and Gemini rows were half-settled as of 2026-07-31** (superseded
+for Codex, below): both vendors document a project-local pre-tool hook
+that can block a call, so the *config surface* half was established
+from primary sources at that point. Neither had been fired in a live
+session from this repo yet, so the second half was still open — which
+is why the "configured here" column carried ⚠️ rather than a checkmark
+or an ❌. **Codex's second half is no longer open** — a live session on
+2026-08-23 settled it, and settled it negative (below); the table's
+Codex row now carries ❌, not ⚠️. Gemini's second half remains open as
+described in this paragraph — its account-tier blocker (below) means
+the ⚠️ here is still accurate for that row alone.
 
-**Ported 2026-07-31, unverified.** `.codex/hooks.json` and
+**Ported 2026-07-31, unverified at the time.** `.codex/hooks.json` and
 `.gemini/settings.json` now wire both clients to the same
-`.github/hooks/claude-pr-merge-guard.sh` Claude Code uses. Neither has run
-in a live session of its client, so the table says ⚠️ rather than ✅ — a
-config file is not a guard until something has watched it refuse
-something. If you run Codex or Gemini CLI against this repo, try a
-`gh pr merge` and update the relevant row.
+`.github/hooks/claude-pr-merge-guard.sh` Claude Code uses. At the time
+of porting, neither had run in a live session of its client, so the
+table said ⚠️ rather than ✅ — a config file is not a guard until
+something has watched it refuse something. Codex has since run that
+live session (2026-08-23, below) and the config file, while correctly
+formed, was watched refuse nothing — hence ❌, not ✅. If you run Gemini
+CLI against this repo past its current account-tier blocker, try a
+`gh pr merge` and update its row.
 
 Porting surfaced one bug worth recording: the guard originally keyed on
 `tool_name == "Bash"`, which is Claude Code's name for the shell tool.
