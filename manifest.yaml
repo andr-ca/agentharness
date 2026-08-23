@@ -433,6 +433,10 @@ sections:
     path: tools/agent-lock.sh
     type: script
     when_to_use: Per-feature lock files for concurrent agent sessions — acquire/release/check/list/clean/suggest-branch
+  - asset: Claude Code statusline
+    path: tools/statusline.sh
+    type: script
+    when_to_use: "Reads Claude Code's session JSON on stdin, prints model/dir/branch/context% plus harness state (publish-authority mode, agent-lock status). Installed opt-in via `harness-link.sh init --with-statusline` — see docs/CLIENT_COMPATIBILITY.md's Statusline section"
   - asset: Safe PR merge script
     path: tools/safe-pr-merge.sh
     type: script

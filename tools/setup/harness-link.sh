@@ -128,6 +128,15 @@ init options:
   --with-coverage-hook          Like --with-hook, plus a generated
                                 pre-push hook that runs 'enforce-profile'
                                 against this project on every push
+  --with-statusline             Install a Claude Code statusline
+                                (.claude/statusline.sh) showing harness
+                                state — publish-authority mode, agent-lock
+                                status, branch, model, context usage.
+                                Opt-in: project-level statusline config
+                                overrides an operator's personal one, so
+                                this is never installed by default. Skips
+                                (does not overwrite) if .claude/settings.json
+                                already has a statusLine configured.
   --force                       Overwrite an existing, different core.hooksPath;
                                 also auto-overwrite whole-file collisions
                                 without prompting
@@ -197,11 +206,13 @@ state_write() {
     # $1=target $2=mode $3=skills_csv $4=skills_filter(or "") $5=with_hook(true/false)
     # $6=profile(or "") $7=source_path $8=source_revision $9=source_remote(or "")
     # $10=hooks_path(or "") $11=coverage_hook(true/false) $12=previous_hooks_path(or "")
-    # $13=previous_merge_ff(or "") $14=clients_csv(or "")
+    # $13=previous_merge_ff(or "") $14=clients_csv(or "") $15=with_statusline(true/false)
+    # $16=statusline_path(or "")
     local target="$1" mode="$2" skills_csv="$3" skills_filter="$4" with_hook="$5"
     local profile="$6" source_path="$7" source_revision="$8" source_remote="$9"
     local hooks_path="${10:-}" coverage_hook="${11:-false}" previous_hooks_path="${12:-}"
-    local previous_merge_ff="${13:-}" clients_csv="${14:-}"
+    local previous_merge_ff="${13:-}" clients_csv="${14:-}" with_statusline="${15:-false}"
+    local statusline_path="${16:-}"
     local existing_installed_at=""
     if [ -f "$(state_path "$target")" ]; then
         existing_installed_at="$(state_field "$target" "installed_at" || true)"
@@ -213,6 +224,7 @@ state_write() {
     AH_PREVIOUS_HOOKS_PATH="$previous_hooks_path" \
     AH_PREVIOUS_MERGE_FF="$previous_merge_ff" AH_CLIENTS_CSV="$clients_csv" \
     AH_EXISTING_INSTALLED_AT="$existing_installed_at" \
+    AH_WITH_STATUSLINE="$with_statusline" AH_STATUSLINE_PATH="$statusline_path" \
     python3 - "$(state_path "$target")" <<'PYEOF'
 import datetime
 import json
@@ -253,6 +265,8 @@ data = {
     "previous_hooks_path": os.environ.get("AH_PREVIOUS_HOOKS_PATH") or None,
     "previous_merge_ff": os.environ.get("AH_PREVIOUS_MERGE_FF") or None,
     "coverage_hook": os.environ.get("AH_COVERAGE_HOOK") == "true",
+    "with_statusline": os.environ.get("AH_WITH_STATUSLINE") == "true",
+    "statusline_path": os.environ.get("AH_STATUSLINE_PATH") or None,
     "profile": os.environ.get("AH_PROFILE") or None,
     "installed_at": existing_installed_at,
     "updated_at": now,
@@ -417,6 +431,75 @@ exec "$skills_src_root/tools/setup/harness-link.sh" enforce-profile "\$project_r
 EOF
     chmod +x "$wrapper_path"
     echo "  Generated consumer-local completion gate: $CHECK_WRAPPER_DIR/$CHECK_WRAPPER_NAME"
+}
+
+# install_statusline TARGET HARNESS_DIR
+# Copies tools/statusline.sh into TARGET/.claude/statusline.sh and wires it
+# into TARGET/.claude/settings.json's statusLine. Never overwrites an
+# operator's own statusLine (or one installed at a different path by an
+# earlier version of this script) — --with-statusline is opt-in precisely
+# because a project-level statusline config overrides every client's
+# personal/user-level default, so silently clobbering one here would be
+# the same mistake the opt-in flag exists to avoid. On success, echoes the
+# installed script's absolute path on stdout (for the caller to record in
+# state); on skip, echoes nothing and leaves no copied script file behind.
+install_statusline() {
+    local target="$1" harness_dir="$2"
+    local script_dst="$target/.claude/statusline.sh"
+    local settings_path="$target/.claude/settings.json"
+
+    mkdir -p "$target/.claude"
+    cp "$harness_dir/tools/statusline.sh" "$script_dst"
+    chmod +x "$script_dst"
+
+    local result
+    result="$(SL_SETTINGS_PATH="$settings_path" SL_COMMAND="$script_dst" python3 - <<'PYEOF'
+import json
+import os
+import sys
+
+path = os.environ["SL_SETTINGS_PATH"]
+command = os.environ["SL_COMMAND"]
+
+data = {}
+if os.path.exists(path):
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        print("ERROR")
+        sys.exit(0)
+
+existing = data.get("statusLine")
+if existing is not None:
+    print("OK" if existing.get("command") == command else "SKIP")
+    sys.exit(0)
+
+data["statusLine"] = {"type": "command", "command": command}
+with open(path, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+print("INSTALLED")
+PYEOF
+)"
+    case "$result" in
+        INSTALLED)
+            echo "  Installed statusline: .claude/statusline.sh, wired via .claude/settings.json's statusLine" >&2
+            echo "$script_dst"
+            ;;
+        OK)
+            echo "  statusLine already points at the agentharness script — left settings.json untouched" >&2
+            echo "$script_dst"
+            ;;
+        SKIP)
+            echo "  .claude/settings.json already has a statusLine configured — not overwriting it. Remove that key manually first if you want the agentharness one." >&2
+            rm -f "$script_dst"
+            ;;
+        *)
+            echo "  .claude/settings.json is not valid JSON — leaving it untouched, statusline not installed" >&2
+            rm -f "$script_dst"
+            ;;
+    esac
 }
 
 require_state() {
@@ -1053,7 +1136,7 @@ warn_if_untracked() {
 
 cmd_init() {
     local target="" mode="copy" skills_filter="" client_filter="codex" with_hook=false force=false
-    local profile="" dry_run=false coverage_hook=false keep_existing=false
+    local profile="" dry_run=false coverage_hook=false keep_existing=false with_statusline=false
 
     while [ $# -gt 0 ]; do
         case "$1" in
@@ -1062,6 +1145,7 @@ cmd_init() {
             --client) client_filter="$2"; shift 2 ;;
             --with-hook) with_hook=true; shift ;;
             --with-coverage-hook) with_hook=true; coverage_hook=true; shift ;;
+            --with-statusline) with_statusline=true; shift ;;
             --force) force=true; shift ;;
             --profile) profile="$2"; shift 2 ;;
             --dry-run) dry_run=true; shift ;;
@@ -1127,6 +1211,9 @@ cmd_init() {
             echo "  Hook: install trunk-protection + a generated coverage-aware pre-push hook (real files under .github/hooks, regardless of --mode)"
         elif [ "$with_hook" = true ]; then
             echo "  Hook: install trunk-protection hook only — not coverage (mode: $mode; see --with-coverage-hook)"
+        fi
+        if [ "$with_statusline" = true ]; then
+            echo "  Statusline: install .claude/statusline.sh + wire .claude/settings.json's statusLine (skipped if one is already configured)"
         fi
         [ -n "$profile" ] && echo "  Profile: write $PROFILE_FILE_NAME = $profile"
         if [ "$mode" = "copy" ]; then
@@ -1447,6 +1534,15 @@ cmd_init() {
     generate_check_wrapper "$target" "$mode" "$skills_src_root"
 
     # ------------------------------------------------------------------
+    # 4c. Statusline (opt-in — issue #273)
+    # ------------------------------------------------------------------
+    local installed_statusline_path=""
+    if [ "$with_statusline" = true ]; then
+        installed_statusline_path="$(install_statusline "$target" "$HARNESS_DIR")"
+        [ -z "$installed_statusline_path" ] && with_statusline=false
+    fi
+
+    # ------------------------------------------------------------------
     # 5. State file (written last — a failure above never leaves a state
     #    file describing work that didn't actually finish; if init fails
     #    partway, everything printed above is a paper trail for manual
@@ -1496,7 +1592,7 @@ cmd_init() {
     # Pass the pre-install hooks path so uninstall can restore it (F-05)
     state_write "$target" "$mode" "$skills_csv" "$skills_filter" "$with_hook" \
         "$profile" "$skills_src_root" "$source_revision" "$source_remote" "$installed_hooks_path" "$coverage_hook" \
-        "${existing_hooks_path:-}" "${existing_merge_ff:-}" "$clients_csv"
+        "${existing_hooks_path:-}" "${existing_merge_ff:-}" "$clients_csv" "$with_statusline" "$installed_statusline_path"
 
     warn_if_untracked "$target" "$dry_run"
 
@@ -1530,6 +1626,11 @@ cmd_status() {
     [ "$hooks_path" = "None" ] && hooks_path="(none)"
     echo "  hooks_path:    $hooks_path"
     echo "  coverage_hook: $(state_field "$target" coverage_hook 2>/dev/null || echo "false")"
+    echo "  with_statusline: $(state_field "$target" with_statusline 2>/dev/null || echo "false")"
+    local statusline_path
+    statusline_path="$(state_field "$target" statusline_path 2>/dev/null || echo "(none)")"
+    [ "$statusline_path" = "None" ] && statusline_path="(none)"
+    echo "  statusline_path: $statusline_path"
     local profile
     profile="$(state_field "$target" profile 2>/dev/null || echo "(none)")"
     echo "  profile:       $profile"
@@ -1808,6 +1909,29 @@ sys.exit(1 if any_drift else 0)
             echo "  note: consumer-local completion gate ($CHECK_WRAPPER_DIR/$CHECK_WRAPPER_NAME) is missing — run 'update' to generate it" >&2
         else
             echo "  ✓ consumer-local completion gate present ($CHECK_WRAPPER_DIR/$CHECK_WRAPPER_NAME)"
+        fi
+    fi
+
+    local doctor_with_statusline
+    doctor_with_statusline="$(state_field "$target" with_statusline 2>/dev/null || echo "false")"
+    if [ "$doctor_with_statusline" = "true" ]; then
+        local doctor_statusline_path
+        doctor_statusline_path="$(state_field "$target" statusline_path 2>/dev/null || echo "")"
+        [ "$doctor_statusline_path" = "None" ] && doctor_statusline_path=""
+        if [ -z "$doctor_statusline_path" ] || [ ! -f "$doctor_statusline_path" ]; then
+            echo "  ✗ statusline: with_statusline is recorded true, but $doctor_statusline_path is missing — rerun 'init --with-statusline' to reinstall" >&2
+            failed=1
+        elif [ "$(python3 -c "
+import json
+try:
+    with open('$target/.claude/settings.json') as f:
+        print((json.load(f).get('statusLine') or {}).get('command', ''))
+except (OSError, json.JSONDecodeError):
+    print('')
+" 2>/dev/null)" != "$doctor_statusline_path" ]; then
+            echo "  ⚠ statusline: $doctor_statusline_path exists, but .claude/settings.json's statusLine no longer points at it — someone changed it after install" >&2
+        else
+            echo "  ✓ statusline: .claude/statusline.sh present and wired via .claude/settings.json's statusLine"
         fi
     fi
 
@@ -2886,12 +3010,18 @@ cmd_update() {
     fi
 
     local mode source_path skills_filter with_hook profile hooks_path coverage_hook
-    local previous_hooks_path previous_merge_ff
+    local previous_hooks_path previous_merge_ff with_statusline statusline_path
     mode="$(state_field "$target" mode)"
     source_path="$(resolved_source_path "$target" "$mode" "$(state_field "$target" source.path)")"
     skills_filter="$(state_field "$target" skills_filter 2>/dev/null || echo "")"
     [ "$skills_filter" = "None" ] && skills_filter=""
     with_hook="$(state_field "$target" with_hook)"
+    # update never (re-)installs the statusline either — carry the
+    # previously recorded flag/path through unchanged, same reasoning as
+    # the hooks carry-forward just above.
+    with_statusline="$(state_field "$target" with_statusline 2>/dev/null || echo "false")"
+    statusline_path="$(state_field "$target" statusline_path 2>/dev/null || echo "")"
+    [ "$statusline_path" = "None" ] && statusline_path=""
     # update never touches hooks — carry the previously recorded path/flag
     # through unchanged (P0-01/P0-03: this must stay in sync with whatever
     # init/doctor last verified, not silently reset just because update
@@ -3131,7 +3261,7 @@ for line in json.load(sys.stdin)["log"]:
 
     state_write "$target" "$mode" "$new_skills_csv" "$skills_filter" "$with_hook" \
         "$profile" "$source_path" "$source_revision" "$source_remote" "$hooks_path" "$coverage_hook" \
-        "$previous_hooks_path" "$previous_merge_ff" "$clients_csv"
+        "$previous_hooks_path" "$previous_merge_ff" "$clients_csv" "$with_statusline" "$statusline_path"
 
     warn_if_untracked "$target" false
 
@@ -3155,9 +3285,12 @@ cmd_uninstall() {
     [ -d "$target" ] && target="$(cd "$target" && pwd)"
     require_state "$target"
 
-    local mode with_hook
+    local mode with_hook with_statusline statusline_path
     mode="$(state_field "$target" mode)"
     with_hook="$(state_field "$target" with_hook)"
+    with_statusline="$(state_field "$target" with_statusline 2>/dev/null || echo "false")"
+    statusline_path="$(state_field "$target" statusline_path 2>/dev/null || echo "")"
+    [ "$statusline_path" = "None" ] && statusline_path=""
     local skills_csv installed=()
     skills_csv="$(state_field "$target" skills)"
     IFS=',' read -ra installed <<< "$skills_csv"
@@ -3166,6 +3299,7 @@ cmd_uninstall() {
     printf '  - skill: %s\n' "${installed[@]}"
     [ -f "$target/.gitignore" ] && grep -qF "$GITIGNORE_MARKER" "$target/.gitignore" && echo "  - the agentharness block in .gitignore"
     { [ "$with_hook" = "true" ]; } && echo "  - core.hooksPath (if still pointing at agentharness)"
+    { [ "$with_statusline" = "true" ] && [ -n "$statusline_path" ]; } && echo "  - .claude/statusline.sh and its statusLine entry in .claude/settings.json (if settings.json's statusLine still points at it)"
     [ -f "$target/$PROFILE_FILE_NAME" ] && echo "  - $PROFILE_FILE_NAME"
     [ -f "$(echo_check_wrapper_path "$target")" ] && echo "  - $CHECK_WRAPPER_DIR/$CHECK_WRAPPER_NAME"
     [ "$mode" = "submodule" ] && [ -e "$target/$SUBMODULE_PATH/.git" ] && echo "  - the $SUBMODULE_PATH submodule"
@@ -3276,6 +3410,51 @@ cmd_uninstall() {
                 git -C "$target" config --unset merge.ff 2>/dev/null || true
                 echo "  Unset merge.ff (no previous value was recorded)"
             fi
+        fi
+    fi
+
+    if [ "$with_statusline" = "true" ] && [ -n "$statusline_path" ]; then
+        # Ownership guard, same principle as core.hooksPath/merge.ff above:
+        # only remove the statusLine entry (and the script file it points
+        # at) if settings.json's statusLine command is still exactly what
+        # this install wrote — if the operator has since pointed it
+        # elsewhere, that's their own choice and uninstall must not
+        # clobber it.
+        local settings_path="$target/.claude/settings.json"
+        local removed
+        removed="$(SL_SETTINGS_PATH="$settings_path" SL_COMMAND="$statusline_path" python3 - <<'PYEOF'
+import json
+import os
+
+path = os.environ["SL_SETTINGS_PATH"]
+command = os.environ["SL_COMMAND"]
+
+if not os.path.exists(path):
+    print("NOOP")
+    raise SystemExit
+try:
+    with open(path) as f:
+        data = json.load(f)
+except (OSError, json.JSONDecodeError):
+    print("NOOP")
+    raise SystemExit
+
+if (data.get("statusLine") or {}).get("command") != command:
+    print("NOOP")
+    raise SystemExit
+
+del data["statusLine"]
+with open(path, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+print("REMOVED")
+PYEOF
+)"
+        if [ "$removed" = "REMOVED" ]; then
+            rm -f "$statusline_path"
+            echo "  Removed .claude/statusline.sh and its statusLine entry in .claude/settings.json"
+        else
+            echo "  .claude/settings.json's statusLine no longer points at the agentharness script — leaving it and the script file untouched" >&2
         fi
     fi
 

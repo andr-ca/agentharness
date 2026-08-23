@@ -329,3 +329,94 @@ print(len(d['skills']))
     [ "$initial_gitignore" = "$final_gitignore" ]
     [ "$initial_hooks_path" = "$final_hooks_path" ]
 }
+
+@test "harness-link.sh: --with-statusline installs .claude/statusline.sh and wires statusLine in settings.json" {
+    git -C "$TEST_PROJECT" init --quiet
+
+    run bash "$SCRIPT" "$TEST_PROJECT" --skills none --client none --with-statusline
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Installed statusline" ]]
+
+    [ -x "$TEST_PROJECT/.claude/statusline.sh" ]
+    command=$(python3 -c "import json; print(json.load(open('$TEST_PROJECT/.claude/settings.json'))['statusLine']['command'])")
+    [ "$command" = "$TEST_PROJECT/.claude/statusline.sh" ]
+}
+
+@test "harness-link.sh: without --with-statusline, no statusline files are installed" {
+    git -C "$TEST_PROJECT" init --quiet
+
+    bash "$SCRIPT" "$TEST_PROJECT" --skills none --client none
+
+    [ ! -e "$TEST_PROJECT/.claude/statusline.sh" ]
+    [ ! -e "$TEST_PROJECT/.claude/settings.json" ]
+}
+
+@test "harness-link.sh: --with-statusline skips (does not overwrite) an existing statusLine in settings.json" {
+    git -C "$TEST_PROJECT" init --quiet
+    mkdir -p "$TEST_PROJECT/.claude"
+    cat > "$TEST_PROJECT/.claude/settings.json" <<'JSON'
+{"statusLine": {"type": "command", "command": "my-own-statusline.sh"}}
+JSON
+
+    run bash "$SCRIPT" "$TEST_PROJECT" --skills none --client none --with-statusline
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "already has a statusLine configured" ]]
+
+    command=$(python3 -c "import json; print(json.load(open('$TEST_PROJECT/.claude/settings.json'))['statusLine']['command'])")
+    [ "$command" = "my-own-statusline.sh" ]
+    [ ! -e "$TEST_PROJECT/.claude/statusline.sh" ]
+}
+
+@test "harness-link.sh: statusline install is piped session JSON and prints a status line" {
+    git -C "$TEST_PROJECT" init --quiet
+    git -C "$TEST_PROJECT" -c user.email=test@example.com -c user.name=Test commit --quiet --allow-empty -m init
+
+    bash "$SCRIPT" "$TEST_PROJECT" --skills none --client none --with-statusline
+
+    run bash -c "echo '{\"model\":{\"display_name\":\"Sonnet 5\"},\"workspace\":{\"current_dir\":\"$TEST_PROJECT\"},\"context_window\":{\"used_percentage\":10}}' | '$TEST_PROJECT/.claude/statusline.sh'"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Sonnet 5" ]]
+    [[ "$output" =~ "stage-only" ]]
+}
+
+@test "harness-link.sh: doctor reports statusline health when --with-statusline was used" {
+    git -C "$TEST_PROJECT" init --quiet
+
+    bash "$SCRIPT" "$TEST_PROJECT" --skills none --client none --with-statusline
+
+    run bash "$SCRIPT" doctor "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "statusline: .claude/statusline.sh present" ]]
+}
+
+@test "harness-link.sh: uninstall removes statusline.sh and its statusLine entry, ownership-guarded" {
+    git -C "$TEST_PROJECT" init --quiet
+
+    bash "$SCRIPT" "$TEST_PROJECT" --skills none --client none --with-statusline
+    [ -f "$TEST_PROJECT/.claude/statusline.sh" ]
+
+    run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Removed .claude/statusline.sh" ]]
+    [ ! -e "$TEST_PROJECT/.claude/statusline.sh" ]
+    run python3 -c "import json,sys; sys.exit(1 if 'statusLine' in json.load(open('$TEST_PROJECT/.claude/settings.json')) else 0)"
+    [ "$status" -eq 0 ]
+}
+
+@test "harness-link.sh: uninstall leaves statusline.sh untouched if settings.json was repointed elsewhere" {
+    git -C "$TEST_PROJECT" init --quiet
+
+    bash "$SCRIPT" "$TEST_PROJECT" --skills none --client none --with-statusline
+    python3 -c "
+import json
+path = '$TEST_PROJECT/.claude/settings.json'
+data = json.load(open(path))
+data['statusLine']['command'] = 'something-else.sh'
+json.dump(data, open(path, 'w'))
+"
+
+    run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "no longer points at the agentharness script" ]]
+    [ -f "$TEST_PROJECT/.claude/statusline.sh" ]
+}
