@@ -11,11 +11,11 @@ always-on router and on-demand skill rules as of 2026-08-19, and its
 porting remains unverified), and Codex CLI (partially live-verified:
 its `AGENTS.md` always-on load and on-demand skill routing as of
 2026-08-23; its `PreToolUse` guard was also live-tested that day and
-**confirmed non-functional** on the installed CLI version — see below
+**confirmed non-functional** on the installed CLI version).** See the
+Cursor and Codex rows marked below, plus the full write-ups in
+[docs/operational/reviews/issue-240-client-live-verification-2026-08-19.md](operational/reviews/issue-240-client-live-verification-2026-08-19.md)
 and
-[docs/operational/reviews/issue-240-codex-live-verification-2026-08-23.md](operational/reviews/issue-240-codex-live-verification-2026-08-23.md)
-— see also the Cursor rows marked below, and
-[docs/operational/reviews/issue-240-client-live-verification-2026-08-19.md](operational/reviews/issue-240-client-live-verification-2026-08-19.md)).**
+[docs/operational/reviews/issue-240-codex-live-verification-2026-08-23.md](operational/reviews/issue-240-codex-live-verification-2026-08-23.md).
 Treat every other row's "built" claim the same way this repo already
 treats its Codex support: implemented against the tool's published
 behavior, not dogfooded end-to-end. See `docs/DECISIONS.md`'s
