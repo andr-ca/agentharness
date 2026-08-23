@@ -5,10 +5,16 @@ instructions, on-demand skills, and custom-agent/sub-agent delegation,
 and what this harness currently does about it. Researched from each
 tool's public documentation as of 2026-07-14 (custom-agent section:
 2026-07-13) — **not verified against a live session of any tool except
-Claude Code (fully live-verified) and Cursor (partially live-verified:
-its always-on router and on-demand skill rules as of 2026-08-19, and its
+Claude Code (fully live-verified), Cursor (partially live-verified: its
+always-on router and on-demand skill rules as of 2026-08-19, and its
 `beforeShellExecution` pre-tool guard as of 2026-08-22; its subagent
-porting remains unverified — see the Cursor rows marked below, and
+porting remains unverified), and Codex CLI (partially live-verified:
+its `AGENTS.md` always-on load and on-demand skill routing as of
+2026-08-23; its `PreToolUse` guard was also live-tested that day and
+**confirmed non-functional** on the installed CLI version — see below
+and
+[docs/operational/reviews/issue-240-codex-live-verification-2026-08-23.md](operational/reviews/issue-240-codex-live-verification-2026-08-23.md)
+— see also the Cursor rows marked below, and
 [docs/operational/reviews/issue-240-client-live-verification-2026-08-19.md](operational/reviews/issue-240-client-live-verification-2026-08-19.md)).**
 Treat every other row's "built" claim the same way this repo already
 treats its Codex support: implemented against the tool's published
@@ -26,7 +32,7 @@ support, mechanism doesn't exist for this tool yet.
 | Tool | File(s) | Location / loading behavior | This repo |
 |---|---|---|---|
 | Claude Code | `CLAUDE.md` | Repo root, read in full every session | ✅ hand-maintained, the source of truth for every generated file below |
-| Codex CLI | `AGENTS.md` | Repo root, read in full every session | ✅ generated from `CLAUDE.md` by `tools/generate-agents-md.sh` (P0-06) |
+| Codex CLI | `AGENTS.md` | Repo root, read in full every session | ✅ generated from `CLAUDE.md` by `tools/generate-agents-md.sh` (P0-06) — **live-verified 2026-08-23**: a real `codex exec` session against a fresh fixture answered the exact multi-agent-lock command (router-only content) and the exact TDD cycle name (on-demand `testing` skill content), confirming both the always-on file and skill routing actually load |
 | OpenCode | `AGENTS.md` (primary); `.claude/CLAUDE.md` recognized as a fallback | Searched from cwd up to repo root, then global (`~/.config/opencode/AGENTS.md`); first match wins | ⚠️ this repo's `AGENTS.md` is OpenCode's own primary filename |
 | Gemini CLI | `GEMINI.md` (default; filename list configurable via `settings.json`'s `context.fileName`) | Hierarchical: global `~/.gemini/GEMINI.md` + every `GEMINI.md` from cwd up to `.git`, all concatenated | ✅ generated from `CLAUDE.md` by `tools/generate-gemini-md.sh` |
 | Antigravity | `GEMINI.md` (precedence) or `AGENTS.md` (fallback) | Read at session start, applied for the whole session | ✅ dedicated `GEMINI.md` now generated (Antigravity's precedence file); `AGENTS.md` remains as the fallback |
@@ -87,7 +93,7 @@ only refuse to let the session finish. A `Stop` hook cannot prevent a
 |---|---|---|---|
 | Claude Code | ✅ `PreToolUse` via `.claude/settings.json` | ✅ `Stop` | ✅ 3 `PreToolUse` guards + `Stop` completion gate, tested in `.github/hooks/tests/` |
 | GitHub Copilot | ❓ unverified | ✅ `Stop` | ✅ completion gate (`.github/hooks/completion-gate.json`) |
-| Codex CLI | ✅ `PreToolUse` — `<repo>/.codex/hooks.json` or `[[hooks.PreToolUse]]` in `.codex/config.toml`; `matcher` + `command`, a blocking hook prevents the tool running | ❓ unverified | ⚠️ `.codex/hooks.json` config **now confirmed to load** (2026-08-22) after fixing a real parse bug (below); whether it actually blocks a `gh pr merge` remains unverified — Codex hit its usage limit before any tool call fired |
+| Codex CLI | ✅ `PreToolUse` — `<repo>/.codex/hooks.json` or `[[hooks.PreToolUse]]` in `.codex/config.toml`; `matcher` + `command`, a blocking hook prevents the tool running | ❓ unverified | ❌ `.codex/hooks.json` parses cleanly (fixed 2026-08-22, below), but **confirmed non-functional by a live session, 2026-08-23**: `codex_hooks` is a feature flag Codex's own CLI marks "under development," disabled by default; even with `--enable codex_hooks` explicitly set, `RUST_LOG=debug` shows zero hook-execution activity and a real `gh pr merge 1` runs completely unblocked. This is not "unverified" — it is verified not to work on codex-cli 0.115.0. See below |
 | OpenCode | ❓ unverified | ❓ unverified | ❌ none |
 | Gemini CLI | ✅ **`BeforeTool`** (not `PreToolUse`) — `hooks` object in `.gemini/settings.json`; blocks via exit code 2 with `stderr` as the reason, or `{"decision":"deny","reason":…}` on stdout | ❓ unverified | ⚠️ `.gemini/settings.json` **now confirmed detected** as a project-level hook by a live session (2026-08-22, see below); whether it actually blocks a `gh pr merge` remains unverified — the session errored out on an account-tier issue before any tool call fired |
 | Antigravity | ❓ unverified | ❓ unverified | ❌ none |
@@ -153,6 +159,54 @@ account/product-tier issue, not a bug in this repo, but worth recording:
 Gemini CLI's free tier appears to be sunsetting in favor of Antigravity,
 which is already this table's other ❓-unverified, ❌-unconfigured row.
 
+**Codex's AGENTS.md leg confirmed live, its guard leg confirmed dead,
+2026-08-23 (closing #240's Codex leg, one way and one way not).** Once
+Codex CLI was authenticated in a session that had previously lacked
+credentials entirely (a harder blocker than the 2026-08-19/2026-08-22
+usage-limit wall — `codex login status` reported "Not logged in" and a
+trivial `codex exec` call 401'd), two things were tested for real
+against a fixture built the same way as Cursor's (`init --mode copy
+--skills committing,branching,testing` + `generate-clients --client
+codex`):
+
+- **AGENTS.md always-on load + skill routing: live-verified, works.** A
+  `codex exec -m gpt-5.4` session answered the exact multi-agent-lock
+  command (content that exists only in the router half of `AGENTS.md`,
+  not any skill file) and the exact TDD cycle name (content that exists
+  only in `.agents/skills/testing/SKILL.md`) — the same two-fact method
+  used for Cursor on 2026-08-19. Both answers were exact matches with no
+  extra tool calls needed, confirming Codex reads `AGENTS.md` in full and
+  resolves on-demand skills correctly.
+- **`PreToolUse` guard: live-verified, does not work.** A throwaway
+  fixture repo (mirroring Cursor's: a bare `git init` with only
+  `.codex/hooks.json` and the guard script copied in) plus a live
+  `codex exec` session asked to run `gh pr merge 1` was **not** blocked
+  — `gh` ran and failed only on its own missing-remote error, never on
+  the guard. Checking why: `codex features list` shows `codex_hooks`
+  staged as `under development`, disabled by default. Explicitly forcing
+  it on (`--enable codex_hooks`) does change the reported feature state
+  (confirmed via `codex features list --enable codex_hooks`) and prints
+  the CLI's own warning — `"Under-development features enabled:
+  codex_hooks. Under-development features are incomplete and may behave
+  unexpectedly"` — but a `RUST_LOG=debug` run of the same test shows no
+  hook-loading or hook-execution log line anywhere, and the merge attempt
+  still ran unblocked. The config surface documented by Codex (and
+  ported here) exists; the runtime that would read and act on it does
+  not yet exist in the installed CLI version (`codex-cli 0.115.0`) even
+  when the feature gate is force-enabled. Full write-up:
+  [docs/operational/reviews/issue-240-codex-live-verification-2026-08-23.md](operational/reviews/issue-240-codex-live-verification-2026-08-23.md).
+
+Two smaller findings from the same session, unrelated to the hook
+mechanism itself: this Codex CLI's default model (`gpt-5.3-codex`) is
+rejected outright for ChatGPT-login accounts ("The 'gpt-5.3-codex' model
+is not supported when using Codex with a ChatGPT account") — any
+`codex exec` invocation needs an explicit `-m` override (`gpt-5.4`
+worked) to run at all on this account type; and the installed client's
+model-manifest fetch errors on every invocation (`unknown variant
+"max"`, a schema mismatch against the server's current reasoning-level
+vocabulary) — cosmetic here, but a sign this specific install is behind
+the server's current contract.
+
 **Cursor ported and live-verified, 2026-08-22 (issue #266, closing
 part of #240's Cursor leg).** Unlike Codex and Gemini, Cursor's own
 `create-hook` skill documentation names `beforeShellExecution` as the
@@ -190,16 +244,20 @@ the existing guards read their payload from stdin as JSON, which is the
 part that does transfer.
 
 **Consequence today:** Claude Code and Cursor have a *pre-tool* guard
-that is both configured and live-verified to block. Codex and Gemini
-have one configured but not yet confirmed to block. OpenCode,
+that is both configured and live-verified to block. Codex has one
+configured, live-tested, and **confirmed not to block** — the config
+surface is real but the client-side runtime for it isn't shipped yet.
+Gemini has one configured but still not confirmed either way (blocked
+on an account-tier issue before any tool call fired). OpenCode,
 Antigravity, Zed, and Kilo Code have none. Copilot shares the
 completion gate, but a `Stop` hook fires after the fact — it cannot
 refuse a merge, only refuse to call the session done afterwards. So for
 the rules that must be caught *before* an action, sessions on every
-client but Claude Code and Cursor are governed by prose alone (Codex
-and Gemini only as far as the unverified half goes). That is not an
-argument for deleting the prose — it is the reason the prose cannot be
-deleted.
+client but Claude Code and Cursor are governed by prose alone — and on
+Codex specifically, that prose is doing 100% of the work, not some
+unverified fraction of it, since the mechanical half is confirmed
+absent rather than merely unverified. That is not an argument for
+deleting the prose — it is the reason the prose cannot be deleted.
 
 **Git hooks are the portable half.** `.github/hooks/pre-push`,
 `pre-commit` and `prevent-trunk-commit` fire for every client, because

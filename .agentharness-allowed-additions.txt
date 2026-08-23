@@ -63,3 +63,4 @@ docs/operational/reviews/dogfood-recalium-2026-08-20-status.md
 tools/harness-session-start.sh
 tools/tests/harness-session-start.bats
 docs/operational/reviews/issue-143-recurring-loop-contract-evidence-2026-08-23.md
+docs/operational/reviews/issue-240-codex-live-verification-2026-08-23.md
