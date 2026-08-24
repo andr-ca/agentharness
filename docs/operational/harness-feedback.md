@@ -837,3 +837,84 @@ there, and the Python side refuses to climb above the project root. The
 guarded-paths file is now disclosed in the output. Four tests, including
 a counter-case that fills `.claude/` and `.github/` with operator files
 and asserts they survive.
+
+## 2026-08-24 – Verified, unpushed local commits vanished across a long `AskUserQuestion` wait
+
+**Recurrence key:** `ephemeral-container-loses-unpushed-work-on-long-block`
+
+**Harness version:** `d5b3a84`
+
+**Event class:** tool-output-mismatch
+
+**Observed vs. inferred:** Observed directly — `git reflog` on resumption
+showed only a fresh `checkout: moving from main to <branch>` entry (no
+prior history), the branch had zero commits ahead of `origin/main`, and
+`git fetch origin <branch>` returned "couldn't find remote ref": the
+branch had never been pushed, so nothing survived.
+
+**What happened:** Working an "address gpt-5.6-review.md findings" task
+per the Agent Recommendation Assessment mandate, I made 5 commits of
+scoped, individually-verified fixes (each re-executed against real code,
+not just read) — a logging-interpolator rewrite, `harness-link.sh`
+traversal/worktree fixes, a bidirectional manifest verifier, and content
+fixes to the error-handling and agentic-loops guides. Per CLAUDE.md's
+default authority ("verify and stage, then stop" — no
+`.agentharness-publish-mode` was present and the user hadn't granted
+standing push authority), I left them committed locally and unpushed,
+which is exactly what that policy prescribes. I then blocked on
+`AskUserQuestion` to escalate a genuinely out-of-scope-for-me policy
+question (P0-03: loosening CLAUDE.md's own self-authorization mandate).
+The human's answer came back in a **new session turn on a freshly
+provisioned container** — the working directory `git log` showed the
+review had *already* been independently completed and merged to `main`
+across many PRs in the elapsed time, and my branch had been silently
+fast-forwarded to that `main` with no trace of my 5 commits: they were
+never pushed, so the old container being reclaimed took them with it.
+
+**Root cause:** two individually-correct policies compose unsafely.
+(1) CLAUDE.md's default authority tier stops at "commit and stage,
+don't push" absent explicit authorization — appropriate for a
+same-container, same-sitting workflow. (2) The remote-execution
+environment's containers are ephemeral and reclaimed after a period of
+inactivity, explicitly including "the session lives in an isolated,
+ephemeral container... reclaimed after a period of inactivity." Neither
+policy accounts for the other: a *local* commit is not durable storage
+in this environment, only a *pushed* one is, but the default-authority
+tier treats "committed" as the safe resting state. `AskUserQuestion` (or
+any tool that blocks on a human, including a scheduled check-in) has no
+bound on how long the container may sit idle waiting for a reply, which
+is exactly the condition that triggers reclamation.
+
+**Impact:** No actual work was lost in outcome — by the time the answer
+arrived, upstream had independently re-derived equivalent (and in several
+places more thorough) fixes through its own review/reaudit cycle, so
+re-implementing was unnecessary. But that was luck: this task happened to
+already be in flight elsewhere. A session doing genuinely unique work that
+blocks on human input for a long enough wait would lose it silently, with
+no error, no warning at commit time, and no signal until the next turn's
+`git log` looks unfamiliar. The session also had no way to know time had
+passed at all until reading commit dates far past what its own context
+implied.
+
+**What agentharness should change:** the default-authority policy in
+CLAUDE.md ("verify and stage, then stop") should say explicitly that
+*local* commits are not a durable safe-point in an ephemeral-container
+execution environment, and that a session about to block on a
+long-or-unbounded-duration human-input call (`AskUserQuestion`, a
+scheduled check-in, anything with no timeout) with verified,
+committed-but-unpushed work should either (a) push to a scratch/WIP
+remote branch first — pushing a branch is not the same permission as
+opening a PR or merging, and doesn't require publish authority under a
+reasonable reading of the existing tiers — or (b) if push is genuinely
+withheld even for a WIP branch, say so explicitly in the question itself
+("this work is only safe locally; a long wait may lose it") so the human
+can decide whether to answer quickly. This is a single observed
+occurrence, not yet corroborated by a second independent instance;
+treat this as a candidate finding pending corroboration, per this
+skill's own promotion rule, rather than an immediate mandate change.
+
+**Corrective action taken:** verified the current repository state was
+sound (all relevant checks green, the review's findings independently
+resolved upstream) rather than blindly re-applying now-redundant local
+fixes; logged this entry. Logged upstream as
+[#276](https://github.com/andr-ca/agentharness/issues/276).
