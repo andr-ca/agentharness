@@ -379,6 +379,26 @@ JSON
     [[ "$output" =~ "stage-only" ]]
 }
 
+# Regression test for a Copilot review finding on PR #281: an authority
+# contract's "expires" field with no UTC offset in its ISO string
+# (e.g. "2099-01-01T00:00:00", no trailing Z or +HH:MM) parses to a
+# timezone-naive datetime, which used to raise TypeError comparing it
+# against the timezone-aware "now" — crashing the whole statusline under
+# set -e instead of just that one grant's expiry.
+@test "harness-link.sh: statusline does not crash on a timezone-naive authority expiry" {
+    git -C "$TEST_PROJECT" init --quiet
+    git -C "$TEST_PROJECT" -c user.email=test@example.com -c user.name=Test commit --quiet --allow-empty -m init
+    cat > "$TEST_PROJECT/.agentharness-authority.json" <<'JSON'
+{"grants": [{"operations": ["push"], "expires": "2099-01-01T00:00:00"}]}
+JSON
+
+    bash "$SCRIPT" "$TEST_PROJECT" --skills none --client none --with-statusline
+
+    run bash -c "echo '{\"model\":{\"display_name\":\"Sonnet 5\"},\"workspace\":{\"current_dir\":\"$TEST_PROJECT\"},\"context_window\":{\"used_percentage\":10}}' | '$TEST_PROJECT/.claude/statusline.sh'"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "scoped(1" ]]
+}
+
 @test "harness-link.sh: doctor reports statusline health when --with-statusline was used" {
     git -C "$TEST_PROJECT" init --quiet
 
@@ -591,4 +611,53 @@ json.dump(data, open(path, 'w'))
     [ "$codex_has_status_line" = "True" ]
     gemini_has_items=$(python3 -c "import json; print('items' in json.load(open('$TEST_PROJECT/.gemini/settings.json'))['ui']['footer'])")
     [ "$gemini_has_items" = "True" ]
+}
+
+# Regression tests for Copilot review findings on PR #281: the [tui]
+# header detection/removal used an exact `line.strip() == "[tui]"` (or
+# equivalent) match, which misses a header with a trailing inline TOML
+# comment — on install that silently appended a *second* [tui] header
+# (invalid TOML, since a table can't be defined twice), and on uninstall
+# it left the status_line line behind instead of removing it.
+
+@test "harness-link.sh: Codex install does not duplicate [tui] when the header has a trailing comment" {
+    git -C "$TEST_PROJECT" init --quiet
+    mkdir -p "$TEST_PROJECT/.codex"
+    printf '[tui] # my personal tui settings\nnotify = true\n' > "$TEST_PROJECT/.codex/config.toml"
+
+    run bash "$SCRIPT" "$TEST_PROJECT" --skills none --client codex --with-statusline
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Installed Codex statusline" ]]
+
+    run python3 -c "
+import tomllib
+data = tomllib.load(open('$TEST_PROJECT/.codex/config.toml', 'rb'))
+assert data['tui']['notify'] is True
+assert 'status_line' in data['tui']
+"
+    [ "$status" -eq 0 ]
+    # Exactly one [tui] header — a second one would make this invalid TOML,
+    # which the tomllib.load() call above would already have caught, but
+    # assert the header count explicitly too.
+    header_count=$(grep -c '^\[tui\]' "$TEST_PROJECT/.codex/config.toml")
+    [ "$header_count" -eq 1 ]
+}
+
+@test "harness-link.sh: uninstall removes tui.status_line even with a trailing inline comment on that line" {
+    git -C "$TEST_PROJECT" init --quiet
+    mkdir -p "$TEST_PROJECT/.codex"
+    printf '[tui]\nstatus_line = ["model-with-reasoning", "approval-mode", "context-used", "current-dir"] # installed by agentharness\n' > "$TEST_PROJECT/.codex/config.toml"
+
+    bash "$SCRIPT" "$TEST_PROJECT" --skills none --client codex --with-statusline
+
+    run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Removed tui.status_line from .codex/config.toml" ]]
+
+    run python3 -c "
+import tomllib
+data = tomllib.load(open('$TEST_PROJECT/.codex/config.toml', 'rb'))
+assert 'status_line' not in data.get('tui', {})
+"
+    [ "$status" -eq 0 ]
 }

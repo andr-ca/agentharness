@@ -570,7 +570,12 @@ if os.path.exists(path):
 
 lines = text.splitlines(keepends=True)
 tui_header_idx = next(
-    (i for i, line in enumerate(lines) if line.strip() == "[tui]"), None
+    (
+        i
+        for i, line in enumerate(lines)
+        if line.split("#", 1)[0].strip() == "[tui]"
+    ),
+    None,
 )
 if tui_header_idx is not None:
     lines.insert(tui_header_idx + 1, status_line_line)
@@ -3759,7 +3764,11 @@ if (data.get("tui") or {}).get("status_line") != items:
 status_line_line_repr = "status_line = " + json.dumps(items)
 with open(path, encoding="utf-8") as f:
     lines = f.readlines()
-new_lines = [line for line in lines if line.strip() != status_line_line_repr]
+new_lines = [
+    line
+    for line in lines
+    if line.split("#", 1)[0].strip() != status_line_line_repr
+]
 with open(path, "w", encoding="utf-8") as f:
     f.writelines(new_lines)
 print("REMOVED")

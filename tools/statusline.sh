@@ -74,9 +74,15 @@ now = datetime.now(timezone.utc)
 
 def parse_expiry(value):
     try:
-        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     except (ValueError, TypeError):
         return None
+    # A naive datetime (no offset in the ISO string) can't be compared
+    # against the timezone-aware `now` below without raising TypeError —
+    # treat it as UTC rather than let that crash the whole statusline.
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
 
 
 active = []
