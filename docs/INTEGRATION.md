@@ -27,9 +27,11 @@ adds a submodule and symlinks from it — see Method 1/2/3 below) skills,
 merges `.github/.gitignore.template` into `.gitignore`, optionally
 installs the trunk-protection hook (`--with-hook`) or a real,
 project-owned coverage-enforcing pre-push hook on top of that
-(`--with-coverage-hook` — see "Coverage enforcement" below, P0-03), and
-records everything in `<project>/.agentharness-state.json` so the other
-subcommands can act on it later:
+(`--with-coverage-hook` — see "Coverage enforcement" below, P0-03),
+optionally installs a Claude Code statusline showing harness state
+(`--with-statusline` — see "Statusline" below), and records everything
+in `<project>/.agentharness-state.json` so the other subcommands can
+act on it later:
 
 | Subcommand | What it does |
 |---|---|
@@ -103,6 +105,44 @@ coverage enforcement fails on the next push. `update` never touches
 hooks (same convention as `--with-hook`), so recovering requires
 re-running `init --with-coverage-hook` to regenerate the script against
 a valid `harness-link.sh` path.
+
+### Statusline (`--with-statusline`)
+
+`--with-statusline` installs a Claude Code statusline —
+`<project>/.claude/statusline.sh`, wired via `.claude/settings.json`'s
+`statusLine` — that shows model, directory, branch, and context usage
+alongside harness state a generic statusline can't: publish-authority
+mode (from `.agentharness-authority.json`/`.agentharness-publish-mode`)
+and whether the current branch is locked by another agent session
+(`tools/agent-lock.sh check-branch`, when that tool is present in the
+project).
+
+It's opt-in, unlike most of what `init` installs by default, because a
+project-level `statusLine` in `.claude/settings.json` overrides an
+operator's own personal/user-level one — installing it unasked would
+silently replace a preference the operator set for themselves. Even
+when opted in, the install is non-destructive: if `.claude/settings.json`
+already has a `statusLine` configured, `init` skips it with a message
+rather than overwriting it (remove that key by hand first if you want
+the agentharness one instead). `doctor` verifies the recorded install is
+still healthy; `uninstall` removes both the script and the `statusLine`
+entry, but only if `.claude/settings.json` still points at exactly the
+script this install wrote — the same ownership-guard pattern
+`--with-hook` uses for `core.hooksPath`.
+
+Codex CLI (`--client codex`) and Gemini CLI (`--client gemini`) get a
+curated statusline too, when `--with-statusline` is set and that client
+is actually selected — only Claude Code's install is unconditional,
+since it's this harness's native client. Both are fixed-vocabulary
+mechanisms (no scripting hook, so no harness state is possible): a
+curated `tui.status_line` list merged into `.codex/config.toml`, and a
+curated `ui.footer.items` list merged into `.gemini/settings.json`. Both
+merges are as non-destructive as the Claude Code one — an existing,
+different value is left alone with a message rather than overwritten,
+and `doctor`/`uninstall` apply the same health-check and ownership-guard
+pattern per client. See `docs/CLIENT_COMPATIBILITY.md`'s Statusline
+section for the exact item sets and how they were verified (issues #274
+and #275).
 
 `harness-link.sh /path/to/your-project [options]` (no subcommand) still
 works — it's sugar for `init` with those same options, kept for anything

@@ -274,6 +274,39 @@ expressed as a git hook it already covers everyone; the gap is only for
 rules that must be caught *before* a tool call, which is what
 `PreToolUse` exists for.
 
+## Statusline
+
+A fourth axis, researched 2026-08-23 (tracked in issue #272): whether a
+tool lets a project configure what its status bar shows, and whether
+that configuration can carry state this harness specifically knows
+about (publish-authority mode, an active agent-branch lock) versus only
+a curated list of the tool's own predefined items.
+
+| Tool | Mechanism | Custom/scripted items? | This repo |
+|---|---|---|---|
+| Claude Code | `statusLine` in `.claude/settings.json` — runs any script, session JSON piped on stdin | Yes — arbitrary script | ✅ `tools/statusline.sh`, installed via `harness-link.sh init --with-statusline` (opt-in; see below). Shows model, directory, branch, context %, publish-authority mode (from `.agentharness-authority.json`/`.agentharness-publish-mode`), and whether the current branch is locked by another agent session (`tools/agent-lock.sh check-branch`, when that tool is present) |
+| Codex CLI | `tui.status_line` in `config.toml` — ordered array of predefined item ids; also editable via the `/statusline` slash command | No — fixed vocabulary only | ✅ curated set `["model-with-reasoning", "approval-mode", "context-used", "current-dir"]` merged into `tui.status_line`, installed via `harness-link.sh init --client codex --with-statusline` (opt-in). Verified 2026-08-25 against codex-rs's `StatusLineItem` enum at the latest tagged release — the earlier research pass's guessed ids (`model`, `context_usage`, `cwd`, `spinner`) don't match the real vocabulary; the correct ones are kebab-case (`current-dir`, `context-used`, no `spinner` item exists) |
+| Gemini CLI | `ui.footer.items` in `settings.json` — ordered array of predefined item ids; also editable via `/footer` (alias `/statusline`) | No — fixed vocabulary only | ✅ curated set `["workspace", "git-branch", "model-name", "context-used"]` merged into `ui.footer.items`, installed via `harness-link.sh init --client gemini --with-statusline` (opt-in). The published settings docs don't enumerate `ui.footer.items` or its valid ids at all (only boolean `hideCWD`/`hideModelInfo`/etc. toggles) — this was verified straight from `footerItems.ts`'s `ALL_ITEMS` list in the source, not from docs |
+| OpenCode | None — status bar is not user-configurable | N/A | ❌ mechanism doesn't exist; open upstream request: [anomalyco/opencode#30295](https://github.com/anomalyco/opencode/issues/30295) asks for exactly Claude Code's script model |
+| Cursor, GitHub Copilot, Zed, Kilo Code | IDE status bar, not project-configurable | N/A | ❌ mechanism doesn't exist for project-level control |
+
+**Why opt-in, not default-on:** on every client above that supports
+project-level statusline config, that config *overrides* the
+individual operator's own personal/user-level statusline preference —
+installing it by default on every `init`/`update` would silently
+replace something an operator chose for themselves. `--with-statusline`
+installs non-destructively even when opted in: it never overwrites an
+existing `statusLine` entry in `.claude/settings.json`, it only skips
+with a message and leaves the operator's own configuration in place.
+
+**Why Claude Code is the only one with harness state today:** Codex's
+and Gemini's statusline items are drawn from each tool's own fixed
+vocabulary — there is no item id for "is this branch locked by another
+agent session" or "what publish authority does this session have,"
+and no scripting hook to compute one. A curated default item set is
+still useful there (issues #274/#275) but structurally cannot show
+anything this harness specifically tracks.
+
 ## Custom agents / sub-agent delegation
 
 A third dimension, distinct from the two tables above: several tools let
