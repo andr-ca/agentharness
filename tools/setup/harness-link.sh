@@ -128,15 +128,24 @@ init options:
   --with-coverage-hook          Like --with-hook, plus a generated
                                 pre-push hook that runs 'enforce-profile'
                                 against this project on every push
-  --with-statusline             Install a Claude Code statusline
+  --with-statusline             Install a statusline for the clients this
+                                run touches. Claude Code always gets one
                                 (.claude/statusline.sh) showing harness
                                 state — publish-authority mode, agent-lock
-                                status, branch, model, context usage.
-                                Opt-in: project-level statusline config
-                                overrides an operator's personal one, so
-                                this is never installed by default. Skips
-                                (does not overwrite) if .claude/settings.json
-                                already has a statusLine configured.
+                                status, branch, model, context usage — the
+                                only client that can carry that state.
+                                Codex (--client codex) gets a curated
+                                tui.status_line in .codex/config.toml;
+                                Gemini (--client gemini) gets a curated
+                                ui.footer.items in .gemini/settings.json —
+                                both fixed item vocabularies, no harness
+                                state possible. Opt-in: project-level
+                                statusline config overrides an operator's
+                                personal one on every client that supports
+                                it, so this is never installed by default.
+                                Skips (does not overwrite) any config file
+                                that already has its own statusline/footer
+                                items set.
   --force                       Overwrite an existing, different core.hooksPath;
                                 also auto-overwrite whole-file collisions
                                 without prompting
@@ -207,12 +216,12 @@ state_write() {
     # $6=profile(or "") $7=source_path $8=source_revision $9=source_remote(or "")
     # $10=hooks_path(or "") $11=coverage_hook(true/false) $12=previous_hooks_path(or "")
     # $13=previous_merge_ff(or "") $14=clients_csv(or "") $15=with_statusline(true/false)
-    # $16=statusline_path(or "")
+    # $16=statusline_path(or "") $17=codex_statusline_path(or "") $18=gemini_statusline_path(or "")
     local target="$1" mode="$2" skills_csv="$3" skills_filter="$4" with_hook="$5"
     local profile="$6" source_path="$7" source_revision="$8" source_remote="$9"
     local hooks_path="${10:-}" coverage_hook="${11:-false}" previous_hooks_path="${12:-}"
     local previous_merge_ff="${13:-}" clients_csv="${14:-}" with_statusline="${15:-false}"
-    local statusline_path="${16:-}"
+    local statusline_path="${16:-}" codex_statusline_path="${17:-}" gemini_statusline_path="${18:-}"
     local existing_installed_at=""
     if [ -f "$(state_path "$target")" ]; then
         existing_installed_at="$(state_field "$target" "installed_at" || true)"
@@ -225,6 +234,7 @@ state_write() {
     AH_PREVIOUS_MERGE_FF="$previous_merge_ff" AH_CLIENTS_CSV="$clients_csv" \
     AH_EXISTING_INSTALLED_AT="$existing_installed_at" \
     AH_WITH_STATUSLINE="$with_statusline" AH_STATUSLINE_PATH="$statusline_path" \
+    AH_CODEX_STATUSLINE_PATH="$codex_statusline_path" AH_GEMINI_STATUSLINE_PATH="$gemini_statusline_path" \
     python3 - "$(state_path "$target")" <<'PYEOF'
 import datetime
 import json
@@ -267,6 +277,8 @@ data = {
     "coverage_hook": os.environ.get("AH_COVERAGE_HOOK") == "true",
     "with_statusline": os.environ.get("AH_WITH_STATUSLINE") == "true",
     "statusline_path": os.environ.get("AH_STATUSLINE_PATH") or None,
+    "codex_statusline_path": os.environ.get("AH_CODEX_STATUSLINE_PATH") or None,
+    "gemini_statusline_path": os.environ.get("AH_GEMINI_STATUSLINE_PATH") or None,
     "profile": os.environ.get("AH_PROFILE") or None,
     "installed_at": existing_installed_at,
     "updated_at": now,
@@ -499,6 +511,173 @@ PYEOF
             echo "  .claude/settings.json is not valid JSON — leaving it untouched, statusline not installed" >&2
             rm -f "$script_dst"
             ;;
+    esac
+}
+
+# Curated Codex CLI status_line item set. Codex has no custom/scripted
+# items (issue #274) — only a fixed vocabulary of predefined ids, verified
+# 2026-08-25 against codex-rs's StatusLineItem enum
+# (codex-rs/tui/src/bottom_pane/status_line_setup.rs) at the latest tagged
+# release, not just the doc prose (which as of that check does not
+# enumerate the ids at all). "cwd" and "context_usage" — floated in the
+# original issue text — are not valid identifiers; the real ones are
+# "current-dir" and "context-used" (kebab-case).
+readonly CODEX_STATUS_LINE_ITEMS='["model-with-reasoning", "approval-mode", "context-used", "current-dir"]'
+
+# install_codex_statusline TARGET
+# Merges `tui.status_line = [...]` into TARGET/.codex/config.toml. No TOML
+# writer dependency exists in this repo's runtime (Python's stdlib tomllib
+# is read-only), so this parses with tomllib only to detect whether
+# tui.status_line is already set, and otherwise inserts one new line via
+# text surgery: right after an existing "[tui]" header if the file already
+# has one, or as a fresh "[tui]" section appended at EOF if it doesn't.
+# Never touches any other key. Skips (leaves the file untouched) if the
+# file isn't valid TOML, or already has a *different* tui.status_line —
+# same non-destructive-merge principle as install_statusline's JSON
+# handling, and same reasoning for why: this is opt-in specifically
+# because project-level Codex config overrides the operator's own
+# user-level config.toml.
+install_codex_statusline() {
+    local target="$1"
+    local config_path="$target/.codex/config.toml"
+    mkdir -p "$target/.codex"
+
+    local result
+    result="$(CODEX_CONFIG_PATH="$config_path" CODEX_STATUS_LINE_ITEMS_JSON="$CODEX_STATUS_LINE_ITEMS" python3 - <<'PYEOF'
+import json
+import os
+import sys
+import tomllib
+
+path = os.environ["CODEX_CONFIG_PATH"]
+items = json.loads(os.environ["CODEX_STATUS_LINE_ITEMS_JSON"])
+status_line_line = "status_line = " + json.dumps(items) + "\n"
+
+text = ""
+if os.path.exists(path):
+    with open(path, "rb") as f:
+        try:
+            data = tomllib.load(f)
+        except tomllib.TOMLDecodeError:
+            print("ERROR")
+            sys.exit(0)
+    existing = (data.get("tui") or {}).get("status_line")
+    if existing is not None:
+        print("OK" if existing == items else "SKIP")
+        sys.exit(0)
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+
+lines = text.splitlines(keepends=True)
+tui_header_idx = next(
+    (i for i, line in enumerate(lines) if line.strip() == "[tui]"), None
+)
+if tui_header_idx is not None:
+    lines.insert(tui_header_idx + 1, status_line_line)
+else:
+    if lines and not lines[-1].endswith("\n"):
+        lines[-1] += "\n"
+    if lines:
+        lines.append("\n")
+    lines.append("[tui]\n")
+    lines.append(status_line_line)
+
+with open(path, "w", encoding="utf-8") as f:
+    f.writelines(lines)
+print("INSTALLED")
+PYEOF
+)"
+    case "$result" in
+        INSTALLED|OK)
+            echo "  Installed Codex statusline: tui.status_line in .codex/config.toml" >&2
+            echo "$config_path"
+            ;;
+        SKIP)
+            echo "  .codex/config.toml already has a different tui.status_line configured — not overwriting it. Remove that key manually first if you want the agentharness one." >&2
+            ;;
+        *)
+            echo "  .codex/config.toml is not valid TOML — leaving it untouched, statusline not installed" >&2
+            ;;
+    esac
+}
+
+# Curated Gemini CLI footer item set. Verified 2026-08-25 against
+# gemini-cli's footerItems.ts ALL_ITEMS list at the latest tagged release
+# — the published settings.md doc reference the issue named does not
+# enumerate ui.footer.items or its valid ids at all (only the boolean
+# hideCWD/hideModelInfo/etc. toggles), so this was confirmed from source,
+# not docs.
+readonly GEMINI_FOOTER_ITEMS='["workspace", "git-branch", "model-name", "context-used"]'
+
+# install_gemini_statusline TARGET
+# Merges `ui.footer.items = [...]` into TARGET/.gemini/settings.json.
+# Same non-destructive-merge and opt-in reasoning as install_statusline —
+# skips if ui.footer.items is already set to something else, or if the
+# file isn't valid JSON.
+install_gemini_statusline() {
+    local target="$1"
+    local settings_path="$target/.gemini/settings.json"
+    mkdir -p "$target/.gemini"
+
+    local result
+    result="$(GEMINI_SETTINGS_PATH="$settings_path" GEMINI_FOOTER_ITEMS_JSON="$GEMINI_FOOTER_ITEMS" python3 - <<'PYEOF'
+import json
+import os
+
+path = os.environ["GEMINI_SETTINGS_PATH"]
+items = json.loads(os.environ["GEMINI_FOOTER_ITEMS_JSON"])
+
+data = {}
+if os.path.exists(path):
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        print("ERROR")
+        raise SystemExit
+
+ui = data.get("ui")
+if not isinstance(ui, dict):
+    ui = {}
+footer = ui.get("footer")
+if not isinstance(footer, dict):
+    footer = {}
+
+existing = footer.get("items")
+if existing is not None:
+    print("OK" if existing == items else "SKIP")
+    raise SystemExit
+
+footer["items"] = items
+ui["footer"] = footer
+data["ui"] = ui
+with open(path, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+print("INSTALLED")
+PYEOF
+)"
+    case "$result" in
+        INSTALLED|OK)
+            echo "  Installed Gemini statusline: ui.footer.items in .gemini/settings.json" >&2
+            echo "$settings_path"
+            ;;
+        SKIP)
+            echo "  .gemini/settings.json already has a different ui.footer.items configured — not overwriting it. Remove that key manually first if you want the agentharness one." >&2
+            ;;
+        *)
+            echo "  .gemini/settings.json is not valid JSON — leaving it untouched, statusline not installed" >&2
+            ;;
+    esac
+}
+
+# client_in_csv CLIENT CLIENTS_CSV
+# True if CLIENT appears in the comma-separated CLIENTS_CSV list.
+client_in_csv() {
+    local want="$1" csv="$2"
+    case ",$csv," in
+        *",$want,"*) return 0 ;;
+        *) return 1 ;;
     esac
 }
 
@@ -1213,7 +1392,17 @@ cmd_init() {
             echo "  Hook: install trunk-protection hook only — not coverage (mode: $mode; see --with-coverage-hook)"
         fi
         if [ "$with_statusline" = true ]; then
-            echo "  Statusline: install .claude/statusline.sh + wire .claude/settings.json's statusLine (skipped if one is already configured)"
+            echo "  Statusline (Claude Code): install .claude/statusline.sh + wire .claude/settings.json's statusLine (skipped if one is already configured)"
+            local dry_run_clients_csv
+            if [ "$client_filter" = "all" ]; then
+                dry_run_clients_csv="codex,gemini,copilot,cursor,kilo"
+            elif [ "$client_filter" = "none" ]; then
+                dry_run_clients_csv=""
+            else
+                dry_run_clients_csv="$client_filter"
+            fi
+            client_in_csv codex "$dry_run_clients_csv" && echo "  Statusline (Codex): install tui.status_line in .codex/config.toml (skipped if already configured)"
+            client_in_csv gemini "$dry_run_clients_csv" && echo "  Statusline (Gemini): install ui.footer.items in .gemini/settings.json (skipped if already configured)"
         fi
         [ -n "$profile" ] && echo "  Profile: write $PROFILE_FILE_NAME = $profile"
         if [ "$mode" = "copy" ]; then
@@ -1533,13 +1722,41 @@ cmd_init() {
     # ------------------------------------------------------------------
     generate_check_wrapper "$target" "$mode" "$skills_src_root"
 
+    # Expand client_filter to full CSV: "all" -> "codex,gemini,copilot,cursor,kilo",
+    # "none" -> "", or pass through as-is. Computed here (moved ahead of its
+    # original spot below 4c) because the Codex/Gemini statusline installs
+    # need it to decide whether those clients are even selected.
+    local clients_csv
+    if [ "$client_filter" = "all" ]; then
+        clients_csv="codex,gemini,copilot,cursor,kilo"
+    elif [ "$client_filter" = "none" ]; then
+        clients_csv=""
+    else
+        clients_csv="$client_filter"
+    fi
+
     # ------------------------------------------------------------------
-    # 4c. Statusline (opt-in — issue #273)
+    # 4c. Statusline (opt-in — issue #273/#274/#275). Claude Code always
+    # gets one when --with-statusline is set (it's this harness's native
+    # client, not gated by --client); Codex/Gemini only if that client is
+    # actually selected — installing a Codex status_line config in a
+    # Claude-only project would be dead configuration nobody asked for.
     # ------------------------------------------------------------------
     local installed_statusline_path=""
     if [ "$with_statusline" = true ]; then
         installed_statusline_path="$(install_statusline "$target" "$HARNESS_DIR")"
-        [ -z "$installed_statusline_path" ] && with_statusline=false
+    fi
+    local installed_codex_statusline_path=""
+    if [ "$with_statusline" = true ] && client_in_csv codex "$clients_csv"; then
+        installed_codex_statusline_path="$(install_codex_statusline "$target")"
+    fi
+    local installed_gemini_statusline_path=""
+    if [ "$with_statusline" = true ] && client_in_csv gemini "$clients_csv"; then
+        installed_gemini_statusline_path="$(install_gemini_statusline "$target")"
+    fi
+    if [ "$with_statusline" = true ] && [ -z "$installed_statusline_path" ] \
+        && [ -z "$installed_codex_statusline_path" ] && [ -z "$installed_gemini_statusline_path" ]; then
+        with_statusline=false
     fi
 
     # ------------------------------------------------------------------
@@ -1561,17 +1778,6 @@ cmd_init() {
     local skills_csv
     skills_csv="$(IFS=,; echo "${linked_skills[*]}")"
 
-    # Expand client_filter to full CSV: "all" -> "codex,gemini,copilot,cursor,kilo",
-    # "none" -> "", or pass through as-is.
-    local clients_csv
-    if [ "$client_filter" = "all" ]; then
-        clients_csv="codex,gemini,copilot,cursor,kilo"
-    elif [ "$client_filter" = "none" ]; then
-        clients_csv=""
-    else
-        clients_csv="$client_filter"
-    fi
-
     # Existing-surface integration (docs/superpowers/specs/2026-07-17-existing-surface-integration-design.md):
     # render managed blocks into any instructions files the consumer
     # already has, and handle whole-file collisions on generated
@@ -1592,7 +1798,8 @@ cmd_init() {
     # Pass the pre-install hooks path so uninstall can restore it (F-05)
     state_write "$target" "$mode" "$skills_csv" "$skills_filter" "$with_hook" \
         "$profile" "$skills_src_root" "$source_revision" "$source_remote" "$installed_hooks_path" "$coverage_hook" \
-        "${existing_hooks_path:-}" "${existing_merge_ff:-}" "$clients_csv" "$with_statusline" "$installed_statusline_path"
+        "${existing_hooks_path:-}" "${existing_merge_ff:-}" "$clients_csv" "$with_statusline" "$installed_statusline_path" \
+        "$installed_codex_statusline_path" "$installed_gemini_statusline_path"
 
     warn_if_untracked "$target" "$dry_run"
 
@@ -1631,6 +1838,14 @@ cmd_status() {
     statusline_path="$(state_field "$target" statusline_path 2>/dev/null || echo "(none)")"
     [ "$statusline_path" = "None" ] && statusline_path="(none)"
     echo "  statusline_path: $statusline_path"
+    local codex_statusline_path
+    codex_statusline_path="$(state_field "$target" codex_statusline_path 2>/dev/null || echo "(none)")"
+    [ "$codex_statusline_path" = "None" ] && codex_statusline_path="(none)"
+    echo "  codex_statusline_path: $codex_statusline_path"
+    local gemini_statusline_path
+    gemini_statusline_path="$(state_field "$target" gemini_statusline_path 2>/dev/null || echo "(none)")"
+    [ "$gemini_statusline_path" = "None" ] && gemini_statusline_path="(none)"
+    echo "  gemini_statusline_path: $gemini_statusline_path"
     local profile
     profile="$(state_field "$target" profile 2>/dev/null || echo "(none)")"
     echo "  profile:       $profile"
@@ -1912,14 +2127,16 @@ sys.exit(1 if any_drift else 0)
         fi
     fi
 
-    local doctor_with_statusline
-    doctor_with_statusline="$(state_field "$target" with_statusline 2>/dev/null || echo "false")"
-    if [ "$doctor_with_statusline" = "true" ]; then
-        local doctor_statusline_path
-        doctor_statusline_path="$(state_field "$target" statusline_path 2>/dev/null || echo "")"
-        [ "$doctor_statusline_path" = "None" ] && doctor_statusline_path=""
-        if [ -z "$doctor_statusline_path" ] || [ ! -f "$doctor_statusline_path" ]; then
-            echo "  ✗ statusline: with_statusline is recorded true, but $doctor_statusline_path is missing — rerun 'init --with-statusline' to reinstall" >&2
+    # Each client's statusline is gated on its own recorded path, not a
+    # single shared with_statusline flag — a project could have --client
+    # codex only, in which case with_statusline being true never implies a
+    # Claude Code statusline exists to check.
+    local doctor_statusline_path
+    doctor_statusline_path="$(state_field "$target" statusline_path 2>/dev/null || echo "")"
+    [ "$doctor_statusline_path" = "None" ] && doctor_statusline_path=""
+    if [ -n "$doctor_statusline_path" ]; then
+        if [ ! -f "$doctor_statusline_path" ]; then
+            echo "  ✗ statusline (Claude Code): recorded at $doctor_statusline_path but the file is missing — rerun 'init --with-statusline' to reinstall" >&2
             failed=1
         elif [ "$(python3 -c "
 import json
@@ -1929,9 +2146,53 @@ try:
 except (OSError, json.JSONDecodeError):
     print('')
 " 2>/dev/null)" != "$doctor_statusline_path" ]; then
-            echo "  ⚠ statusline: $doctor_statusline_path exists, but .claude/settings.json's statusLine no longer points at it — someone changed it after install" >&2
+            echo "  ⚠ statusline (Claude Code): $doctor_statusline_path exists, but .claude/settings.json's statusLine no longer points at it — someone changed it after install" >&2
         else
-            echo "  ✓ statusline: .claude/statusline.sh present and wired via .claude/settings.json's statusLine"
+            echo "  ✓ statusline (Claude Code): .claude/statusline.sh present and wired via .claude/settings.json's statusLine"
+        fi
+    fi
+
+    local doctor_codex_statusline_path
+    doctor_codex_statusline_path="$(state_field "$target" codex_statusline_path 2>/dev/null || echo "")"
+    [ "$doctor_codex_statusline_path" = "None" ] && doctor_codex_statusline_path=""
+    if [ -n "$doctor_codex_statusline_path" ]; then
+        if [ ! -f "$doctor_codex_statusline_path" ]; then
+            echo "  ✗ statusline (Codex): recorded at $doctor_codex_statusline_path but the file is missing — rerun 'init --with-statusline' to reinstall" >&2
+            failed=1
+        elif [ "$(python3 -c "
+import tomllib
+try:
+    with open('$doctor_codex_statusline_path', 'rb') as f:
+        data = tomllib.load(f)
+    print('yes' if (data.get('tui') or {}).get('status_line') is not None else 'no')
+except (OSError, tomllib.TOMLDecodeError):
+    print('no')
+" 2>/dev/null)" != "yes" ]; then
+            echo "  ⚠ statusline (Codex): $doctor_codex_statusline_path exists, but tui.status_line is no longer set — someone changed it after install" >&2
+        else
+            echo "  ✓ statusline (Codex): tui.status_line present in .codex/config.toml"
+        fi
+    fi
+
+    local doctor_gemini_statusline_path
+    doctor_gemini_statusline_path="$(state_field "$target" gemini_statusline_path 2>/dev/null || echo "")"
+    [ "$doctor_gemini_statusline_path" = "None" ] && doctor_gemini_statusline_path=""
+    if [ -n "$doctor_gemini_statusline_path" ]; then
+        if [ ! -f "$doctor_gemini_statusline_path" ]; then
+            echo "  ✗ statusline (Gemini): recorded at $doctor_gemini_statusline_path but the file is missing — rerun 'init --with-statusline' to reinstall" >&2
+            failed=1
+        elif [ "$(python3 -c "
+import json
+try:
+    with open('$doctor_gemini_statusline_path') as f:
+        data = json.load(f)
+    print('yes' if (data.get('ui') or {}).get('footer', {}).get('items') is not None else 'no')
+except (OSError, json.JSONDecodeError):
+    print('no')
+" 2>/dev/null)" != "yes" ]; then
+            echo "  ⚠ statusline (Gemini): $doctor_gemini_statusline_path exists, but ui.footer.items is no longer set — someone changed it after install" >&2
+        else
+            echo "  ✓ statusline (Gemini): ui.footer.items present in .gemini/settings.json"
         fi
     fi
 
@@ -3011,6 +3272,7 @@ cmd_update() {
 
     local mode source_path skills_filter with_hook profile hooks_path coverage_hook
     local previous_hooks_path previous_merge_ff with_statusline statusline_path
+    local codex_statusline_path gemini_statusline_path
     mode="$(state_field "$target" mode)"
     source_path="$(resolved_source_path "$target" "$mode" "$(state_field "$target" source.path)")"
     skills_filter="$(state_field "$target" skills_filter 2>/dev/null || echo "")"
@@ -3022,6 +3284,10 @@ cmd_update() {
     with_statusline="$(state_field "$target" with_statusline 2>/dev/null || echo "false")"
     statusline_path="$(state_field "$target" statusline_path 2>/dev/null || echo "")"
     [ "$statusline_path" = "None" ] && statusline_path=""
+    codex_statusline_path="$(state_field "$target" codex_statusline_path 2>/dev/null || echo "")"
+    [ "$codex_statusline_path" = "None" ] && codex_statusline_path=""
+    gemini_statusline_path="$(state_field "$target" gemini_statusline_path 2>/dev/null || echo "")"
+    [ "$gemini_statusline_path" = "None" ] && gemini_statusline_path=""
     # update never touches hooks — carry the previously recorded path/flag
     # through unchanged (P0-01/P0-03: this must stay in sync with whatever
     # init/doctor last verified, not silently reset just because update
@@ -3261,7 +3527,8 @@ for line in json.load(sys.stdin)["log"]:
 
     state_write "$target" "$mode" "$new_skills_csv" "$skills_filter" "$with_hook" \
         "$profile" "$source_path" "$source_revision" "$source_remote" "$hooks_path" "$coverage_hook" \
-        "$previous_hooks_path" "$previous_merge_ff" "$clients_csv" "$with_statusline" "$statusline_path"
+        "$previous_hooks_path" "$previous_merge_ff" "$clients_csv" "$with_statusline" "$statusline_path" \
+        "$codex_statusline_path" "$gemini_statusline_path"
 
     warn_if_untracked "$target" false
 
@@ -3285,12 +3552,16 @@ cmd_uninstall() {
     [ -d "$target" ] && target="$(cd "$target" && pwd)"
     require_state "$target"
 
-    local mode with_hook with_statusline statusline_path
+    local mode with_hook with_statusline statusline_path codex_statusline_path gemini_statusline_path
     mode="$(state_field "$target" mode)"
     with_hook="$(state_field "$target" with_hook)"
     with_statusline="$(state_field "$target" with_statusline 2>/dev/null || echo "false")"
     statusline_path="$(state_field "$target" statusline_path 2>/dev/null || echo "")"
     [ "$statusline_path" = "None" ] && statusline_path=""
+    codex_statusline_path="$(state_field "$target" codex_statusline_path 2>/dev/null || echo "")"
+    [ "$codex_statusline_path" = "None" ] && codex_statusline_path=""
+    gemini_statusline_path="$(state_field "$target" gemini_statusline_path 2>/dev/null || echo "")"
+    [ "$gemini_statusline_path" = "None" ] && gemini_statusline_path=""
     local skills_csv installed=()
     skills_csv="$(state_field "$target" skills)"
     IFS=',' read -ra installed <<< "$skills_csv"
@@ -3299,7 +3570,9 @@ cmd_uninstall() {
     printf '  - skill: %s\n' "${installed[@]}"
     [ -f "$target/.gitignore" ] && grep -qF "$GITIGNORE_MARKER" "$target/.gitignore" && echo "  - the agentharness block in .gitignore"
     { [ "$with_hook" = "true" ]; } && echo "  - core.hooksPath (if still pointing at agentharness)"
-    { [ "$with_statusline" = "true" ] && [ -n "$statusline_path" ]; } && echo "  - .claude/statusline.sh and its statusLine entry in .claude/settings.json (if settings.json's statusLine still points at it)"
+    [ -n "$statusline_path" ] && echo "  - .claude/statusline.sh and its statusLine entry in .claude/settings.json (if settings.json's statusLine still points at it)"
+    [ -n "$codex_statusline_path" ] && echo "  - tui.status_line in .codex/config.toml (if it still matches what was installed)"
+    [ -n "$gemini_statusline_path" ] && echo "  - ui.footer.items in .gemini/settings.json (if it still matches what was installed)"
     [ -f "$target/$PROFILE_FILE_NAME" ] && echo "  - $PROFILE_FILE_NAME"
     [ -f "$(echo_check_wrapper_path "$target")" ] && echo "  - $CHECK_WRAPPER_DIR/$CHECK_WRAPPER_NAME"
     [ "$mode" = "submodule" ] && [ -e "$target/$SUBMODULE_PATH/.git" ] && echo "  - the $SUBMODULE_PATH submodule"
@@ -3413,7 +3686,7 @@ cmd_uninstall() {
         fi
     fi
 
-    if [ "$with_statusline" = "true" ] && [ -n "$statusline_path" ]; then
+    if [ -n "$statusline_path" ]; then
         # Ownership guard, same principle as core.hooksPath/merge.ff above:
         # only remove the statusLine entry (and the script file it points
         # at) if settings.json's statusLine command is still exactly what
@@ -3455,6 +3728,88 @@ PYEOF
             echo "  Removed .claude/statusline.sh and its statusLine entry in .claude/settings.json"
         else
             echo "  .claude/settings.json's statusLine no longer points at the agentharness script — leaving it and the script file untouched" >&2
+        fi
+    fi
+
+    if [ -n "$codex_statusline_path" ] && [ -f "$codex_statusline_path" ]; then
+        # Same ownership guard: only remove tui.status_line if it's still
+        # exactly the item list this install wrote. Never delete
+        # config.toml itself — it's a general Codex config file this
+        # install only ever added one key to.
+        local codex_removed
+        codex_removed="$(CODEX_CONFIG_PATH="$codex_statusline_path" CODEX_STATUS_LINE_ITEMS_JSON="$CODEX_STATUS_LINE_ITEMS" python3 - <<'PYEOF'
+import json
+import os
+import tomllib
+
+path = os.environ["CODEX_CONFIG_PATH"]
+items = json.loads(os.environ["CODEX_STATUS_LINE_ITEMS_JSON"])
+
+try:
+    with open(path, "rb") as f:
+        data = tomllib.load(f)
+except (OSError, tomllib.TOMLDecodeError):
+    print("NOOP")
+    raise SystemExit
+
+if (data.get("tui") or {}).get("status_line") != items:
+    print("NOOP")
+    raise SystemExit
+
+status_line_line_repr = "status_line = " + json.dumps(items)
+with open(path, encoding="utf-8") as f:
+    lines = f.readlines()
+new_lines = [line for line in lines if line.strip() != status_line_line_repr]
+with open(path, "w", encoding="utf-8") as f:
+    f.writelines(new_lines)
+print("REMOVED")
+PYEOF
+)"
+        if [ "$codex_removed" = "REMOVED" ]; then
+            echo "  Removed tui.status_line from .codex/config.toml (left the rest of the file untouched)"
+        else
+            echo "  .codex/config.toml's tui.status_line no longer matches what this install wrote — leaving it untouched" >&2
+        fi
+    fi
+
+    if [ -n "$gemini_statusline_path" ] && [ -f "$gemini_statusline_path" ]; then
+        # Same ownership guard, and same reasoning for never deleting
+        # settings.json itself.
+        local gemini_removed
+        gemini_removed="$(GEMINI_SETTINGS_PATH="$gemini_statusline_path" GEMINI_FOOTER_ITEMS_JSON="$GEMINI_FOOTER_ITEMS" python3 - <<'PYEOF'
+import json
+import os
+
+path = os.environ["GEMINI_SETTINGS_PATH"]
+items = json.loads(os.environ["GEMINI_FOOTER_ITEMS_JSON"])
+
+try:
+    with open(path) as f:
+        data = json.load(f)
+except (OSError, json.JSONDecodeError):
+    print("NOOP")
+    raise SystemExit
+
+ui = data.get("ui")
+if not isinstance(ui, dict) or not isinstance(ui.get("footer"), dict) or ui["footer"].get("items") != items:
+    print("NOOP")
+    raise SystemExit
+
+del ui["footer"]["items"]
+if not ui["footer"]:
+    del ui["footer"]
+if not ui:
+    del data["ui"]
+with open(path, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+print("REMOVED")
+PYEOF
+)"
+        if [ "$gemini_removed" = "REMOVED" ]; then
+            echo "  Removed ui.footer.items from .gemini/settings.json (left the rest of the file untouched)"
+        else
+            echo "  .gemini/settings.json's ui.footer.items no longer matches what this install wrote — leaving it untouched" >&2
         fi
     fi
 

@@ -130,11 +130,19 @@ entry, but only if `.claude/settings.json` still points at exactly the
 script this install wrote — the same ownership-guard pattern
 `--with-hook` uses for `core.hooksPath`.
 
-Codex CLI and Gemini CLI have their own, more limited statusline
-mechanisms (a curated list of predefined items, no scripting hook, so no
-harness state) — see `docs/CLIENT_COMPATIBILITY.md`'s Statusline section
-for the full picture and what's tracked but not yet built for them
-(issues #274/#275).
+Codex CLI (`--client codex`) and Gemini CLI (`--client gemini`) get a
+curated statusline too, when `--with-statusline` is set and that client
+is actually selected — only Claude Code's install is unconditional,
+since it's this harness's native client. Both are fixed-vocabulary
+mechanisms (no scripting hook, so no harness state is possible): a
+curated `tui.status_line` list merged into `.codex/config.toml`, and a
+curated `ui.footer.items` list merged into `.gemini/settings.json`. Both
+merges are as non-destructive as the Claude Code one — an existing,
+different value is left alone with a message rather than overwritten,
+and `doctor`/`uninstall` apply the same health-check and ownership-guard
+pattern per client. See `docs/CLIENT_COMPATIBILITY.md`'s Statusline
+section for the exact item sets and how they were verified (issues
+#274/#275).
 
 `harness-link.sh /path/to/your-project [options]` (no subcommand) still
 works — it's sugar for `init` with those same options, kept for anything

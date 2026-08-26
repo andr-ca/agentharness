@@ -386,7 +386,7 @@ JSON
 
     run bash "$SCRIPT" doctor "$TEST_PROJECT"
     [ "$status" -eq 0 ]
-    [[ "$output" =~ "statusline: .claude/statusline.sh present" ]]
+    [[ "$output" =~ "statusline (Claude Code): .claude/statusline.sh present" ]]
 }
 
 @test "harness-link.sh: uninstall removes statusline.sh and its statusLine entry, ownership-guarded" {
@@ -419,4 +419,176 @@ json.dump(data, open(path, 'w'))
     [ "$status" -eq 0 ]
     [[ "$output" =~ "no longer points at the agentharness script" ]]
     [ -f "$TEST_PROJECT/.claude/statusline.sh" ]
+}
+
+# Codex/Gemini statusline tests (issues #274/#275): --with-statusline
+# always installs the Claude Code statusline (it's this harness's native
+# client, not gated by --client), but Codex/Gemini config is only touched
+# when that client is actually selected via --client.
+
+@test "harness-link.sh: --with-statusline with --client codex installs tui.status_line, not gemini" {
+    git -C "$TEST_PROJECT" init --quiet
+
+    run bash "$SCRIPT" "$TEST_PROJECT" --skills none --client codex --with-statusline
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Installed Codex statusline" ]]
+
+    items=$(python3 -c "import tomllib; print(tomllib.load(open('$TEST_PROJECT/.codex/config.toml','rb'))['tui']['status_line'])")
+    [[ "$items" =~ "current-dir" ]]
+    [ ! -e "$TEST_PROJECT/.gemini/settings.json" ]
+}
+
+@test "harness-link.sh: --with-statusline with --client gemini installs ui.footer.items, not codex" {
+    git -C "$TEST_PROJECT" init --quiet
+
+    run bash "$SCRIPT" "$TEST_PROJECT" --skills none --client gemini --with-statusline
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Installed Gemini statusline" ]]
+
+    items=$(python3 -c "import json; print(json.load(open('$TEST_PROJECT/.gemini/settings.json'))['ui']['footer']['items'])")
+    [[ "$items" =~ "context-used" ]]
+    [ ! -e "$TEST_PROJECT/.codex/config.toml" ]
+}
+
+@test "harness-link.sh: --with-statusline with --client none installs neither Codex nor Gemini config" {
+    git -C "$TEST_PROJECT" init --quiet
+
+    run bash "$SCRIPT" "$TEST_PROJECT" --skills none --client none --with-statusline
+    [ "$status" -eq 0 ]
+    [ -x "$TEST_PROJECT/.claude/statusline.sh" ]
+    [ ! -e "$TEST_PROJECT/.codex/config.toml" ]
+    [ ! -e "$TEST_PROJECT/.gemini/settings.json" ]
+}
+
+@test "harness-link.sh: Codex statusline install merges into an existing config.toml without disturbing other keys" {
+    git -C "$TEST_PROJECT" init --quiet
+    mkdir -p "$TEST_PROJECT/.codex"
+    cat > "$TEST_PROJECT/.codex/config.toml" <<'TOML'
+model = "gpt-5.1-codex"
+
+[tui]
+notify = true
+
+[sandbox]
+mode = "workspace-write"
+TOML
+
+    run bash "$SCRIPT" "$TEST_PROJECT" --skills none --client codex --with-statusline
+    [ "$status" -eq 0 ]
+
+    run python3 -c "
+import tomllib
+data = tomllib.load(open('$TEST_PROJECT/.codex/config.toml', 'rb'))
+assert data['model'] == 'gpt-5.1-codex'
+assert data['tui']['notify'] is True
+assert data['sandbox']['mode'] == 'workspace-write'
+assert 'status_line' in data['tui']
+"
+    [ "$status" -eq 0 ]
+}
+
+@test "harness-link.sh: Gemini statusline install merges into existing settings.json without disturbing other keys" {
+    git -C "$TEST_PROJECT" init --quiet
+    mkdir -p "$TEST_PROJECT/.gemini"
+    cat > "$TEST_PROJECT/.gemini/settings.json" <<'JSON'
+{"ui": {"theme": "dark", "footer": {"hideCWD": true}}, "model": "gemini-3-pro"}
+JSON
+
+    run bash "$SCRIPT" "$TEST_PROJECT" --skills none --client gemini --with-statusline
+    [ "$status" -eq 0 ]
+
+    run python3 -c "
+import json
+data = json.load(open('$TEST_PROJECT/.gemini/settings.json'))
+assert data['ui']['theme'] == 'dark'
+assert data['ui']['footer']['hideCWD'] is True
+assert data['model'] == 'gemini-3-pro'
+assert 'items' in data['ui']['footer']
+"
+    [ "$status" -eq 0 ]
+}
+
+@test "harness-link.sh: Codex/Gemini statusline install skips (does not overwrite) a different existing value" {
+    git -C "$TEST_PROJECT" init --quiet
+    mkdir -p "$TEST_PROJECT/.codex" "$TEST_PROJECT/.gemini"
+    printf '[tui]\nstatus_line = ["model", "current-dir"]\n' > "$TEST_PROJECT/.codex/config.toml"
+    printf '{"ui": {"footer": {"items": ["model-name"]}}}\n' > "$TEST_PROJECT/.gemini/settings.json"
+
+    run bash "$SCRIPT" "$TEST_PROJECT" --skills none --client codex,gemini --with-statusline
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "already has a different tui.status_line configured" ]]
+    [[ "$output" =~ "already has a different ui.footer.items configured" ]]
+
+    codex_items=$(python3 -c "import tomllib; print(tomllib.load(open('$TEST_PROJECT/.codex/config.toml','rb'))['tui']['status_line'])")
+    [ "$codex_items" = "['model', 'current-dir']" ]
+    gemini_items=$(python3 -c "import json; print(json.load(open('$TEST_PROJECT/.gemini/settings.json'))['ui']['footer']['items'])")
+    [ "$gemini_items" = "['model-name']" ]
+}
+
+@test "harness-link.sh: doctor reports Codex and Gemini statusline health" {
+    git -C "$TEST_PROJECT" init --quiet
+
+    bash "$SCRIPT" "$TEST_PROJECT" --skills none --client codex,gemini --with-statusline
+
+    run bash "$SCRIPT" doctor "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "statusline (Codex): tui.status_line present" ]]
+    [[ "$output" =~ "statusline (Gemini): ui.footer.items present" ]]
+}
+
+@test "harness-link.sh: uninstall removes tui.status_line and ui.footer.items, ownership-guarded, leaving sibling keys" {
+    git -C "$TEST_PROJECT" init --quiet
+    mkdir -p "$TEST_PROJECT/.codex" "$TEST_PROJECT/.gemini"
+    printf '[sandbox]\nmode = "workspace-write"\n' > "$TEST_PROJECT/.codex/config.toml"
+    printf '{"model": "gemini-3-pro"}\n' > "$TEST_PROJECT/.gemini/settings.json"
+
+    bash "$SCRIPT" "$TEST_PROJECT" --skills none --client codex,gemini --with-statusline
+
+    run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Removed tui.status_line from .codex/config.toml" ]]
+    [[ "$output" =~ "Removed ui.footer.items from .gemini/settings.json" ]]
+
+    run python3 -c "
+import tomllib
+data = tomllib.load(open('$TEST_PROJECT/.codex/config.toml', 'rb'))
+assert data['sandbox']['mode'] == 'workspace-write'
+assert 'status_line' not in data.get('tui', {})
+"
+    [ "$status" -eq 0 ]
+    run python3 -c "
+import json
+data = json.load(open('$TEST_PROJECT/.gemini/settings.json'))
+assert data['model'] == 'gemini-3-pro'
+assert 'footer' not in data.get('ui', {})
+"
+    [ "$status" -eq 0 ]
+}
+
+@test "harness-link.sh: uninstall leaves Codex/Gemini statusline untouched if changed since install" {
+    git -C "$TEST_PROJECT" init --quiet
+
+    bash "$SCRIPT" "$TEST_PROJECT" --skills none --client codex,gemini --with-statusline
+    python3 -c "
+path = '$TEST_PROJECT/.codex/config.toml'
+text = open(path).read().replace('current-dir', 'hostname')
+open(path, 'w').write(text)
+"
+    python3 -c "
+import json
+path = '$TEST_PROJECT/.gemini/settings.json'
+data = json.load(open(path))
+data['ui']['footer']['items'].append('hostname')
+json.dump(data, open(path, 'w'))
+"
+
+    run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "tui.status_line no longer matches" ]]
+    [[ "$output" =~ "ui.footer.items no longer matches" ]]
+
+    codex_has_status_line=$(python3 -c "import tomllib; print('status_line' in tomllib.load(open('$TEST_PROJECT/.codex/config.toml','rb'))['tui'])")
+    [ "$codex_has_status_line" = "True" ]
+    gemini_has_items=$(python3 -c "import json; print('items' in json.load(open('$TEST_PROJECT/.gemini/settings.json'))['ui']['footer'])")
+    [ "$gemini_has_items" = "True" ]
 }
