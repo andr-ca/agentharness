@@ -95,6 +95,55 @@ mock_gh() {
     [[ "$output" =~ "Usage:" ]]
 }
 
+# Regression tests for warn_if_stale_script (issue #277): the documented
+# cross-repo usage — running this script from a harness checkout or
+# copy-mode install against a consumer repo's own PRs, exactly what
+# CLAUDE.md's PR-merge checklist tells agents to do — put
+# ${BASH_SOURCE[0]} outside the current repo. `git ls-files` on an
+# out-of-repo path exits 128, and under `set -euo pipefail` that silently
+# killed the whole script before it printed a single line. Source the
+# script (safe: main() only runs when invoked as $0) to call
+# warn_if_stale_script directly.
+
+@test "safe-pr-merge: warn_if_stale_script does not crash when the script lives outside the current repo" {
+    bare_origin="$TEST_PROJECT/.origin.git"
+    git init -q --bare "$bare_origin"
+    git remote remove origin
+    git remote add origin "$bare_origin"
+    git -c user.email=test@example.com -c user.name=Test commit -q --allow-empty -m init
+    git branch -M main 2>/dev/null || true
+    git push -q origin main
+
+    # $SCRIPT resolves to tools/safe-pr-merge.sh in the real harness
+    # checkout, which is outside $TEST_PROJECT — reproduces the bug.
+    run bash -c "source '$SCRIPT'; warn_if_stale_script; echo DONE"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "DONE" ]]
+    [[ "$output" != *"WARNING"* ]]
+}
+
+@test "safe-pr-merge: warn_if_stale_script still warns when an in-repo copy diverges from origin's default branch" {
+    bare_origin="$TEST_PROJECT/.origin.git"
+    git init -q --bare "$bare_origin"
+    git remote remove origin
+    git remote add origin "$bare_origin"
+
+    mkdir -p "$TEST_PROJECT/tools"
+    cp "$SCRIPT" "$TEST_PROJECT/tools/safe-pr-merge.sh"
+    git add tools/safe-pr-merge.sh
+    git -c user.email=test@example.com -c user.name=Test commit -q -m init
+    git branch -M main 2>/dev/null || true
+    git push -q origin main
+
+    # Diverge the working copy from what's on origin/main without pushing.
+    echo "# local edit" >> "$TEST_PROJECT/tools/safe-pr-merge.sh"
+
+    run bash -c "source '$TEST_PROJECT/tools/safe-pr-merge.sh'; warn_if_stale_script; echo DONE"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "WARNING: this copy of" ]]
+    [[ "$output" =~ "DONE" ]]
+}
+
 # Regression tests for wait_for_ci_run's commit-matching fix (issue #94):
 # it used to trust "most recent run for the branch" without checking that
 # run actually belongs to the merge commit, which raced GitHub's run-list
