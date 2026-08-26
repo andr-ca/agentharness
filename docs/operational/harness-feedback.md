@@ -837,3 +837,66 @@ there, and the Python side refuses to climb above the project root. The
 guarded-paths file is now disclosed in the output. Four tests, including
 a counter-case that fills `.claude/` and `.github/` with operator files
 and asserts they survive.
+
+## 2026-08-24 – default "commit-and-stop" authority isn't a safe resting state in ephemeral-container sessions
+
+**Recurrence key:** `ephemeral-container-loses-unpushed-work-on-long-block`
+
+**What happened:** Working an "address gpt-5.6-review.md findings" task
+under CLAUDE.md's default Agent Workflow Completion tier (no
+`.agentharness-publish-mode`, no standing push authority), a session made
+5 individually-verified commits and, per the default tier, left the
+branch committed locally and unpushed. It then used `AskUserQuestion` to
+escalate a genuinely out-of-scope call (whether to loosen CLAUDE.md's own
+self-authorization mandate) rather than deciding unilaterally. The
+human's answer arrived in a new session turn on a freshly provisioned
+container — `git reflog` showed only a single fresh `checkout` entry, and
+`git fetch origin <branch>` returned "couldn't find remote ref": the
+branch had never been pushed, so the 5 commits existed nowhere but the
+old, now-reclaimed container. No actual work was lost in outcome only
+because the same review had, by coincidence, already been completed
+independently elsewhere in the same window.
+
+**Root cause:** two individually-reasonable policies compose unsafely.
+CLAUDE.md's default authority tier treats "committed locally" as the safe
+resting state absent explicit push/PR authorization. The remote-execution
+environment's containers are ephemeral and reclaimed after a period of
+inactivity. Neither accounts for the other: a local commit is not durable
+storage in that environment — only a pushed one survives reclamation —
+but the default tier's stop point is *before* push, and `AskUserQuestion`
+(or a scheduled check-in) has no bound on how long the container may sit
+idle awaiting a human reply, which is exactly the condition that risks
+reclamation.
+
+**Impact:** a session doing genuinely unique work under the same
+conditions — default tier, ephemeral remote container, a blocking
+question with an unbounded wait — would lose that work silently. No
+error at commit time, no warning, nothing until a later `git log` looks
+unfamiliar.
+
+**What agentharness should change:** CLAUDE.md's default-authority
+section should say explicitly that local commits are not a durable
+safe-point in an ephemeral-container execution environment, and that a
+session about to block on a long-or-unbounded-duration human-input call
+with verified, committed-but-unpushed work should either (a) push to a
+scratch/WIP branch first — a materially more reversible action than
+opening a PR or merging, arguably not needing the same publish authority
+under a reasonable reading of the existing tiers — or (b), if push is
+genuinely withheld even for a WIP branch, say so explicitly in the
+blocking question itself so the human can decide whether to prioritize a
+fast reply. This is a policy change to the agent's own default authority,
+so it needs an explicit operator decision, not a unilateral edit.
+
+**Corrective action taken:** filed upstream as
+[#276](https://github.com/andr-ca/agentharness/issues/276) (single
+observed occurrence, not yet corroborated by a second independent
+instance — logged per the promotion rule as a candidate finding, not an
+immediate mandate change). Note: issue #276 itself claimed this entry
+already existed at the time it was filed ("recurrence key
+`ephemeral-container-loses-unpushed-work-on-long-block`"); it did not —
+this entry was written after triaging the issue and finding the log
+missing. That gap is a second, minor data point for the same underlying
+class of problem this finding describes (something believed durably
+recorded turned out not to be), noted here rather than filed as a
+separate issue since it's the same root cause and not yet a second
+independent occurrence of a different bug.
