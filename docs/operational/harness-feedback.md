@@ -840,6 +840,8 @@ and asserts they survive.
 
 ## 2026-08-24 – default "commit-and-stop" authority isn't a safe resting state in ephemeral-container sessions
 
+**Recurrence key:** `ephemeral-container-loses-unpushed-work-on-long-block`
+
 **What happened:** Working an "address gpt-5.6-review.md findings" task
 under CLAUDE.md's default Agent Workflow Completion tier (no
 `.agentharness-publish-mode`, no standing push authority), a session made
