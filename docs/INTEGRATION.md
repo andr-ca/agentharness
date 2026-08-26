@@ -141,8 +141,8 @@ merges are as non-destructive as the Claude Code one — an existing,
 different value is left alone with a message rather than overwritten,
 and `doctor`/`uninstall` apply the same health-check and ownership-guard
 pattern per client. See `docs/CLIENT_COMPATIBILITY.md`'s Statusline
-section for the exact item sets and how they were verified (issues
-#274/#275).
+section for the exact item sets and how they were verified (issues #274
+and #275).
 
 `harness-link.sh /path/to/your-project [options]` (no subcommand) still
 works — it's sugar for `init` with those same options, kept for anything
