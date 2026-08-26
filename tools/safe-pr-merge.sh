@@ -431,6 +431,22 @@ warn_if_stale_script() {
 
     git fetch --quiet origin "$default_branch" 2>/dev/null || return 0
 
+    # A consumer repo running this script from a harness checkout or
+    # copy-mode install elsewhere on disk (the documented cross-repo usage
+    # CLAUDE.md's PR-merge checklist relies on) has ${BASH_SOURCE[0]}
+    # pointing outside the current repo entirely. `git ls-files` on a path
+    # outside the repo exits 128 ("is outside repository"), which is a
+    # location mismatch, not a staleness signal — check that up front and
+    # skip the whole staleness check rather than let it abort the script
+    # (issue #277).
+    local repo_root script_abs_path
+    repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 0
+    script_abs_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+    case "$script_abs_path" in
+        "$repo_root"/*) ;;
+        *) return 0 ;;
+    esac
+
     local rel_path
     rel_path="$(git ls-files --full-name -- "${BASH_SOURCE[0]}" 2>/dev/null | head -1)"
     [ -z "$rel_path" ] && return 0
