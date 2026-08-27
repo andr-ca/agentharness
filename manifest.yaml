@@ -327,6 +327,10 @@ sections:
     path: .claude/skills/requirements-clarification/SKILL.md
     type: skill
     when_to_use: Loads on demand before implementing ambiguous or underspecified features
+  - asset: Big-work adversarial plan review
+    path: .claude/skills/big-work-plan-review/SKILL.md
+    type: skill
+    when_to_use: Loads on demand before implementing big, stateful, or concurrent work — requires a written plan to pass multi-round adversarial review by two independent LLM reviewers before code is written
   - asset: Code review
     path: .claude/skills/code-review/SKILL.md
     type: skill

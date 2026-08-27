@@ -113,6 +113,7 @@ they drift (`check_manifest_md_sync()` in `tools/verify-content-quality.py`).
 | Security review | `.claude/skills/security-review/SKILL.md` | skill | Loads on demand for security audits, OWASP Top 10 checks, code review for vulnerabilities |
 | Planning with files | `.claude/skills/planning-with-files/SKILL.md` | skill | Loads on demand when starting complex multi-step tasks requiring persistent state across context resets |
 | Requirements clarification | `.claude/skills/requirements-clarification/SKILL.md` | skill | Loads on demand before implementing ambiguous or underspecified features |
+| Big-work adversarial plan review | `.claude/skills/big-work-plan-review/SKILL.md` | skill | Loads on demand before implementing big, stateful, or concurrent work — requires a written plan to pass multi-round adversarial review by two independent LLM reviewers before code is written |
 | Code review | `.claude/skills/code-review/SKILL.md` | skill | Loads on demand when reviewing a diff or pull request |
 | Code review — DB/persistence | `.claude/skills/code-review-db/SKILL.md` | skill | Load for DB/persistence layer reviews — indexes, N+1, migrations, transactions; replaces general code-review for DB-focused PRs |
 | Code review — REST/API | `.claude/skills/code-review-api/SKILL.md` | skill | Load for REST API reviews — HTTP codes, auth, pagination, idempotency, error shapes; replaces general code-review for API-focused PRs |
