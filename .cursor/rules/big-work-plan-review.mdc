@@ -1,0 +1,135 @@
+---
+description: "Use before implementing big work — new systems, pipelines, daemons, or anything stateful/concurrent — where a bug would be expensive to find after code exists. Requires a written implementation plan to pass multi-round adversarial review by two independent LLM reviewers before any code is written. Not for scoped bug fixes or single-file changes; see requirements-clarification for those."
+---
+
+## Big-Work Adversarial Plan Review
+
+Ported from a workflow validated on a real design (an ntfy ingestion +
+persona memory pipeline) that went from roughly 3.5/10 to roughly
+8.5/10 across 4 review rounds — each round finding genuine
+production-breaking defects a single author missed: processed-before-persisted
+data loss, an LLM call blocking a shared stream thread, mutable-JSONL
+status corruption, an answer-handling path that let contradiction
+answers poison an importance-rule store, and free-text LLM writes into
+what should have been a structured graph.
+
+**This is a from-description port.** It was written from a GitHub issue
+proposal, not from the original Cursor-format draft it references
+(`~/.cursor/skills/big-work-plan-review/SKILL.md`, on the proposing
+operator's own machine) — that draft was unreachable from the session
+that built this file. Reconcile against the original draft if it
+surfaces later; treat this version as functionally complete in the
+meantime, not as a placeholder.
+
+### When to use this
+
+Big, stateful, or concurrent work: new systems, pipelines, daemons,
+anything with multiple writers, ordering dependencies, or state that
+outlives a single request. The cost of a design mistake here is a
+production incident, not a failed test.
+
+**When NOT to use this:** a scoped bug fix with one clear resolution, a
+single-file change, or anything `requirements-clarification` already
+covers by itself. Running a two-reviewer adversarial loop on a small
+change is pure overhead — match the ceremony to the blast radius.
+
+### The loop
+
+1. **Research verified facts, not assumptions.** Probe the live systems
+   this design touches — actual schemas, actual message shapes, actual
+   failure behavior — before writing a line of the plan. Record findings
+   in a "Current state (verified)" section so a reviewer can tell what
+   you checked from what you assumed.
+
+2. **Write the plan.** One doc in `docs/plans/`, with these sections at
+   minimum:
+   - Goal
+   - Current state (verified)
+   - Architecture
+   - Exact schemas / DDL / message contracts
+   - Module contracts (inputs, outputs, invariants each module owns)
+   - Failure-modes table (what breaks, how it's detected, what happens
+     next)
+   - Testing approach
+   - Out of scope
+
+3. **Two independent reviewers, in parallel.** Spawn two reviewer
+   subagents from **different model families** — not two instances of
+   the same model — so they don't share blind spots. Give each the same
+   structured brief: review headings to respond under, a word cap, and
+   an explicit "no file edits, review only" instruction. Resume the
+   *same* reviewer sessions across rounds rather than starting fresh
+   each time, so later rounds build on what a reviewer already flagged
+   instead of re-discovering it.
+
+4. **Embed reviews verbatim as plan appendices**, one appendix per
+   round per reviewer. Do not summarize or paraphrase a reviewer's
+   findings into the body — the raw text is the audit trail.
+
+5. **Fold accepted fixes into the plan BODY, not just the appendix.**
+   A stale body next to an up-to-date appendix is itself a defect class
+   reviewers will catch — the plan must read as internally consistent
+   after each round, not as an original draft plus a pile of unresolved
+   commentary.
+
+6. **Record dispositions.** For every reviewer finding: adopted (folded
+   into the body), or deliberately rejected with a stated reason. A
+   rejected finding needs the same rationale discipline as an adopted
+   one — "reviewer flagged X, rejected because Y" — so a later reader
+   can tell a considered rejection from a missed comment.
+
+7. **Shift later rounds to closure verification.** Once the body has
+   absorbed a round of fixes, the next round's brief changes: not "find
+   new problems" but "go item-by-item through the disposition list and
+   mark each CLOSED or NOT CLOSED." End each closure round with an
+   explicit verdict: **READY** or **NOT READY**. A verdict only counts
+   for the exact plan version the reviewer actually saw — re-verify
+   after any further edit, don't carry a verdict forward across a body
+   change.
+
+8. **Implement only after both reviewers issue READY** on the same plan
+   version.
+
+### Defect checklist
+
+Nine recurring defect classes that fell out of the validating run.
+Point reviewers at this list explicitly in later rounds — it catches
+categories, not just this-specific-bug instances:
+
+1. **Ordering bugs** — an operation assumes something upstream already
+   happened (e.g., data marked processed before it's actually
+   persisted).
+2. **Blocking hot paths** — a slow call (LLM, network, disk) running
+   inline on a thread that something else depends on staying
+   responsive (a shared stream, an event loop, a lock holder).
+3. **Mutable append-only files** — a file meant to be append-only
+   (JSONL, a log) that something also rewrites or truncates in place,
+   racing readers or losing data on a crash mid-write.
+4. **Multi-writer artifacts** — more than one process/thread writing the
+   same resource without a coordination story (locking, single-writer
+   ownership, CAS).
+5. **Free-text references into structured stores** — an LLM (or any
+   producer) writing natural-language references into a field a
+   structured system will later parse or join on.
+6. **Missing join keys** — two pieces of state that need to correlate
+   later (a request and its eventual result, an event and its replay)
+   with no stable key connecting them.
+7. **Missing replay cursors** — a consumer of a stream or log with no
+   durable position, so a restart either reprocesses everything or
+   silently skips a gap.
+8. **Unbounded retries** — a retry loop with no cap, backoff ceiling, or
+   dead-letter path, able to spin forever on a permanently-failing
+   input.
+9. **Cross-contaminating handlers** — a handler for one kind of event
+   able to affect state that a different event type also owns, with no
+   isolation between them.
+
+### See Also
+
+- `requirements-clarification` — for verifying a requirement's premise
+  and scoping ambiguity on ordinary-sized work; use before this skill
+  even applies, to confirm the work really is "big" and not just
+  underspecified.
+- `code-review` / `security-review` — post-implementation review, once
+  code exists. This skill is deliberately upstream of those: it reviews
+  the plan, not the diff.

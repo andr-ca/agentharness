@@ -33,7 +33,7 @@ tested, *enforced* product:
   ruleset let multiple concurrent agents work one repo without
   clobbering each other — dogfooded on this repo daily, where a dozen
   agent worktrees are routinely live at once.
-- **32 on-demand skills.** Language conventions, code review (with
+- **36 on-demand skills.** Language conventions, code review (with
   API/DB/UI variants), security review, testing, mutation testing,
   design principles, and more — loaded only when relevant, so the
   always-on context stays small.
@@ -294,7 +294,7 @@ agentharness/
 │   └── hooks/                   # prevent-trunk-commit, pre-commit (file placement),
 │                                 # pre-push (coverage + agent-lock), completion gate (+ tests)
 ├── .claude/
-│   ├── skills/                  # 32 on-demand skills: language/framework conventions
+│   ├── skills/                  # 36 on-demand skills: language/framework conventions
 │   │                             # (python, typescript, go, react, database, docker),
 │   │                             # review (code-review + api/db/ui variants, security-review,
 │   │                             # dependency-audit, audit-review-followup), process
