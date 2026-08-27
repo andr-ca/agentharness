@@ -36,6 +36,17 @@ Planned-but-not-built: [ROADMAP.md](ROADMAP.md).
 2. ✅ **Create atomic commits locally** — one logical unit per commit, clear message explaining WHY
 3. 🛑 **Stop before pushing, opening a PR, or auto-implementing recommendations.** Present a summary of what's staged and ask the user to confirm before publishing anything.
 
+**A local commit is not a durable safe-point in an ephemeral-container
+execution environment.** If you have verified, committed-but-unpushed
+work and are about to block on `AskUserQuestion` or other unbounded
+human input, consider pushing to a remote branch (a scratch/WIP branch
+is fine) first — committed-but-unpushed work can be lost if the
+container is reclaimed during the wait, with no error at commit time
+and no warning until a later `git log` looks unfamiliar. This is
+disclosure of an existing risk, not a grant of publish authority: it
+does not authorize opening a PR or merging, and the default tier above
+still governs those.
+
 **Full publish authority (commit → push → PR, same as before) applies only when either is true:**
 - `.agentharness-publish-mode` exists at this repo's root (a local,
   gitignored, per-operator flag — see "Publish authority" below), **or**
