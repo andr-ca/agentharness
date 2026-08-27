@@ -198,6 +198,10 @@ sections:
     path: patterns/agentic-loops/test_agent_loop.py
     type: tests
     when_to_use: Tests for agent_loop.py; run with pytest
+  - asset: Recurring maintenance loop contract
+    path: patterns/recurring-maintenance-loops/README.md
+    type: guide
+    when_to_use: Designing a recurring maintenance loop (dependency updates, drift checks, freshness scans) — a scheduler-neutral 6-field vocabulary (invariant, signal, proof, authority, human-attention budget, retirement), not a runtime
 - name: Eval Suite
   columns:
   - Asset
