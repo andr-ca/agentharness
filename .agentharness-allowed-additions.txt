@@ -66,3 +66,7 @@ docs/operational/reviews/issue-143-recurring-loop-contract-evidence-2026-08-23.m
 docs/operational/reviews/issue-240-codex-live-verification-2026-08-23.md
 tools/eval/fixtures/python-input-validation/lint-dirty
 tools/eval/fixtures/python-input-validation/low-coverage
+tools/eval/fixtures/python-bugfix-average/lint-dirty
+tools/eval/fixtures/python-bugfix-average/low-coverage
+tools/eval/fixtures/go-error-handling/lint-dirty
+tools/eval/fixtures/go-error-handling/low-coverage

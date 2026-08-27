@@ -44,18 +44,22 @@ def test_broken_fixture_fails_tests(task_id):
     assert result["edge_cases_pass"] is False
 
 
-def test_lint_dirty_fixture_fails_lint_only():
+@pytest.mark.parametrize("task_id", TASKS)
+def test_lint_dirty_fixture_fails_lint_only(task_id):
     """Isolates lint_clean: tests and coverage still pass, only lint fails.
 
     tests_pass/edge_cases_pass are asserted elsewhere (correct/broken
     above); coverage_met and lint_clean were computed by score() but
     never independently asserted anywhere — a regression that always
     reported both as True would have passed every existing test here.
+
+    Go's lint-dirty fixture deliberately uses an `unreachable` vet
+    finding, not a printf-verb mismatch: `go test` runs a curated subset
+    of vet checks automatically (including printf), so a printf mismatch
+    would also fail tests_pass and defeat the isolation this test wants.
     """
-    result = score(
-        EVAL_ROOT / "tasks" / "python-input-validation",
-        EVAL_ROOT / "fixtures" / "python-input-validation" / "lint-dirty",
-    )
+    task_dir = EVAL_ROOT / "tasks" / task_id
+    result = score(task_dir, EVAL_ROOT / "fixtures" / task_id / "lint-dirty")
     assert result["tests_pass"] is True
     assert result["edge_cases_pass"] is True
     assert result["coverage_met"] is True
@@ -63,12 +67,11 @@ def test_lint_dirty_fixture_fails_lint_only():
     assert result["overall_score"] < 1.0
 
 
-def test_low_coverage_fixture_fails_coverage_only():
+@pytest.mark.parametrize("task_id", TASKS)
+def test_low_coverage_fixture_fails_coverage_only(task_id):
     """Isolates coverage_met: tests and lint still pass, only coverage fails."""
-    result = score(
-        EVAL_ROOT / "tasks" / "python-input-validation",
-        EVAL_ROOT / "fixtures" / "python-input-validation" / "low-coverage",
-    )
+    task_dir = EVAL_ROOT / "tasks" / task_id
+    result = score(task_dir, EVAL_ROOT / "fixtures" / task_id / "low-coverage")
     assert result["tests_pass"] is True
     assert result["edge_cases_pass"] is True
     assert result["lint_clean"] is True
