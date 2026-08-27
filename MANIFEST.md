@@ -71,6 +71,7 @@ they drift (`check_manifest_md_sync()` in `tools/verify-content-quality.py`).
 | Agentic loops | `patterns/agentic-loops/README.md` | guide | Building multi-turn agents, tool calling, tool chaining, branching |
 | Agent loop implementation | `patterns/agentic-loops/agent_loop.py` | utility | Python: tested, provider-neutral single-tool-call agent loop with schema validation, budget, approval hook, audit trace |
 | Agent loop tests | `patterns/agentic-loops/test_agent_loop.py` | tests | Tests for agent_loop.py; run with pytest |
+| Recurring maintenance loop contract | `patterns/recurring-maintenance-loops/README.md` | guide | Designing a recurring maintenance loop (dependency updates, drift checks, freshness scans) — a scheduler-neutral 6-field vocabulary (invariant, signal, proof, authority, human-attention budget, retirement), not a runtime |
 
 ## Eval Suite
 
