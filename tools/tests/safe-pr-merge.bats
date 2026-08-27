@@ -224,7 +224,7 @@ STUB
     # here only ever answers for 'other-sha', confirming the function
     # doesn't fall back to treating any run as good enough.
     make_gh_stub "other-sha" 1
-    run env PATH="$TEST_PROJECT/bin:$PATH" SAFE_PR_MERGE_FIND_RUN_MAX_WAIT=4 bash -c "
+    run env PATH="$TEST_PROJECT/bin:$PATH" SAFE_PR_MERGE_FIND_RUN_MAX_WAIT=0 bash -c "
         source '$SCRIPT'
         wait_for_ci_run test-owner/test-repo main target-sha-never-matches
     "
@@ -239,7 +239,7 @@ STUB
     # and its message must not read as "CI failed" — it's "we couldn't
     # find the run in time", a materially different, less alarming claim.
     make_gh_stub "other-sha" 1
-    run env PATH="$TEST_PROJECT/bin:$PATH" SAFE_PR_MERGE_FIND_RUN_MAX_WAIT=4 bash -c "
+    run env PATH="$TEST_PROJECT/bin:$PATH" SAFE_PR_MERGE_FIND_RUN_MAX_WAIT=0 bash -c "
         source '$SCRIPT'
         wait_for_ci_run test-owner/test-repo main target-sha-never-matches
     "
