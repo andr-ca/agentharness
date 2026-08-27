@@ -900,3 +900,61 @@ class of problem this finding describes (something believed durably
 recorded turned out not to be), noted here rather than filed as a
 separate issue since it's the same root cause and not yet a second
 independent occurrence of a different bug.
+
+## 2026-08-26 – `safe-pr-merge.sh` reports "Post-merge CI failed" for a run it simply couldn't find yet
+
+**Recurrence key:** `safe-pr-merge-ci-not-found-reported-as-failed`
+
+**What happened:** Merging three PRs in the same session with
+`tools/safe-pr-merge.sh`, two of the three post-merge CI waits hit
+`wait_for_ci_run`'s "no run found" branch — one because GitHub Actions
+took several minutes longer than the 120s default budget to even
+register a run for the merge commit, the other because the run that did
+get created sat `queued` with **zero jobs** for over an hour, and `gh run
+rerun <id>` responded "run cannot be rerun; its workflow file may be
+broken" (the same workflow file that had already run cleanly on two
+sibling PRs and an earlier commit on the same branch that same session —
+not actually broken). Both times, the script printed `[ERROR] Post-merge
+CI failed on branch 'main'` and exited 1, even though the PR had already
+merged successfully and — once manually confirmed — CI eventually did go
+green on both.
+
+**Root cause:** `wait_for_ci_run`'s find-phase timeout and the caller's
+wrapper message conflated "we could not locate the run within the wait
+budget" with "the run failed." Those are different claims, and the file
+already fixed this exact conflation once before, one layer down — the
+2026-07-28 entries document `gh run view`'s status/conclusion reads being
+retried and reported as "unknown, not failure" rather than treated as a
+terminal failure. The find-phase loop that runs *before* any of that
+(looking for the run to exist at all) never got the same treatment, and
+the caller (`cmd_merge`'s Step 6) asserted "Post-merge CI failed"
+unconditionally on any `wait_for_ci_run` failure, regardless of which of
+its three distinct failure paths produced it.
+
+**Impact:** an agent (or operator) reading only the final line, or
+reporting status to someone else, would reasonably conclude the merge
+broke CI and start investigating or reverting — exactly the trust-erosion
+risk the 2026-07-28 entries already called out for the sibling bug. The
+actual situation both times was "merge succeeded, CI verification is
+just slower than the script's budget, go check manually" — a much less
+alarming, and completely different, next action.
+
+**What agentharness should change:** the find-phase timeout message
+should say explicitly that it isn't a failure signal and point at the
+manual-check command, and the caller should stop asserting "failed" for
+every `wait_for_ci_run` failure regardless of cause.
+
+**Corrective action taken:** fixed directly (scoped, low-risk, matches
+the Recommendation Assessment mandate's "implement without asking"
+bar). The find-phase timeout now logs that the run merely couldn't be
+located within budget, not that it failed, plus the exact `gh run list`
+command to check manually. The caller's message changed from "Post-merge
+CI failed on branch '\$base_branch'" to "Post-merge CI could not be
+confirmed green ... (it may not be an actual failure)" — accurate
+regardless of which of the three underlying paths triggered it. One new
+regression test. The zero-jobs/stuck-queue case itself needed manual
+intervention beyond what any timeout tuning could fix (an empty commit to
+force a fresh `pull_request: synchronize` dispatch, after closing and
+reopening the PR didn't retrigger it) — that's operational recovery
+knowledge, not a bug in this repo's own tooling, so it's recorded here
+rather than turned into more code.

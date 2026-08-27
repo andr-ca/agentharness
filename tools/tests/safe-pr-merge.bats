@@ -232,6 +232,22 @@ STUB
     [[ "$output" =~ "No CI run found for commit" ]]
 }
 
+@test "wait_for_ci_run: a run never located within the wait budget is not reported as a failure" {
+    # Regression test for friction hit live merging PR #280/#281: a real
+    # GitHub Actions dispatch delay (a run stuck queued 20+ minutes; a
+    # separate run reporting zero jobs) made this path fire in production,
+    # and its message must not read as "CI failed" — it's "we couldn't
+    # find the run in time", a materially different, less alarming claim.
+    make_gh_stub "other-sha" 1
+    run env PATH="$TEST_PROJECT/bin:$PATH" SAFE_PR_MERGE_FIND_RUN_MAX_WAIT=4 bash -c "
+        source '$SCRIPT'
+        wait_for_ci_run test-owner/test-repo main target-sha-never-matches
+    "
+    [ "$status" -ne 0 ]
+    [[ "$output" =~ "NOT that it failed" ]]
+    [[ "$output" =~ "gh run list -R test-owner/test-repo -b main -c target-sha-never-matches" ]]
+}
+
 # ---------------------------------------------------------------------------
 # verify_all_comments_replied: the "answered" rule must survive a bot-authored
 # PR. GitHub reports a Dependabot PR's author login as "app/dependabot" while
