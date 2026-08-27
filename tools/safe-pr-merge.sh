@@ -332,6 +332,10 @@ wait_for_ci_run() {
 
         if [ $find_elapsed -ge $find_max_wait ]; then
             log_error "No CI run found for commit ${expected_sha:0:12} on branch '$branch' after ${find_max_wait}s"
+            log_error "This means the run could not be located within the wait budget — NOT that it failed."
+            log_error "A slow GitHub Actions dispatch (observed: a run stuck queued for 20+ minutes, another"
+            log_error "reporting zero jobs) can outlast this. Check manually before assuming anything broke:"
+            log_error "  gh run list -R $repo -b $branch -c $expected_sha"
             return 1
         fi
 
@@ -642,8 +646,16 @@ main() {
     log_info "Merge commit: $merge_sha"
 
     # Step 6: Wait for post-merge CI
+    #
+    # wait_for_ci_run returns 1 for three distinct situations — a run
+    # never located, a status read that kept failing, or a genuinely
+    # failed/non-success conclusion — and already logs which one before
+    # returning. Only the last of those is an actual CI failure; asserting
+    # "failed" here regardless would repeat the exact false-failure
+    # pattern this file already fixed once for a status-read failure
+    # (see the 2026-07-28 harness-feedback entries) at a different layer.
     if ! wait_for_ci_run "$repo" "$base_branch" "$merge_sha"; then
-        log_error "Post-merge CI failed on branch '$base_branch'"
+        log_error "Post-merge CI could not be confirmed green on branch '$base_branch' — see the reason logged above (it may not be an actual failure)"
         return 1
     fi
 
