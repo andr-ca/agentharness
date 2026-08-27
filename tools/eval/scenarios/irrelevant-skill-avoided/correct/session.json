@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "scenario": "irrelevant-skill-avoided",
+  "turns": [
+    {
+      "role": "user",
+      "text": "There's a typo in README.md: \"recieve\" should be \"receive\" in the installation section. Please fix it."
+    },
+    {
+      "role": "assistant",
+      "text": "Fixing the typo in README.md's installation section.",
+      "corrective": false
+    },
+    {
+      "role": "assistant",
+      "text": "Done — changed \"recieve\" to \"receive\"."
+    }
+  ],
+  "skills_invoked": [],
+  "actions": [
+    {
+      "type": "file_write",
+      "target": "README.md"
+    },
+    {
+      "type": "commit",
+      "target": "main"
+    }
+  ],
+  "context": {
+    "publish_authority": true
+  },
+  "implementation_attempts": 1,
+  "human_interventions": 0,
+  "cost_usd": 0.01,
+  "plan_declared_files": [
+    "README.md"
+  ],
+  "actual_changed_files": [
+    "README.md"
+  ]
+}

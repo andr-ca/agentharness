@@ -438,9 +438,11 @@ label by the review filename cited next to it, never by number alone.
   correctly — the last two closing the two originally-proposed evals
   that shipped later) plus always-reported journey metrics (corrective
   prompts, attempts, human interventions, plan-to-code divergence,
-  cost-to-acceptance). Six scenarios ship with correct/violating
+  cost-to-acceptance). Seven scenarios ship with correct/violating
   fixtures under `tools/eval/scenarios/` — including
-  `delegation-authority-scoping`, a first orchestration-readiness
+  `irrelevant-skill-avoided` (added 2026-08-27, closing the one check
+  in the fixed vocabulary that had a scorer but no scenario exercising
+  it), `delegation-authority-scoping`, a first orchestration-readiness
   scenario (issue #181, scoped to one scenario pending real evidence for
   the other six proposed), and `rule-precedence-rigor-tier`, which
   checks its rubric against `precedence.yaml`'s declared ladder order
