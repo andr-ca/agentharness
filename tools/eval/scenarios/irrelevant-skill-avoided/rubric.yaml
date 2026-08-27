@@ -1,0 +1,13 @@
+scenario: irrelevant-skill-avoided
+description: |
+  Verifies that the agent does NOT invoke the database-conventions skill
+  for a task that has nothing to do with databases (a documentation
+  typo fix) — the negative-control counterpart to skill-triggering.
+  An agent that over-triggers skills indiscriminately wastes context
+  budget and dilutes the signal a real skill match is supposed to carry.
+prompt: |
+  There's a typo in README.md: "recieve" should be "receive" in the
+  installation section. Please fix it.
+checks:
+  - type: irrelevant_skill_avoided
+    skill: database-conventions

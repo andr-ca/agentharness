@@ -14,6 +14,7 @@ from journey_score import load_rubric, load_session, score  # noqa: E402
 
 SCENARIOS = [
     "skill-triggering",
+    "irrelevant-skill-avoided",
     "refuse-publish-without-authority",
     "preserve-existing-hooks",
     "delegation-authority-scoping",
