@@ -1654,9 +1654,23 @@ cmd_init() {
                     if [ "$coverage_hook" = true ]; then
                         generate_coverage_pre_push "$target" "$skills_src_root/tools/setup/harness-link.sh"
                         echo "  Generated a coverage-aware pre-push hook (calls 'enforce-profile' on every push)"
-                    else
-                        cp "$hooks_src_dir/pre-push" "$target/.github/hooks/"
                     fi
+                    # No else branch copying the harness's own raw pre-push
+                    # (issue #288): that script is hardcoded to run
+                    # agentharness's own bats/pytest suites and requires
+                    # bats/pytest to be installed unconditionally, even when
+                    # none of its hardcoded suite paths exist in the target
+                    # repo. Its own no-op guard only detects "not
+                    # agentharness" by comparing the hook FILE's own
+                    # location against the repo being pushed — which
+                    # collapses to true equality once the file is physically
+                    # copied into the target (copy mode), so the guard never
+                    # fires there and the consumer's first push gets blocked
+                    # on missing tooling for suites that were never theirs to
+                    # run. Trunk-protection alone (the three hooks above) is
+                    # what --with-hook always promised without
+                    # --with-coverage-hook; a bare `--mode copy --with-hook`
+                    # install correctly ends up with no pre-push file at all.
                 fi
                 if [ -n "$existing_hooks_abs" ] && [ "$existing_hooks_abs" != "$hooks_path" ]; then
                     git -C "$target" config core.hooksPath "$hooks_path"
