@@ -154,6 +154,19 @@ print(len(d['skills']))
     grep -q "\.env" "$TEST_PROJECT/.gitignore"  # From template
 }
 
+@test "harness-link.sh: managed CLAUDE.md block tells the agent not to abandon an open PR's review" {
+    # Issue #289: a consumer agent opened a PR, was asked twice whether
+    # it had checked/addressed review comments, and both times had done
+    # nothing — the existing "PR merge checklist" paragraph only covers
+    # the moment of merging, not the gap between "PR created" and
+    # "decided to merge." Locks in that the always-on router content
+    # explicitly tells the agent not to go idle right after gh pr create.
+    bash "$SCRIPT" "$TEST_PROJECT"
+
+    [ -f "$TEST_PROJECT/CLAUDE.md" ]
+    grep -q "don't treat the URL as the finish line" "$TEST_PROJECT/CLAUDE.md"
+}
+
 @test "harness-link.sh: --with-hook sets core.hooksPath in an existing git repo" {
     git -C "$TEST_PROJECT" init --quiet
 
