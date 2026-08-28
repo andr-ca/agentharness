@@ -38,9 +38,11 @@ jobs:
           # inside a folded scalar (>-) is literal text, not a comment, so
           # it would be passed to lychee as arguments.
           #
-          # --max-retries / --retry-wait-time: lychee's defaults (3 retries,
-          # 1s minimum wait) only budget a few seconds before giving up on a
-          # failing request. Investigating a real failure (run 32699284098,
+          # --max-retries / --retry-wait-time: lychee ships with a small
+          # default retry budget — only a few seconds before giving up on a
+          # failing request (see the action's own defaults, which can shift
+          # between lychee releases; don't assume the numbers below match
+          # them exactly). Investigating a real failure (run 32699284098,
           # 2026-08-24) found a single link — kentbeck.github.io, verified
           # back to 200 OK minutes later — rejected with a transient 503
           # that outlasted the default retry window. This is the second such
