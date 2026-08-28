@@ -1322,8 +1322,8 @@ print('importable')
     # when coverage_hook=true, leaving a plain '--mode copy --with-hook'
     # install's copied prevent-trunk-commit/pre-commit/pre-merge-commit
     # files behind after uninstall (core.hooksPath still got correctly
-    # unset). pre-push is no longer one of the copied files as of issue
-    # #288's fix (a bare --with-hook, without --with-coverage-hook,
+    # unset). pre-push is no longer one of the copied files, fixed under
+    # issue #288 (a bare --with-hook, without --with-coverage-hook,
     # never gets agentharness's own raw pre-push copied at all) — assert
     # on prevent-trunk-commit instead, which --with-hook always installs.
     git -C "$TEST_PROJECT" init --quiet
