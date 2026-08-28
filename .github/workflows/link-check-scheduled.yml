@@ -37,8 +37,23 @@ jobs:
           # Kept as a YAML comment rather than inline in args below: '#'
           # inside a folded scalar (>-) is literal text, not a comment, so
           # it would be passed to lychee as arguments.
+          #
+          # --max-retries / --retry-wait-time: lychee's defaults (3 retries,
+          # 1s minimum wait) only budget a few seconds before giving up on a
+          # failing request. Investigating a real failure (run 32699284098,
+          # 2026-08-24) found a single link — kentbeck.github.io, verified
+          # back to 200 OK minutes later — rejected with a transient 503
+          # that outlasted the default retry window. This is the second such
+          # transient-failure run out of the last five scheduled runs. Since
+          # this job is deliberately non-blocking (see the P1-08 comment
+          # above) and exists to catch real link rot, not to page anyone
+          # promptly, widening the retry budget trades a few more seconds of
+          # job time for fewer false-positive weekly failures, without
+          # weakening detection of an actually-broken link.
           args: >-
             --no-progress
+            --max-retries 6
+            --retry-wait-time 5
             --exclude 'https://(www\.)?npmjs\.com/'
             '**/*.md'
           fail: true
