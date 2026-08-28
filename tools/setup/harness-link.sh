@@ -978,6 +978,13 @@ only the second means done. If this checkout has agentharness's own
 \`tools/safe-pr-merge.sh\` available (see its INTEGRATION.md section),
 prefer it over doing these steps by hand — it enforces the sequence.
 
+**After opening a PR, don't treat the URL as the finish line.** If
+review is expected — an automated reviewer, or a human — check back
+for comments before ending your work and reply to each one, whether or
+not you are the one who will merge. Ending a turn before review has
+posted is fine; going silent on an already-open PR with unanswered
+comments is not, even without being asked twice.
+
 Full policy: see the harness's own CLAUDE.md via your install mode, or
 https://github.com/andr-ca/agentharness/blob/main/CLAUDE.md
 EOF
