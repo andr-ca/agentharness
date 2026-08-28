@@ -229,6 +229,40 @@ print(len(d['skills']))
     [ "$hooks_path" = "$TEST_PROJECT/.github/hooks" ]
 }
 
+@test "harness-link.sh: --mode copy --with-hook (no coverage) does not copy agentharness's own pre-push hook" {
+    # Issue #288: the harness's raw pre-push hook is hardcoded to run
+    # agentharness's own bats/pytest suites and requires that tooling be
+    # installed unconditionally, even when none of its hardcoded suite
+    # paths exist in the target repo. Its own no-op guard detects "not
+    # agentharness" by comparing the hook FILE's own location against the
+    # repo being pushed — which collapses to true equality once the file
+    # is physically copied into the target, so the guard never fires
+    # there and a consumer's first push gets blocked over suites that
+    # were never theirs to run. Only --with-coverage-hook should ever
+    # place a pre-push file for a consumer (a generated, consumer-owned
+    # one) — a bare --mode copy --with-hook install must end up with no
+    # pre-push file at all.
+    git -C "$TEST_PROJECT" init --quiet
+
+    run bash "$SCRIPT" "$TEST_PROJECT" --mode copy --with-hook
+    [ "$status" -eq 0 ]
+    [ ! -e "$TEST_PROJECT/.github/hooks/pre-push" ]
+    [ -e "$TEST_PROJECT/.github/hooks/prevent-trunk-commit" ]
+}
+
+@test "harness-link.sh: --with-coverage-hook still installs a generated (not raw) pre-push hook" {
+    git -C "$TEST_PROJECT" init --quiet
+
+    run bash "$SCRIPT" "$TEST_PROJECT" --with-coverage-hook
+    [ "$status" -eq 0 ]
+    [ -e "$TEST_PROJECT/.github/hooks/pre-push" ]
+    # The generated hook calls enforce-profile, not agentharness's own
+    # bats/pytest suites — confirms it's the generated variant, not a
+    # copy of the harness's raw self-testing script that caused #288.
+    grep -q "enforce-profile" "$TEST_PROJECT/.github/hooks/pre-push"
+    ! grep -q "bats not installed" "$TEST_PROJECT/.github/hooks/pre-push"
+}
+
 @test "harness-link.sh: --with-hook still detects a genuinely different relative core.hooksPath as a conflict" {
     git -C "$TEST_PROJECT" init --quiet
     git -C "$TEST_PROJECT" config core.hooksPath "some/other/hooks"

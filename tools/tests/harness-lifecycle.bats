@@ -1320,12 +1320,17 @@ print('importable')
 @test "lifecycle: --mode copy --with-hook uninstall removes the copied hook files, not just core.hooksPath" {
     # Copilot review on PR #21: uninstall's hook-file cleanup only fired
     # when coverage_hook=true, leaving a plain '--mode copy --with-hook'
-    # install's copied prevent-trunk-commit/pre-commit/pre-push files
-    # behind after uninstall (core.hooksPath still got correctly unset).
+    # install's copied prevent-trunk-commit/pre-commit/pre-merge-commit
+    # files behind after uninstall (core.hooksPath still got correctly
+    # unset). pre-push is no longer one of the copied files, fixed under
+    # issue #288 (a bare --with-hook, without --with-coverage-hook,
+    # never gets agentharness's own raw pre-push copied at all) — assert
+    # on prevent-trunk-commit instead, which --with-hook always installs.
     git -C "$TEST_PROJECT" init --quiet
     bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --with-hook
 
-    [ -f "$TEST_PROJECT/.github/hooks/pre-push" ]
+    [ -f "$TEST_PROJECT/.github/hooks/prevent-trunk-commit" ]
+    [ ! -e "$TEST_PROJECT/.github/hooks/pre-push" ]
 
     run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
     [ "$status" -eq 0 ]

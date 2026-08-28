@@ -958,3 +958,75 @@ force a fresh `pull_request: synchronize` dispatch, after closing and
 reopening the PR didn't retrigger it) — that's operational recovery
 knowledge, not a bug in this repo's own tooling, so it's recorded here
 rather than turned into more code.
+
+## 2026-08-28 – copied `pre-push` hook blocks a consumer's first push in `--mode copy` installs
+
+**Recurrence key:** `copy-mode-pre-push-blocks-consumer-first-push`
+
+**What happened:** Reported via issue #288 from a real consumer install
+(`malandr/short-term-memory`, `harness-link.sh init . --mode copy
+--with-hook --profile internal`). The first `git push` from the fresh
+consumer repo failed with `✗ bats not installed` / `✗ pytest not
+installed` / `✗ Pre-push checks failed. Push blocked.` — even though
+that repo has no agentharness test suite and no obligation to run
+bats/pytest at all.
+
+**Root cause:** `--mode copy --with-hook` (without `--with-coverage-hook`)
+copied `.github/hooks/pre-push` — agentharness's own raw pre-push hook,
+hardcoded to run *this repo's* bats/pytest suites — into the consumer
+repo verbatim. That script's own no-op guard ("is this push actually
+going to agentharness itself?") works by comparing the hook FILE's own
+on-disk location against the repo being pushed. In the symlinked/
+borrowed-`core.hooksPath` install shape that guard is correct (the file
+still physically lives inside agentharness's own checkout, so the two
+locations differ for any other repo). In copy mode the file is
+physically copied INTO the consumer tree, so both locations collapse to
+the same path — the guard's "not agentharness itself" branch never
+fires, and the script falls through to unconditionally requiring
+bats/pytest and running suites hardcoded to paths that only exist in
+agentharness's own repo.
+
+**Impact:** high friction on first push for any new consumer using copy
+mode + `--with-hook` (the common/documented combination) — easy to
+misread as "install broken" and reach for `--no-verify`, defeating the
+point of installing the hook. The issue reporter also flagged a related
+agent-process failure (the installing agent auto-merged its own PR
+without waiting for review) — tracked separately as it's a distinct,
+skill/instruction-level gap rather than this same root cause; see the
+next entry below.
+
+**What agentharness should change:** never place agentharness's own
+raw, self-testing `pre-push` into any consumer's tree. It was only ever
+correct as a symlink-back/`core.hooksPath`-borrowing artifact, not as a
+copied file — and `--mode copy` inherently can't produce the first
+shape.
+
+**Corrective action taken:** fixed directly (scoped, low-risk — matches
+the Recommendation Assessment mandate's "implement without asking"
+bar). `harness-link.sh`'s `--mode copy`/`--with-coverage-hook` install
+branch no longer copies the raw `pre-push` file at all when
+`--with-coverage-hook` isn't also requested; a bare `--mode copy
+--with-hook` install now correctly ends up with trunk-protection hooks
+only (`prevent-trunk-commit`, `pre-commit`, `pre-merge-commit`) and no
+`pre-push` file, matching what the CLI's own `--with-hook` help text
+already promised ("does NOT enforce coverage on its own"). Considered
+also hardening the raw hook's own guard with a content-based marker
+check (the issue's own preferred option, for defense against some
+future code path re-introducing the same copy) — decided against it for
+now: the root-cause fix means the buggy file is never shipped at all
+going forward, and a marker-based guard adds its own surface for a
+different bug for comparatively little marginal protection. Two new
+regression tests (`tools/tests/harness-link.bats`) lock in that
+`--mode copy --with-hook` never creates `.github/hooks/pre-push`, and
+that `--with-coverage-hook` still installs the generated (not raw)
+variant. Existing consumer installs made before this fix still have the
+buggy file on disk — checked whether `harness-link.sh update` would
+self-heal it and confirmed it will NOT: `cmd_update` deliberately never
+touches hooks at all (carries the previously recorded `with_hook`/
+`hooks_path`/`coverage_hook` state forward unchanged, by design). An
+already-affected consumer needs to re-run `init --with-hook --force`
+(or delete the stray `.github/hooks/pre-push` by hand) to pick up this
+fix — not filed as a separate gap here since "should `update` also
+repair hook files" is its own design question (whether silently
+touching a consumer's local hook config on update is ever wanted), not
+a bug in this fix.
