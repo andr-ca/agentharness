@@ -3666,7 +3666,10 @@ cmd_uninstall() {
             # guard as the config unset above. Copilot review: this used
             # to only fire when coverage_hook=true, leaving a plain
             # '--mode copy --with-hook' install's copied
-            # prevent-trunk-commit/pre-commit/pre-push files behind.
+            # prevent-trunk-commit/pre-commit/pre-merge-commit files
+            # behind (pre-push is no longer one of the copied files for
+            # a bare --with-hook as of issue #288's fix, but `rm -f`
+            # here is harmless either way if it's absent).
             if [ "$recorded_hooks_path" = "$target/.github/hooks" ]; then
                 local coverage_hook
                 coverage_hook="$(state_field "$target" coverage_hook 2>/dev/null || echo "false")"
