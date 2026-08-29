@@ -1,0 +1,433 @@
+# QWEN.md
+
+Generated from this repo's own `CLAUDE.md` by `tools/generate-qwen-md.sh`
+(https://github.com/andr-ca/agentharness) — do not hand-edit; regenerate
+instead (`tools/generate-qwen-md.sh --output QWEN.md`). A CI check keeps
+this file in sync with its source (see `.github/workflows/ci.yml`'s
+`content-quality` job).
+
+This file covers repo-wide routing rules only. Skills are loaded on
+demand from `.qwen/skills/` — Qwen Code's own Agent Skills mechanism
+scans `.qwen/skills/` (project) and `~/.qwen/skills/` (personal) for
+`SKILL.md` files and lets the model invoke one by name once its
+description matches the task at hand. The index below exists so the
+model has something to match against; it is not a substitute for
+reading the matched `SKILL.md` itself.
+
+Qwen Code also supports `/memory show` (inspect the concatenated
+context) and `/memory refresh` (force a re-scan) if this file changes
+mid-session.
+
+---
+
+## agentharness – Agent Router
+
+This file is loaded into every session that touches this repo. Keep it
+short — everything else is one link away. Full index: [MANIFEST.md](MANIFEST.md).
+Planned-but-not-built: [ROADMAP.md](ROADMAP.md).
+
+### 🤖 Agent Workflow Completion
+
+**Default (no publish authority): verify and stage, then stop.**
+
+1. ✅ **Run the completion gate** — before declaring any work done, run
+   `bash tools/check-completion.sh`. This script verifies lint, types,
+   tests, coverage, and content quality in one shot and exits non-zero if
+   anything fails. The Stop hook in `.github/hooks/completion-gate.json`
+   and `.claude/settings.json` enforces this automatically for Claude Code
+   and GitHub Copilot — the agent cannot stop until all gates pass.
+2. ✅ **Create atomic commits locally** — one logical unit per commit, clear message explaining WHY
+3. 🛑 **Stop before pushing, opening a PR, or auto-implementing recommendations.** Present a summary of what's staged and ask the user to confirm before publishing anything.
+
+**A local commit is not a durable safe-point in an ephemeral-container
+execution environment.** If you have verified, committed-but-unpushed
+work and are about to block on `AskUserQuestion` or other unbounded
+human input, consider pushing to a remote branch (a scratch/WIP branch
+is fine) first — committed-but-unpushed work can be lost if the
+container is reclaimed during the wait, with no error at commit time
+and no warning until a later `git log` looks unfamiliar. This is
+disclosure of an existing risk, not a grant of publish authority: it
+does not authorize opening a PR or merging, and the default tier above
+still governs those.
+
+**Full publish authority (commit → push → PR, same as before) applies only when either is true:**
+- `.agentharness-publish-mode` exists at this repo's root (a local,
+  gitignored, per-operator flag — see "Publish authority" below), **or**
+- The user has explicitly granted standing authorization for this session
+  or task in the current conversation. This always overrides the flag in
+  either direction — explicit instructions in the request outrank a
+  standing file the same way rigor-tier precedence already works (see
+  `patterns/profiles/README.md#precedence-order`).
+
+Under full publish authority, the original mandate applies as written:
+push to remote with tracking, create a PR with `gh pr create`, and never
+leave verified work uncommitted-and-unpushed — an agent claiming work is
+"complete" while it's only staged locally is incomplete.
+
+**Note on merge commits:** Merging a branch into `main` locally (e.g.,
+`git merge --no-ff <branch>` while checked out on `main`) is a form of
+committing to trunk, and the "Never commit to `main` directly" rule
+applies to it in full: never merge to `main` locally — always integrate
+through a PR on GitHub, never bypass it with a local merge commit.
+
+**Never merge a PR on CI status alone — wait for review comments, then
+address them, before merging.** A green CI run says nothing about
+feedback left on the diff itself (human or automated, e.g. GitHub
+Copilot's code review). **Use `tools/safe-pr-merge.sh <n>` — a
+`PreToolUse` hook (`.github/hooks/claude-pr-merge-guard.sh`) blocks a
+direct `gh pr merge` for Claude Code sessions, so this is enforced, not
+just asked for.** `AGENTHARNESS_PR_MERGE_BYPASS=1` overrides it when the
+wrapper itself is broken; say why in the PR. The checklist below is what
+the wrapper does — read it when diagnosing a refusal, or when merging
+from a client the hook does not cover:
+1. Give automated review time to post (its own check, separate from CI,
+   e.g. "Copilot Code Review") — don't merge the instant CI turns green.
+   Concretely: Check whether an automated reviewer is configured on this
+   repo at all (e.g. by examining recent PRs' check-runs to see if a
+   Copilot or bot review check-run has appeared). If none is configured,
+   note this explicitly ("no automated reviewer configured on repo");
+   if one is configured, poll for new review comments and check-runs
+   every ~30s for up to 20 minutes after CI goes green (observed Copilot
+   review latency runs 10–20 minutes on some PRs). If the reviewer's
+   check-run appears during that window, keep polling until it
+   *completes* (allow up to ~30 minutes total) — a check-run that has
+   started is a reason to keep waiting, not to stop. A single immediate
+   check does not satisfy this step — the wait is the point, not just a
+   verification of absence. **Exception:** if the automated reviewer's
+   check-run has already reached a *completed* state (not merely
+   started/pending) with zero comments attached, that completed run
+   already is the wait — stop polling immediately rather than sitting
+   out the rest of the window for a review that has demonstrably already
+   finished and found nothing to say. `tools/safe-pr-merge.sh` implements
+   this check.
+2. Fetch *both* comment types — issue-level (`gh pr view <n> --json
+   comments`) and inline review comments (`gh api
+   repos/<owner>/<repo>/pulls/<n>/comments`); the first call alone misses
+   inline findings entirely.
+3. Verify each finding against current code before acting on it — an
+   automated reviewer's claim can be stale (already fixed by a later
+   commit) or simply wrong; confirm the premise, don't implement a "fix"
+   on faith.
+4. Fix what's real and in scope per the Recommendation Assessment
+   mandate below (scoped/low-risk directly; larger findings get scoped
+   and confirmed like any other recommendation); note explicitly why
+   anything is skipped rather than silently ignoring it.
+5. **Reply to every comment.** On the PR, reply to each review comment you
+   fetched — issue-level and inline alike — with a short assessment and
+   the action taken: the commit that addressed it, "already correct — no
+   change (why)", or "skipped/deferred because …". This puts step 4's
+   "don't silently ignore" on the thread where the reviewer left the
+   finding, not only in a commit message or status file, so every
+   decision is auditable next to the comment it answers. Use `gh pr
+   comment <n>` for issue-level replies and `gh api --method POST
+   repos/<owner>/<repo>/pulls/<n>/comments/<id>/replies -f body=…` for
+   inline ones.
+
+**When starting or resuming work in a repo, check for stale PRs with
+unaddressed review comments** — before doing anything else, run `gh pr
+list --state open` and examine any open PR (especially those opened more
+than a day ago) for review comments newer than the PR's last commit, or
+older comments with no replies. This catches PRs previous sessions left
+open without addressing feedback, which the PR-merge checklist alone
+misses.
+
+**Never report a push/merge as done while CI is still running or red —
+watch it through to an actual, current green before moving on or telling
+the user it's finished.** "I pushed" and "CI passed" are different
+claims; only the second one means the work is safe. This applies to
+every CI-triggering push this mandate covers: opening a PR, pushing more
+commits to one, and merging into `main`.
+1. After any such push, poll the run (`gh run watch --exit-status`, or an
+   equivalent poll loop) until it reaches a terminal state — `queued` and
+   `in_progress` are not outcomes, and reporting either as "done" is the
+   exact mistake this rule exists to prevent.
+2. On failure, read the actual log for the failed job(s)
+   (`gh run view <run-id> --log-failed`) before deciding what to do next
+   — don't guess from the job name.
+3. If the failure is transient infrastructure (runner provisioning,
+   `Service Unavailable`/network errors resolving actions, a flaky step
+   unrelated to this diff — not a real test/lint/type failure), rerun
+   the failed jobs (`gh run rerun <run-id> --failed`) and re-poll. Retry
+   up to 5 times; if it's still failing after that, stop and surface it
+   to the user rather than silently retrying forever.
+4. If the failure reflects the actual change (a real test/lint/build
+   failure), fix it like any other bug per the Recommendation Assessment
+   mandate below, push the fix, and re-verify CI from a clean state —
+   don't rerun a failing job hoping it passes the second time.
+5. A merge to `main` is not finished until `main`'s own resulting CI run
+   (the run the merge commit itself triggers, not just the PR's
+   pre-merge run) is confirmed green — a PR's checks passing before
+   merge doesn't guarantee the post-merge run on `main` will, and only
+   the post-merge run reflects what's actually deployed/tagged from.
+
+**"Merged" and "confirmed working" are different claims for anything an
+externally fired trigger runs, not just for CI.** The completion gate
+(lint/types/tests/coverage) and the CI-verification rules above are
+thorough about code-level and merge-level checks, but neither exercises
+a GitHub Actions trigger other than `workflow_dispatch` (an `issues:`,
+`schedule:`, `pull_request_target`, or webhook trigger), a cron job, or
+anything else `pytest`/`bats` structurally cannot simulate. Building an
+automated GitHub-webhook-triggered feature in this repo hit this gap
+three separate times in a row on the same feature: static checks
+passed every time, and each time only an actual live run (filing a
+throwaway test issue, watching a real webhook fire) surfaced a real
+bug — a duplicate-run race, an indefinite hang, a retry gap — that no
+unit test could have caught.
+
+When a change adds or modifies something that only truly runs via such
+an external trigger: either (a) exercise it for real before presenting
+the work as done —
+e.g., file a throwaway test issue/PR/tag and watch the triggered run to
+completion — or (b) say explicitly in the PR body that live verification
+wasn't done this round and why. An honest "not live-tested" disclosure
+is not a substitute for the check — it's an open TODO the agent is
+expected to close out at the next opportunity, the same way an
+undisclosed CI failure would be, not a satisfied requirement.
+
+#### Publish authority
+
+Authority can now be scoped via a declarative `.agentharness-authority.json`
+contract (gitignored, per-operator, like the flag below). Define grants by
+operation, target branch glob, and expiration — operators can restrict
+authority to `fix/*` branches only, grant it for 48 hours while a feature
+ships, or revoke it mid-session. Precedence: explicit in-session instruction
+> `.agentharness-authority.json` > bare flag > default (verify-and-stage).
+A present contract overrides the bare flag. See `docs/INTEGRATION.md`'s
+"Scoped Authority" section for the full contract format, operation vocabulary,
+and optional hard-block enforcement.
+
+For simpler, all-or-nothing authority, `touch .agentharness-publish-mode`
+at this repo's root grants standing push/PR/auto-implement authority for
+every session that reads this file, until the flag is removed. It's
+gitignored (never committed) because it's a per-operator/per-machine
+authorization, not a repo-wide policy — see `docs/DECISIONS.md` for why
+this replaced the old always-on default, and `docs/INTEGRATION.md` for
+how to create/remove it or use scoped contracts instead.
+
+### 📁 File Placement
+
+**In any project with `.agentharness-guarded-paths.json`, you must not
+create new files or directories in guarded paths without explicit user
+permission.**
+
+Before creating any file:
+1. Check `.agentharness-guarded-paths.json` for guarded paths.
+2. If the target location is guarded: **stop and ask the user first.**
+3. After receiving explicit permission: record the approved path in
+   `.agentharness-allowed-additions.txt`, then create the file.
+
+If the project has no guarded-paths config but has an established
+structure (src/, docs/, tests/, etc.), treat those directories as
+guarded by default and ask before adding to them.
+
+If the project appears new (empty or minimal), run
+`python3 tools/analyze_structure.py . --recommend` to get structure
+recommendations, then present them to the user before creating anything.
+
+The pre-commit hook (`tools/check-file-placement.sh`) enforces this
+deterministically — commits adding files to guarded paths without an
+entry in `.agentharness-allowed-additions.txt` are blocked. One
+standing exemption: `docs/operational/harness-feedback.md` — the
+harness-feedback skill already has its own standing authorization to
+create it without asking (see that skill's "no ask-the-user step"
+rule), so this hook doesn't re-block it even under a fresh guarded-docs
+config.
+
+See `patterns/file-placement-policy/POLICY.md` for the full protocol
+and `.claude/skills/file-placement-policy/SKILL.md` for the condensed
+on-demand reference.
+
+**This whole policy is scoped to inside the project.** It has no
+concept of "outside the repo entirely" — a real gap: a command intended
+to set an env var for the current shell once appended it directly to
+the user's `~/.bashrc` instead, a file outside `$(git rev-parse
+--show-toplevel)` entirely, shared across every terminal the user
+opens. It was caught and reverted immediately, but nothing would have
+stopped it if it hadn't been noticed.
+
+**Never write to files outside the current project's working
+directory tree** — shell rc files (`~/.bashrc`, `~/.zshrc`,
+`~/.profile`), global git config, `~/.config/*` — **without explicit
+user confirmation.** Session-scoped environment variables needed for a
+multi-step task should be `export`-ed inline for the current shell
+only, never persisted to a dotfile, unless the user has explicitly
+asked for a durable environment change.
+
+For Claude Code sessions, a `PreToolUse` hook
+(`.github/hooks/claude-outside-repo-write-guard.sh`, wired in
+`.claude/settings.json`) enforces the mechanical half of this
+automatically: it blocks `Write`/`Edit` calls whose target path
+resolves outside every git repository and outside the system temp
+directory. It only covers structured file writes — a `Bash` command
+redirecting output (`>>`) is not something this hook can reliably
+generalize-block without a high false-positive rate against legitimate
+commands, so that half stays a documented rule, not a technical gate.
+
+### 🔍 Agent Recommendation Assessment
+
+**When an agent is asked to address/review/look into recommendations:**
+
+1. **Assess each item** — evaluate positive vs. negative impact (complexity, effort, risk, benefit)
+2. **Scoped, low-risk fixes** — a bug fix, a correctness/security fix with one
+   clear resolution, closing a gap in something already built:
+   - ✅ Implement directly, regardless of effort — don't ask permission to
+     *fix* it. Whether the fix gets **published** still follows the
+     Agent Workflow Completion default above (verify + stage, or full
+     publish if authorized).
+3. **Anything larger** — a new subsystem, a product-direction decision
+   (target users, supported clients, distribution model), an architecture
+   change, or a recommendation batch that amounts to a roadmap rather than
+   a fix:
+   - 🛑 **Present a scoped summary and get explicit confirmation on scope
+     before implementing.** A review file recommending something is not
+     the same as the user authorizing a multi-session build-out. Once
+     scope is confirmed, that confirmation covers the agreed batch — don't
+     re-ask item-by-item within it, but do re-check before expanding past
+     what was agreed.
+4. **If potential outcome is NEGATIVE or HIGH-RISK regardless of size:**
+   - 🚨 **Escalate to user immediately** — do not implement
+   - Include: specific concern, risk analysis, request guidance
+5. **Report status in `<recommendations>-status.md`** with:
+   - Timestamp (ISO 8601: `2026-07-11T14:30:00Z`)
+   - Summary of what was implemented (and, for a confirmed larger batch,
+     what scope was agreed)
+   - Rationale for positive/negative aspects of each recommendation
+   - Link to PR(s)
+
+**This applies to:**
+- Recommendations from reviews, audits, or assessments
+- All work on this repository (agentharness)
+- All harnesses and projects consuming this harness
+
+**Rationale:** Recommendations only improve systems when they're acted on
+deliberately. Complexity is not a reason to decline a scoped fix — but
+silently treating an unbounded backlog as blanket authorization turns
+"assess recommendations" into unrequested product decisions the user
+never actually signed off on. The same logic applies one level up: a
+mandate that grants an agent standing remote-write authority by default
+is itself a product-direction decision the user should make explicitly,
+not inherit silently from a template — see "Publish authority" above.
+
+---
+
+### 📋 Completion Gate
+
+**Run `bash tools/check-completion.sh` before declaring any work done.**
+
+The gate runs all quality gates in one shot and exits 1 if any fail:
+
+| Gate | What it checks |
+|---|---|
+| `content-quality` | YAML validity, skill frontmatter schema, tested-snippet syntax |
+| `ruff-lint` | Python lint (E, F, I, UP rules) |
+| `mypy` | Strict type checking on `src/` |
+| `pytest-coverage` | Test suite + ≥65% branch coverage on `src/agentharness/` |
+| `shellcheck` | Changed `.sh` files have no issues |
+| `git-clean` | No uncommitted changes to tracked files |
+
+The Stop hook in `.github/hooks/completion-gate.json` (Copilot) and
+`.claude/settings.json` (Claude Code) enforces this automatically —
+the agent cannot stop until `tools/check-completion.sh` exits 0.
+
+For projects consuming this harness via `harness-link.sh init`, install
+the completion gate with: `harness-link.sh init --with-hook` (the hook
+is bundled alongside trunk protection in `.github/hooks/`).
+
+---
+
+### What This Repo Is
+
+A single source of truth for git conventions, coding guidelines, testing
+standards, and (eventually) on-demand skills, so they're written once and
+referenced everywhere instead of drifting across projects. Full rationale:
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+### Where To Look
+
+| Need | Read |
+|---|---|
+| Full asset index | [MANIFEST.md](MANIFEST.md) |
+| Git workflow (branches, commits, secrets) | `.github/BRANCHING_STRATEGY.md`, `.github/COMMITTING_GUIDELINES.md` |
+| Coding standards + rigor tiers | `.github/CODING_GUIDELINES.md` |
+| Testing (TDD, coverage, Playwright) | `patterns/testing/` |
+| Logging | `patterns/logging/` |
+| Python conventions | `languages/python/` |
+| Integrating this repo into a project | `docs/INTEGRATION.md`, or just run `tools/setup/harness-link.sh` |
+| First run in a project (what applies here?) | `agentharness bootstrap plan`, and the project-bootstrap skill for the interview |
+| What's planned but not built | [ROADMAP.md](ROADMAP.md) |
+
+### Rules That Apply Regardless of What You're Working On
+
+- **Rigor tiers.** Not all mandates apply to all code — see
+  `.github/CODING_GUIDELINES.md#rigor-tiers` before assuming 80% coverage
+  or full Playwright suites apply to a prototype or one-off script.
+- **One source of truth per rule.** If you find the same number/rule
+  stated differently in two files, that's a bug — fix the duplicate, don't
+  add a third version.
+- **`.env.sample` not `.env.example`.** Never hardcode secrets; always
+  provide a sanitized sample file.
+- **Never commit to `main` directly.** Branch protection enforces this for
+  everyone except repo admins; agents should never rely on the admin
+  bypass.
+- **One branch, one session.** Before your first commit on any branch,
+  acquire the multi-agent lock — `tools/agent-lock.sh acquire "<feature>"
+  "<branch>"` — and export the printed id as `AGENTHARNESS_AGENT_ID`.
+  Do **not** capture that id with command substitution
+  (`ID="$(… acquire …)"`): the recorded owner pid would be the
+  substitution subshell, which exits immediately. Pass a stable
+  `AGENT_LOCK_PID` instead, and read the id from the printed output —
+  see the multi-agent-coordination skill for the exact pattern. Locks
+  now carry a renewable lease, so a session whose acquiring process has
+  exited still holds its lock; `renew` extends one that outlives the TTL.
+  The pre-push hook blocks pushes to a branch whose lock another live
+  session holds. Never force-push: a repo-wide GitHub ruleset rejects
+  non-fast-forward pushes on every branch, so when a push is rejected,
+  fetch and rebase instead.
+- **Harness friction is a first-class finding.** When using this harness, friction (hook failures, ambiguous guidance, violated mandates, mismatched tool output) discovered during any session must be addressed, logged locally to `docs/operational/harness-feedback.md`, and filed upstream to andr-ca/agentharness by default — without waiting for the operator to ask. See the harness-feedback skill. Skip upstream filing only if `.agentharness-no-upstream-feedback` exists at the repo root.
+
+### Operational Documents
+
+Temporary/working docs (research notes, agent logs, planning) go in
+`docs/operational/`, tracked in git like everything else. See
+`docs/operational/README.md` for the promote/archive/delete workflow.
+
+---
+
+## Skills (loaded on demand from `.qwen/skills/`)
+
+- `.qwen/skills/accessibility/SKILL.md` — Use when building or reviewing web UIs for accessibility — WCAG 2.2 Level AA compliance, semantic HTML over ARIA, keyboard navigation, color contrast, screen reader patterns, and testing approach.
+- `.qwen/skills/agentic-loops/SKILL.md` — Use when building multi-turn agents, tool-calling systems, agent orchestration, or autonomous workflows — covers loops, tool calling, branching, reflection patterns.
+- `.qwen/skills/api-design/SKILL.md` — Use when designing, reviewing, or evolving a REST or GraphQL API — resource naming, HTTP status codes, versioning strategy, error response shapes, pagination, and authentication patterns.
+- `.qwen/skills/audit-review-followup/SKILL.md` — Use when asked to check whether review/audit recommendations were actually implemented, whether gaps were closed, or to re-score the repo — verifies claims against repo state instead of trusting status reports.
+- `.qwen/skills/big-work-plan-review/SKILL.md` — Use before implementing big work — new systems, pipelines, daemons, or anything stateful/concurrent — where a bug would be expensive to find after code exists. Requires a written implementation plan to pass multi-round adversarial review by two independent LLM reviewers before any code is written. Not for scoped bug fixes or single-file changes; see requirements-clarification for those.
+- `.qwen/skills/branching/SKILL.md` — Use when creating a branch, naming it, deciding whether to use a worktree, or handling secrets accidentally committed to history — branch naming convention, trunk protection, and secrets-removal procedure.
+- `.qwen/skills/clean-architecture/SKILL.md` — Use when business logic is entangled with frameworks or databases. Covers hexagonal architecture (ports and adapters), layer diagram, dependency direction rules, and violation symptoms.
+- `.qwen/skills/code-review/SKILL.md` — Use when reviewing a diff, pull request, or code change — systematic checklist for correctness, clarity, security, testability, and adherence to the project's conventions. Covers what to look for, how to give actionable feedback, and when to approve vs. request changes.
+- `.qwen/skills/code-review-api/SKILL.md` — Use when reviewing REST or HTTP API endpoints, controllers, or route handlers. Covers HTTP status codes, idempotency, versioning, auth, pagination, error shapes, and rate limiting. Load instead of the general code-review skill for API-focused reviews.
+- `.qwen/skills/code-review-db/SKILL.md` — Use when reviewing code that touches the database or persistence layer. Covers index strategy, query count, N+1, transaction scope, migration safety, and connection pooling. Load instead of the general code-review skill for DB-focused reviews.
+- `.qwen/skills/code-review-ui/SKILL.md` — Use when reviewing frontend, UI, or component code. Covers accessibility (WCAG AA), state management, bundle size, keyboard navigation, hydration, and rendering performance. Load instead of the general code-review skill for UI-focused reviews.
+- `.qwen/skills/committing/SKILL.md` — Use when creating a git commit — atomic commits, message format, what never to commit, and the agent workflow-completion requirement (run completion gate; stage or publish per publish authority).
+- `.qwen/skills/database-conventions/SKILL.md` — Use when designing a database schema, writing migrations, reviewing SQL queries, or choosing between relational and document models — covers naming, index strategy, migration safety, N+1 prevention, and transaction boundaries.
+- `.qwen/skills/dependency-audit/SKILL.md` — Use when adding dependencies, reviewing a project's dependency tree, or checking for known vulnerabilities and ownership risk — covers pip-audit, npm audit, govulncheck, lock file hygiene, update policy, and trust assessment.
+- `.qwen/skills/dependency-injection/SKILL.md` — Use when writing or reviewing code with object graphs, service dependencies, or testability concerns. Covers constructor injection, DI containers, lifetimes, and anti-patterns (service locator, ambient context, over-injection).
+- `.qwen/skills/design-patterns/SKILL.md` — Use when recognizing a recurring design problem. Covers GoF patterns: Factory, Builder, Strategy, Observer, Command, Template Method, Decorator, Repository, Facade — when to apply each and when not to.
+- `.qwen/skills/docker-conventions/SKILL.md` — Use when writing a Dockerfile, docker-compose file, or CI containerization config — multi-stage builds, layer caching, security (non-root user, minimal base images, no secrets in layers), and health checks.
+- `.qwen/skills/error-handling/SKILL.md` — Use when building error recovery, handling exceptions, designing error flows, or implementing logging for errors — covers retry, circuit-breaker, error wrapping, structured logging.
+- `.qwen/skills/file-placement-policy/SKILL.md` — Use before creating any new file or directory in an established project — covers guarded root paths, docs/, src/, conf/, the allowed-additions escape hatch, and how to ask for permission. Load this skill at the start of every session in a project that has .agentharness-guarded-paths.json.
+- `.qwen/skills/github-issue-triage/SKILL.md` — Triage a GitHub issue by verifying all factual claims against running code, assessing roadmap fit, then posting a structured response comment with confirmed findings, stale corrections, a recommendation, and concrete test steps.
+- `.qwen/skills/go-conventions/SKILL.md` — Use when writing, reviewing, or refactoring Go code — naming conventions, receiver naming, error wrapping, interface design, goroutine safety, and common pitfalls (goroutine leaks, defer-in-loop, nil map writes).
+- `.qwen/skills/harness-feedback/SKILL.md` — Triggers on harness friction events (hook failures, ambiguous guidance, violated mandates, mismatched reality) encountered during any session. Agent must: address the immediate problem, log it locally to docs/operational/harness-feedback.md, and file it upstream to andr-ca/agentharness. Default-on; skip upstream filing only if .agentharness-no-upstream-feedback exists at repo root.
+- `.qwen/skills/logging/SKILL.md` — Use when adding logging to an application, reviewing log output, choosing log levels, structuring logs for observability, or configuring logging backends — covers structured logging, YAML config patterns, what NOT to log, and local vs. production output.
+- `.qwen/skills/multi-agent-coordination/SKILL.md` — Use when two or more agent sessions may work on the same repository concurrently — covers the per-feature lock-file protocol, stale-lock detection, worktree isolation rules, and what to do when a feature is already locked.
+- `.qwen/skills/mutation-testing/SKILL.md` — Use when writing tests for critical business logic, auditing test suite quality beyond line coverage, or interpreting surviving mutants — covers mutation operators, mutation score thresholds, and tooling (mutmut, Stryker, gremlins) for Python, TypeScript/JS, and Go.
+- `.qwen/skills/performance-profiling/SKILL.md` — Use when diagnosing slow code, high memory usage, or CPU spikes — language-agnostic profiling workflow: form a hypothesis, identify the hot path, benchmark before and after, and interpret profiler output. Includes Python (cProfile, py-spy), Go (pprof), and Node.js (--inspect, clinic.js) tooling.
+- `.qwen/skills/planning-with-files/SKILL.md` — Use when starting a complex multi-step task, a research project, or any task requiring more than 5 tool calls — creates and maintains task_plan.md, findings.md, and progress.md to preserve state across context resets.
+- `.qwen/skills/port-agent-config/SKILL.md` — Use when asked to port, migrate, or add equivalent agent instructions, skills, or custom sub-agents for a different coding tool than the one already configured — e.g. "add Cursor support from our CLAUDE.md", "we're switching from Cursor to Codex, port our rules", "make this work for Copilot too", "port our review subagent to Codex". Covers both agentharness-linked projects (use the real generators, don't hand-write) and plain projects with hand-authored config (port by hand, same principles).
+- `.qwen/skills/project-bootstrap/SKILL.md` — Use on the first run in a project, or when asked to set the harness up, tailor it to this repository, or work out which conventions apply here — inventories what the project already does, interviews the owner about the decisions only they can make, and applies a confirmed plan without overwriting existing setup.
+- `.qwen/skills/python-conventions/SKILL.md` — Use when writing or reviewing Python code — naming conventions, type hints, common pitfalls (mutable defaults, bare except, is-vs-==), and testing structure.
+- `.qwen/skills/react-best-practices/SKILL.md` — Use when writing, reviewing, or optimizing React or Next.js code — component architecture, hooks rules, server vs. client components, data fetching patterns, bundle size, and accessibility in React.
+- `.qwen/skills/requirements-clarification/SKILL.md` — Use before implementing a significant feature or change when requirements are ambiguous, underspecified, or likely to have multiple reasonable interpretations, or when a requirement arrives pre-formed as an issue, audit finding, or review comment whose claim needs checking — covers verifying the premise before acting, structured discovery, one question at a time, edge-case probing, and writing a brief requirements summary before coding starts.
+- `.qwen/skills/security-review/SKILL.md` — Use when reviewing code for security vulnerabilities, performing a security audit, or checking for OWASP Top 10 issues — covers injection flaws, broken access control, cryptographic failures, secrets exposure, dependency vulnerabilities, and language-specific pitfalls for Python, TypeScript/JavaScript, and Go.
+- `.qwen/skills/solid-principles/SKILL.md` — Use when designing classes or APIs to evaluate SOLID compliance — SRP, OCP, LSP, ISP, DIP. Covers what each principle means, how to diagnose violations by symptom, and how to refactor.
+- `.qwen/skills/testing/SKILL.md` — Use when writing tests, deciding on test coverage, choosing between unit/integration/E2E tests, applying TDD, or reviewing test quality — covers rigor tiers, the Red-Green-Refactor cycle, coverage requirements, and Playwright for UI testing.
+- `.qwen/skills/typescript-conventions/SKILL.md` — Use when writing, reviewing, or refactoring TypeScript or JavaScript code — naming conventions, type annotations, private fields, null vs. undefined, async/await pitfalls, and module structure.

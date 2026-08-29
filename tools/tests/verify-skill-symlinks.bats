@@ -1,15 +1,19 @@
 #!/usr/bin/env bats
 # Tests for tools/verify-skill-symlinks.sh — guards the 1:1 invariant
-# between .claude/skills/ (real skill dirs) and .agents/skills/ (the
-# relative symlinks every Agent-Skills-standard tool — Codex, Copilot,
-# Gemini, Kilo, OpenCode — reads from). Failure modes below are the exact
-# drifts that would silently hide a skill from those tools.
+# between .claude/skills/ (real skill dirs) and its two mirror farms:
+# .agents/skills/ (every Agent-Skills-standard tool — Codex, Copilot,
+# Gemini, Kilo, OpenCode) and .qwen/skills/ (Qwen Code's own, separate
+# discovery directory). Failure modes below are the exact drifts that
+# would silently hide a skill from those tools; most are exercised
+# against .agents/skills/ only since verify_mirror() is the same
+# function for both, with one dedicated test confirming .qwen/skills/
+# drift is caught too.
 
 setup() {
     REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../.." && pwd)"
     SCRIPT="$REPO_ROOT/tools/verify-skill-symlinks.sh"
     FIXTURE="$(mktemp -d)"
-    mkdir -p "$FIXTURE/.claude/skills" "$FIXTURE/.agents/skills"
+    mkdir -p "$FIXTURE/.claude/skills" "$FIXTURE/.agents/skills" "$FIXTURE/.qwen/skills"
 }
 
 teardown() {
@@ -24,10 +28,12 @@ make_skill_dir() {
         "$name" > "$FIXTURE/.claude/skills/$name/SKILL.md"
 }
 
-# Create a real skill plus its correct .agents/skills relative symlink.
+# Create a real skill plus its correct .agents/skills and .qwen/skills
+# relative symlinks.
 make_skill() {
     make_skill_dir "$1"
     ln -s "../../.claude/skills/$1" "$FIXTURE/.agents/skills/$1"
+    ln -s "../../.claude/skills/$1" "$FIXTURE/.qwen/skills/$1"
 }
 
 @test "verify-skill-symlinks: passes on this repo's real tree" {
@@ -48,6 +54,16 @@ make_skill() {
     run bash "$SCRIPT" "$FIXTURE"
     [ "$status" -ne 0 ]
     [[ "$output" == *"no .agents/skills/beta symlink"* ]]
+}
+
+@test "verify-skill-symlinks: fails when a skill has no .qwen symlink" {
+    # gamma gets .agents/skills right but is missing from .qwen/skills —
+    # confirms verify_mirror() is genuinely run per-mirror, not just once.
+    make_skill_dir gamma
+    ln -s "../../.claude/skills/gamma" "$FIXTURE/.agents/skills/gamma"
+    run bash "$SCRIPT" "$FIXTURE"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"no .qwen/skills/gamma symlink"* ]]
 }
 
 @test "verify-skill-symlinks: fails on a dangling symlink for an existing skill" {

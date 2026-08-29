@@ -93,10 +93,10 @@ skill_description() {
 # Kilo, reintroducing the exact issue #240 bug this function exists to
 # fix (Copilot review on PR #243).
 resolve_target_skills_dir() {
-    local harness_dir="$1" target_dir="$2"
+    local harness_dir="$1" target_dir="$2" skill_subdir="${3:-.agents/skills}"
     while [ -n "$target_dir" ] && [ "$target_dir" != "/" ]; do
-        if [ -d "$target_dir/.agents/skills" ]; then
-            echo "$target_dir/.agents/skills"
+        if [ -d "$target_dir/$skill_subdir" ]; then
+            echo "$target_dir/$skill_subdir"
             return
         fi
         target_dir="$(dirname "$target_dir")"
@@ -106,10 +106,13 @@ resolve_target_skills_dir() {
 
 # Renders the "## Skills (loaded on demand from .agents/skills/)" section
 # shared by every routing-rules-only adapter — name+description index
-# only, never full bodies.
+# only, never full bodies. skill_subdir (default .agents/skills) lets a
+# client whose own skill discovery doesn't scan .agents/skills/ — Qwen
+# Code scans .qwen/skills/ instead, per its own docs — point the index at
+# wherever that client actually looks, without duplicating this function.
 render_skill_index() {
-    local harness_dir="$1" skills_dir="$2"
-    echo "## Skills (loaded on demand from \`.agents/skills/\`)"
+    local harness_dir="$1" skills_dir="$2" skill_subdir="${3:-.agents/skills}"
+    echo "## Skills (loaded on demand from \`$skill_subdir/\`)"
     echo
     while IFS= read -r skill; do
         [ -z "$skill" ] && continue
@@ -117,7 +120,7 @@ render_skill_index() {
         [ -f "$local_skill_md" ] || continue
         local description
         description="$(skill_description "$local_skill_md")"
-        echo "- \`.agents/skills/$skill/SKILL.md\` — $description"
+        echo "- \`$skill_subdir/$skill/SKILL.md\` — $description"
     done < <(list_available_skills "$harness_dir" | sort)
 }
 
