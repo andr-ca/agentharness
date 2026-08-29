@@ -171,14 +171,16 @@ ports it to every tool that supports genuine delegation:
 | Kilo Code      | `tools/generate-kilo-agents.sh`     | `.kilo/agents/*.md`                                                                                                                                                                          |
 | GitHub Copilot | `tools/generate-copilot-agents.sh`  | `.github/agents/*.agent.md` (distinct from `.github/copilot-instructions.md`/`.github/instructions/` above — genuine isolated-context sub-agent delegation, not the routing/skill mechanism) |
 | Gemini CLI     | `tools/generate-gemini-agents.sh`   | `.gemini/agents/*.md`                                                                                                                                                                        |
+| Qwen Code      | `tools/generate-qwen-agents.sh`     | `.qwen/agents/*.md`                                                                                                                                                                          |
 
 Zed likely has real subagent delegation architecturally too, but no
 confirmed user-facing named-config-file format was found to port
 into — flagged as unconfirmed rather than built against a guess. **None
-of these six generators translate tool/permission scoping** (Claude
+of these seven generators translate tool/permission scoping** (Claude
 Code's `tools:` field, Cursor's `readonly`/`is_background`, Kilo's
 `permission`, Copilot's `target`/`disable-model-invocation`/
-`user-invocable`, Gemini's `tools`/`temperature`/`max_turns`) — that
+`user-invocable`, Gemini's `tools`/`temperature`/`max_turns`, Qwen's
+`tools`/`disallowedTools`/`approvalMode`) — that
 vocabulary is unverified per platform, so ported files carry only
 `name`/`description`/`model`/body; re-specify the tool/permission scope
 by hand for the target platform. See `docs/CLIENT_COMPATIBILITY.md`'s

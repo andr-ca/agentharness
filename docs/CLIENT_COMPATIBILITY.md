@@ -66,9 +66,10 @@ OpenAI and Microsoft, then by 32+ tools by March 2026.
 
 **Practical read:** installing skills into `.agents/skills/` (already
 done for every consumer project via `harness-link.sh init`/`update`,
-every mode) is the one action with the widest payoff — six tools
-recognize that exact directory as a compatibility path today. Cursor is
-the outlier requiring a genuinely different mechanism.
+every mode) is the one action with the widest payoff — seven tools
+recognize that exact directory as a compatibility path today. Cursor
+and Qwen Code are the outliers requiring a genuinely different
+mechanism (`.cursor/rules/*.mdc` and `.qwen/skills/`, respectively).
 
 ## Pre-tool hooks (mechanical enforcement)
 
@@ -334,8 +335,8 @@ where a primary source couldn't be confirmed directly.
 | Antigravity | Custom agents over the A2A (Agent2Agent) protocol | Unconfirmed — the A2A protocol itself is real and Google-authored (<https://a2a-protocol.org>), but Antigravity's own custom-agent config format couldn't be confirmed from a primary doc (its docs page returned no substantive content on fetch) | ✅ claimed — bidirectional agent-to-agent handoffs | ❌ none defined; **lower confidence than the rest of this table** |
 | GitHub Copilot | Custom Agents (CLI + VS Code) | `.github/agents/*.agent.md` or `~/.copilot/agents/*.agent.md` (Markdown + YAML frontmatter: name, description, model, tools, target, disable-model-invocation, user-invocable) | ✅ true delegation — the runtime spins up an isolated-context subagent, invoked automatically (description match), via `/agent`, by naming it explicitly, or programmatically (`--agent`); can run agents in parallel | ✅ generated from `.claude/agents/*.md` by `tools/generate-copilot-agents.sh` — tool/permission scoping NOT ported (unverified against a live session) |
 | Gemini CLI | Subagents | `.gemini/agents/*.md` or `~/.gemini/agents/*.md` (YAML frontmatter: name, description, tools, model, temperature, max_turns) | ✅ true delegation — runs in a separate context loop, invoked automatically (description match) or manually (`@subagent-name`); subagents cannot themselves call further subagents (depth-1 only, same shape as Codex's `max_depth`/Zed's shallow hierarchy — a nesting limit, not an absence of delegation) | ✅ generated from `.claude/agents/*.md` by `tools/generate-gemini-agents.sh` — tool/permission scoping NOT ported (unverified against a live session) |
-| Zed | Subagents (spawned via `SpawnAgentTool`) | **Unconfirmed** — subagents are real, isolated `Thread` instances (own context window, depth-1 hierarchy), but no confirmed user-facing named-config-file convention (no `.zed/agents/*.md` or equivalent found) was located; spawning may be dynamic/programmatic rather than reading a predefined per-name file the way the other six tools do | ❌ none defined; **no generator built — the target file format this repo's ported files would need is not confirmed to exist** |
-| Qwen Code | ❓ unverified — not yet researched | ❓ unverified | ❌ out of scope for the initial `QWEN.md`/`.qwen/skills/` adapter (issue #229) |
+| Zed | Subagents (spawned via `SpawnAgentTool`) | **Unconfirmed** — subagents are real, isolated `Thread` instances (own context window, depth-1 hierarchy), but no confirmed user-facing named-config-file convention (no `.zed/agents/*.md` or equivalent found) was located; spawning may be dynamic/programmatic rather than reading a predefined per-name file the way the other seven tools do | ❌ none defined; **no generator built — the target file format this repo's ported files would need is not confirmed to exist** |
+| Qwen Code | Subagents | `.qwen/agents/*.md` (project, highest precedence) or `~/.qwen/agents/*.md` (personal); Markdown + YAML frontmatter: name, description, model, approvalMode, tools, disallowedTools — plus explicit Claude Code 2.1.168 compatibility fields (permissionMode, maxTurns, color, mcpServers, hooks) that parse identically when a CC agent file is dropped in unmodified | ✅ true delegation — own separate conversation context, invoked automatically (description match) or explicitly named; also supports a distinct `fork` subagent type (inherits the parent's full context, for parallel same-context work) that named subagents don't have | ✅ generated from `.claude/agents/*.md` by `tools/generate-qwen-agents.sh` — `tools`/`disallowedTools`/`approvalMode` NOT ported: Qwen's own tool-name vocabulary (`read_file`, `write_file`, `run_shell_command`, ...) differs from Claude Code's (`Read`, `Write`, `Bash`), so a verbatim `tools:` copy would leave the subagent with an empty, unusable toolset rather than just an unported field. Not live-verified against a real session (see the context-file/skills section above for why) |
 
 **Corrections (2026-07-13, same day):** this table originally classified
 GitHub Copilot and Gemini CLI as having no real delegation. Both were
@@ -356,14 +357,15 @@ have real delegation as well (see its row above), but *not* a confirmed
 config-file format to port into, so it's flagged rather than built
 against a guess.
 
-**Practical read:** seven tools (Claude Code, Codex CLI, OpenCode,
-Cursor, Kilo Code, GitHub Copilot, Gemini CLI) support genuine task
-delegation to a separate specialized agent with a confirmed,
-file-based custom-agent config — structurally close enough that this
-repo now ports its one real subagent (`coding-guidelines-reviewer`, a
-read-only reviewer scoped to `.github/CODING_GUIDELINES.md`'s rigor
-tiers) from Claude Code to the other six via
-`tools/generate-{codex,opencode,cursor,kilo,copilot,gemini}-agents.sh`,
+**Practical read:** eight tools (Claude Code, Codex CLI, OpenCode,
+Cursor, Kilo Code, GitHub Copilot, Gemini CLI, Qwen Code) support
+genuine task delegation to a separate specialized agent with a
+confirmed, file-based custom-agent config — structurally close enough
+that this repo now ports its one real subagent
+(`coding-guidelines-reviewer`, a read-only reviewer scoped to
+`.github/CODING_GUIDELINES.md`'s rigor tiers) from Claude Code to the
+other seven via
+`tools/generate-{codex,opencode,cursor,kilo,copilot,gemini,qwen}-agents.sh`,
 the same relationship `.claude/skills/` has to `.agents/skills/`. Zed
 likely has real delegation too, architecturally, but no confirmed
 config-file format was found to port into — so there's nothing to
@@ -427,9 +429,11 @@ documentation at the locally installed 0.21.5 release
 (`$(npm root -g)/@qwen-code/qwen-code/bundled/qc-helper/docs/`), not
 its public website — `configuration/settings.md` (context file default,
 `context.fileName`), `features/skills.md` (`.qwen/skills/` discovery),
-and `features/hooks.md` (`PreToolUse`/`Stop`/etc.,
+`features/hooks.md` (`PreToolUse`/`Stop`/etc.,
 `hookSpecificOutput.permissionDecision`, `.qwen/settings.json` config
-surface — added 2026-08-29). A real agentic-session live-verification (the standard
+surface), and `features/sub-agents.md` (`.qwen/agents/*.md`, Claude
+Code 2.1.168 frontmatter compatibility, the distinct `fork` subagent
+type — added 2026-08-29). A real agentic-session live-verification (the standard
 every other tool's ✅ rows in this file were held to) was attempted for
 the context-file/skills half but not completed — the local Qwen OAuth
 free tier is discontinued, and running one non-interactively requires

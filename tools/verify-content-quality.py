@@ -879,6 +879,12 @@ def check_gemini_agents_sync() -> list[str]:
     )
 
 
+def check_qwen_agents_sync() -> list[str]:
+    return _check_agent_generator_sync(
+        "tools/generate-qwen-agents.sh", ".qwen/agents"
+    )
+
+
 # Absence claims in KNOWN_LIMITATIONS.md, e.g.
 #   - **Patterns:** no API-design pattern yet.
 # Captures the asset name and the asset kind so a claim about a *pattern*
@@ -1167,6 +1173,7 @@ def main() -> int:
     errors += check_kilo_agents_sync()
     errors += check_copilot_agents_sync()
     errors += check_gemini_agents_sync()
+    errors += check_qwen_agents_sync()
 
     if freshness_warnings:
         print("Content-quality warnings (non-fatal — advisory context.yaml entries):\n")

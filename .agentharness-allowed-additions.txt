@@ -73,3 +73,5 @@ tools/eval/fixtures/go-error-handling/low-coverage
 tools/generate-qwen-md.sh
 tools/tests/generate-qwen-md.bats
 QWEN.md
+tools/generate-qwen-agents.sh
+tools/tests/generate-qwen-agents.bats
