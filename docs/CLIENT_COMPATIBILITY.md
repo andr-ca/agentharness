@@ -97,7 +97,7 @@ only refuse to let the session finish. A `Stop` hook cannot prevent a
 | GitHub Copilot | ❓ unverified | ✅ `Stop` | ✅ completion gate (`.github/hooks/completion-gate.json`) |
 | Codex CLI | ✅ `PreToolUse` — `<repo>/.codex/hooks.json` or `[[hooks.PreToolUse]]` in `.codex/config.toml`; `matcher` + `command`, a blocking hook prevents the tool running | ❓ unverified | ❌ `.codex/hooks.json` parses cleanly (fixed 2026-08-22, below), but **confirmed non-functional by a live session, 2026-08-23**: `codex_hooks` is a feature flag Codex's own CLI marks "under development," disabled by default; even with `--enable codex_hooks` explicitly set, `RUST_LOG=debug` shows zero hook-execution activity and a real `gh pr merge 1` runs completely unblocked. This is not "unverified" — it is verified not to work on codex-cli 0.115.0. See below |
 | OpenCode | ❓ unverified | ❓ unverified | ❌ none |
-| Qwen Code | ❓ unverified — Qwen Code does have a `qwen hooks` command and its own hooks mechanism, not yet researched | ❓ unverified | ❌ none — out of scope for the initial `QWEN.md`/`.qwen/skills/` adapter (issue #229); not researched this pass |
+| Qwen Code | ✅ `PreToolUse` — `hooks.PreToolUse` in `.qwen/settings.json` (project) or user/system scopes; `matcher` (regex on tool id) + one or more hook executors (`command`, `http`, `prompt`); output via `hookSpecificOutput.permissionDecision`: `"allow"`, `"deny"`, or `"ask"` (falls back to `"deny"` in headless/background contexts that can't prompt) | ✅ `Stop` — same `decision`/`reason`/`stopReason` shape, `"block"` continues the turn | ❌ none — researched from the CLI's own bundled docs (`features/hooks.md`, installed 0.21.5) but **not live-verified**: unlike Codex's `PreToolUse` (confirmed non-functional) or Gemini's (confirmed detected, blocking unverified), no session has been run against Qwen's hooks at all yet. A guard port is a separate, larger change from the `QWEN.md`/`.qwen/skills/` adapter (issue #229) and hasn't been scoped |
 | Gemini CLI | ✅ **`BeforeTool`** (not `PreToolUse`) — `hooks` object in `.gemini/settings.json`; blocks via exit code 2 with `stderr` as the reason, or `{"decision":"deny","reason":…}` on stdout | ❓ unverified | ⚠️ `.gemini/settings.json` **now confirmed detected** as a project-level hook by a live session (2026-08-22, see below); whether it actually blocks a `gh pr merge` remains unverified — the session errored out on an account-tier issue before any tool call fired |
 | Antigravity | ❓ unverified | ❓ unverified | ❌ none |
 | Cursor | ✅ **`beforeShellExecution`** — `hooks.json` (schema `version: 1`) at `.cursor/hooks.json`; payload is flat `{"command": …}` (no `tool_input` wrapper); blocks via exit code 2, `stderr` shown to the agent | ❓ unverified | ✅ `.cursor/hooks.json` wires `.github/hooks/claude-pr-merge-guard.sh` — **live-verified 2026-08-22**: a real `cursor-agent` session attempting `gh pr merge 1` was blocked, with the guard's own message surfaced back to the agent verbatim; a benign command in the same session ran untouched (negative control) |
@@ -421,19 +421,21 @@ research-agent transcripts; representative sources:
 - Zed: <https://zed.dev/docs/ai/instructions>, <https://github.com/zed-industries/zed/discussions/36609>
 - Kilo Code: <https://kilo.ai/docs/customize/skills>, <https://kilo.ai/docs/customize/custom-rules>
 
-Qwen Code section researched 2026-08-28, from a different tier of
-source than the rest of this file: the CLI's own bundled documentation
-at the locally installed 0.21.5 release
+Qwen Code section researched 2026-08-28/2026-08-29, from a different
+tier of source than the rest of this file: the CLI's own bundled
+documentation at the locally installed 0.21.5 release
 (`$(npm root -g)/@qwen-code/qwen-code/bundled/qc-helper/docs/`), not
 its public website — `configuration/settings.md` (context file default,
-`context.fileName`) and `features/skills.md` (`.qwen/skills/`
-discovery). Confirmed live that `qwen hooks` exists as a CLI command
-(`qwen --help`, installed 0.21.5) but its actual pre-tool-blocking
-behavior is unresearched. A real agentic-session live-verification
-(the standard every other tool's ✅ rows in this file were held to)
-was attempted but not completed — the local Qwen OAuth free tier is
-discontinued, and running one non-interactively requires opting into a
-paid provider, which wasn't authorized as part of adding this adapter.
+`context.fileName`), `features/skills.md` (`.qwen/skills/` discovery),
+and `features/hooks.md` (`PreToolUse`/`Stop`/etc.,
+`hookSpecificOutput.permissionDecision`, `.qwen/settings.json` config
+surface — added 2026-08-29). A real agentic-session live-verification (the standard
+every other tool's ✅ rows in this file were held to) was attempted for
+the context-file/skills half but not completed — the local Qwen OAuth
+free tier is discontinued, and running one non-interactively requires
+opting into a paid provider, which wasn't authorized as part of adding
+this adapter. The hooks half hasn't been attempted at all yet — no
+guard has been ported for Qwen Code, unlike Codex/Gemini/Cursor.
 
 Custom-agent/sub-agent delegation section researched 2026-07-13:
 
