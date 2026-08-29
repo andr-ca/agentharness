@@ -23,6 +23,16 @@ teardown() {
     [ -f "$TARGET/.github/instructions/python.instructions.md" ]
     [ -f "$TARGET/.cursor/rules/agentharness-router.mdc" ]
     [ -f "$TARGET/.kilo/rules/agentharness.md" ]
+    [ -f "$TARGET/QWEN.md" ]
+}
+
+@test "generate-clients: --client qwen writes only QWEN.md" {
+    run bash "$SCRIPT" generate-clients "$TARGET" --client qwen
+    [ "$status" -eq 0 ]
+    [ -f "$TARGET/QWEN.md" ]
+    [ ! -f "$TARGET/GEMINI.md" ]
+    [ ! -f "$TARGET/AGENTS.md" ]
+    grep -q "loaded on demand from \`.qwen/skills/\`" "$TARGET/QWEN.md"
 }
 
 @test "generate-clients: a comma-separated subset writes only those clients" {

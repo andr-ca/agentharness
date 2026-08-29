@@ -70,3 +70,6 @@ tools/eval/fixtures/python-bugfix-average/lint-dirty
 tools/eval/fixtures/python-bugfix-average/low-coverage
 tools/eval/fixtures/go-error-handling/lint-dirty
 tools/eval/fixtures/go-error-handling/low-coverage
+tools/generate-qwen-md.sh
+tools/tests/generate-qwen-md.bats
+QWEN.md

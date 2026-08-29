@@ -34,7 +34,7 @@
 #   generate-clients
 #             Run the client-adapter generators into the target so one
 #             command produces the router/instruction files for the tools
-#             it uses (--client codex|gemini|copilot|cursor|kilo|all).
+#             it uses (--client codex|gemini|copilot|cursor|kilo|qwen|all).
 #             Standalone, like enforce-profile; not yet wired into
 #             init/update or tracked in state for uninstall (P1-01).
 #   update    Re-sync an existing install to the current harness state.
@@ -89,12 +89,18 @@ SUBMODULE_PATH=".agentharness"
 NPM_DURABLE_PATH=".agentharness-pkg"
 CHECK_WRAPPER_DIR=".agentharness-bin"
 CHECK_WRAPPER_NAME="check"
-# Every installed skill is mirrored under both directories: .claude/skills
+# Every installed skill is mirrored under three directories: .claude/skills
 # for Claude Code, .agents/skills for Codex CLI's real on-demand skill
 # discovery (the Agent Skills open standard both clients now share — see
-# tools/generate-agents-md.sh's header for the P0-06 rationale). Same
-# source, same SKILL.md, two directories a client scans natively.
-SKILL_DEST_SUBDIRS=(".claude/skills" ".agents/skills")
+# tools/generate-agents-md.sh's header for the P0-06 rationale), and
+# .qwen/skills for Qwen Code, which discovers project skills from its own
+# .qwen/skills/ directory rather than .agents/skills/ (verified against
+# the CLI's own bundled docs — see tools/generate-qwen-md.sh's header).
+# Same source, same SKILL.md, one directory per client that scans it
+# natively. Populated unconditionally, like .agents/skills already was,
+# regardless of --client selection — cheap to populate, and a client's
+# own generator (GEMINI.md, QWEN.md, ...) is still gated by --client.
+SKILL_DEST_SUBDIRS=(".claude/skills" ".agents/skills" ".qwen/skills")
 
 usage() {
     cat <<EOF
@@ -116,7 +122,7 @@ init options:
                                 docs/INTEGRATION.md#method-4-npmnpx)
   --skills a,b,c               Comma-separated list of skills (default:
                                 all; 'none' explicitly installs zero)
-  --client codex|gemini|copilot|cursor|kilo|all|none
+  --client codex|gemini|copilot|cursor|kilo|qwen|all|none
                                 Which client router/instruction files to
                                 generate (default: codex). Comma-separated
                                 list also accepted. 'none' skips all client
@@ -158,7 +164,7 @@ init options:
 
 update options:
   --yes                         Skip the confirmation prompt
-  --client codex|gemini|copilot|cursor|kilo|all|none
+  --client codex|gemini|copilot|cursor|kilo|qwen|all|none
                                 Which clients to regenerate (default: keep
                                 existing). Comma-separated list also accepted.
   --force                       Auto-overwrite whole-file collisions without prompting
@@ -181,7 +187,7 @@ enforce-profile options:
                                 of the default non-blocking exit 0
 
 generate-clients options:
-  --client codex|gemini|copilot|cursor|kilo|all
+  --client codex|gemini|copilot|cursor|kilo|qwen|all
                                 Which client router/instruction files to
                                 generate into the target (default: all).
                                 Comma-separated list also accepted.
@@ -750,7 +756,7 @@ resolve_wanted_skills() {
 # zero skills; anything else that resolves to nothing is treated as an error.
 validate_client_filter() {
     local source_path="$1" filter="${2:-}"
-    local known_clients="codex gemini copilot cursor kilo"
+    local known_clients="codex gemini copilot cursor kilo qwen"
     if [ "$filter" = "all" ] || [ "$filter" = "none" ]; then
         return 0
     fi
@@ -760,7 +766,7 @@ validate_client_filter() {
     local client
     for client in ${filter//,/ }; do
         if ! echo "$known_clients" | grep -qw "$client"; then
-            echo "Error: unknown client '$client' (valid: codex, gemini, copilot, cursor, kilo, all, none)" >&2
+            echo "Error: unknown client '$client' (valid: codex, gemini, copilot, cursor, kilo, qwen, all, none)" >&2
             return 1
         fi
     done
@@ -1001,7 +1007,7 @@ surfaces = []
 
 # Parse selected clients
 if clients_str == 'all':
-    selected = ['codex', 'gemini', 'copilot', 'cursor', 'kilo']
+    selected = ['codex', 'gemini', 'copilot', 'cursor', 'kilo', 'qwen']
 elif clients_str == 'none' or not clients_str:
     selected = []
 else:
@@ -1124,6 +1130,19 @@ for client in selected:
                 with open(tmp_path) as f:
                     content = f.read()
                 surfaces.append({'path': f'{target}/.kilo/rules/agentharness.md', 'is_block_surface': False, 'content': content, 'client': 'kilo'})
+            finally:
+                os.unlink(tmp_path)
+        except (subprocess.CalledProcessError, OSError) as exc:
+            _generation_failed(client, exc)
+    elif client == 'qwen':
+        try:
+            with tempfile.NamedTemporaryFile(dir=target, suffix='.md', delete=False, mode='w') as tmp:
+                tmp_path = tmp.name
+            try:
+                subprocess.check_call(['bash', f'{gen_dir}/generate-qwen-md.sh', harness_dir, '--output', tmp_path], stderr=subprocess.DEVNULL)
+                with open(tmp_path) as f:
+                    content = f.read()
+                surfaces.append({'path': f'{target}/QWEN.md', 'is_block_surface': False, 'content': content, 'client': 'qwen'})
             finally:
                 os.unlink(tmp_path)
         except (subprocess.CalledProcessError, OSError) as exc:
@@ -1407,7 +1426,7 @@ cmd_init() {
             echo "  Statusline (Claude Code): install .claude/statusline.sh + wire .claude/settings.json's statusLine (skipped if one is already configured)"
             local dry_run_clients_csv
             if [ "$client_filter" = "all" ]; then
-                dry_run_clients_csv="codex,gemini,copilot,cursor,kilo"
+                dry_run_clients_csv="codex,gemini,copilot,cursor,kilo,qwen"
             elif [ "$client_filter" = "none" ]; then
                 dry_run_clients_csv=""
             else
@@ -1754,7 +1773,7 @@ cmd_init() {
     # need it to decide whether those clients are even selected.
     local clients_csv
     if [ "$client_filter" = "all" ]; then
-        clients_csv="codex,gemini,copilot,cursor,kilo"
+        clients_csv="codex,gemini,copilot,cursor,kilo,qwen"
     elif [ "$client_filter" = "none" ]; then
         clients_csv=""
     else
@@ -3333,7 +3352,7 @@ cmd_update() {
     if [ -n "$client_filter" ]; then
         # Override with --client flag
         if [ "$client_filter" = "all" ]; then
-            clients_csv="codex,gemini,copilot,cursor,kilo"
+            clients_csv="codex,gemini,copilot,cursor,kilo,qwen"
         elif [ "$client_filter" = "none" ]; then
             clients_csv=""
         else
@@ -4039,7 +4058,7 @@ cmd_generate_clients() {
             --force)   force=true; shift ;;
             --client|--clients)
                 if [ -z "${2:-}" ]; then
-                    echo "Error: --client requires a value (codex, gemini, copilot, cursor, kilo, or all)." >&2
+                    echo "Error: --client requires a value (codex, gemini, copilot, cursor, kilo, qwen, or all)." >&2
                     exit 1
                 fi
                 clients="$2"; shift 2 ;;
@@ -4055,7 +4074,7 @@ cmd_generate_clients() {
 
     local selected
     if [ "$clients" = all ]; then
-        selected="codex gemini copilot cursor kilo"
+        selected="codex gemini copilot cursor kilo qwen"
     else
         selected="${clients//,/ }"
     fi
@@ -4144,8 +4163,15 @@ cmd_generate_clients() {
                 else
                     skipped=$((skipped+1))
                 fi ;;
+            qwen)
+                if _gc_check_file "$target/QWEN.md" "QWEN.md" "$dry_run" "$force" "$target"; then
+                    [ "$dry_run" = false ] && bash "$gen/generate-qwen-md.sh" "$HARNESS_DIR" --output "$target/QWEN.md"
+                    echo "  qwen -> QWEN.md"
+                else
+                    skipped=$((skipped+1))
+                fi ;;
             *)
-                echo "Error: unknown client '${c}' (valid: codex, gemini, copilot, cursor, kilo, all)." >&2
+                echo "Error: unknown client '${c}' (valid: codex, gemini, copilot, cursor, kilo, qwen, all)." >&2
                 exit 1 ;;
         esac
     done
