@@ -18,12 +18,12 @@ tested, *enforced* product:
   every consuming project's `CLAUDE.md` references them instead of
   restating them. Update the coverage bar in one file and every project
   picks it up on its next harness sync — no more N drifted copies.
-- **One source, eight clients.** Rules, skills, and subagents are
+- **One source, nine clients.** Rules, skills, and subagents are
   authored once and generated for Claude Code, Codex CLI, Gemini
-  CLI/Antigravity, GitHub Copilot, Cursor, Kilo Code, OpenCode, and Zed
-  — each in the format that client actually reads (see the Product
-  Contract tables below for exactly what's tested vs. structurally
-  supported).
+  CLI/Antigravity, GitHub Copilot, Cursor, Kilo Code, OpenCode, Zed, and
+  Qwen Code — each in the format that client actually reads (see the
+  Product Contract tables below for exactly what's tested vs.
+  structurally supported).
 - **Enforced, not just advisory.** A completion gate stops an agent
   from declaring work done until lint, types, tests, coverage, and
   content checks all pass. Git hooks block trunk commits, files added
@@ -130,10 +130,14 @@ read) recognize `.agents/skills/` as an Agent-Skills-standard-compliant
 path, the same directory `harness-link.sh` already populates for every
 consumer. Cursor is the one platform with no confirmed Agent Skills
 support, so it gets a structurally different generator instead
-(`.cursor/rules/*.mdc`). None of this is a claim of end-to-end testing
-outside Claude Code — every generated file says so, and
-`docs/CLIENT_COMPATIBILITY.md` is the full per-platform matrix with
-sources and caveats.
+(`.cursor/rules/*.mdc`). Qwen Code is also structurally different: it
+defaults to its own `QWEN.md` context file (not `AGENTS.md`) and
+discovers skills from its own `.qwen/skills/`, not `.agents/skills/`
+— confirmed from the CLI's own bundled docs — so it gets a dedicated
+generator too, following the same pattern as `GEMINI.md`. None of this
+is a claim of end-to-end testing outside Claude Code — every generated
+file says so, and `docs/CLIENT_COMPATIBILITY.md` is the full
+per-platform matrix with sources and caveats.
 
 | Platform                 | Always-on file                                                | Skill/rule mechanism                                                          | Status                   |
 | ------------------------ | ------------------------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------ |
@@ -306,7 +310,7 @@ agentharness/
 │   │                             # api-design), plus logging, error-handling, accessibility,
 │   │                             # performance-profiling, agentic-loops
 │   └── agents/                  # coding-guidelines-reviewer subagent
-├── .agents/ .codex/ .cursor/ .gemini/ .kilo/ .opencode/
+├── .agents/ .codex/ .cursor/ .gemini/ .kilo/ .opencode/ .qwen/
 │                                 # generated per-client routing files, skills, and subagents
 │                                 # (see the Product Contract tables above)
 ├── languages/
@@ -337,7 +341,7 @@ agentharness/
 │   ├── check-file-placement.sh  # Pre-commit guard for guarded paths
 │   ├── analyze_structure.py     # Structure recommendations for new projects
 │   ├── generate-*.sh            # Per-client generators (Codex, Copilot, Cursor,
-│   │                             # Gemini, Kilo, OpenCode — routing, rules, subagents)
+│   │                             # Gemini, Kilo, OpenCode, Qwen — routing, rules, subagents)
 │   ├── verify-manifest.sh       # MANIFEST.md's own accuracy check
 │   ├── verify-content-quality.py
 │   └── tests/                   # bats tests for the shell tooling

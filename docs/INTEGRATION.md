@@ -543,6 +543,36 @@ root `GEMINI.md` has that. **Not verified against a live Gemini CLI or
 Antigravity session** — built from public docs as of 2026-07-14 (see
 `docs/CLIENT_COMPATIBILITY.md`).
 
+### Qwen Code (`QWEN.md` + `.qwen/skills/`)
+
+Qwen Code does **not** speak the shared Agent Skills open standard the
+way Codex/Copilot/Gemini CLI do — it defaults to its own context file,
+`QWEN.md` (not `AGENTS.md`, and not picked up unless a project
+explicitly adds `AGENTS.md` to `context.fileName` in
+`.qwen/settings.json`), and discovers project skills from its own
+`.qwen/skills/`, not `.agents/skills/`. Both facts are confirmed
+straight from the CLI's own bundled docs (`docs/configuration/settings.md`
+and `docs/features/skills.md`, checked against the installed 0.21.5
+release), not just its public website.
+
+`harness-link.sh init`/`update --client qwen` install every skill into
+`.qwen/skills/` (a third mirror alongside `.claude/skills/` and
+`.agents/skills/` — see `tools/verify-skill-symlinks.sh`), and generate
+`QWEN.md` with the same routing-rules-plus-index shape as `GEMINI.md`:
+
+```bash
+~/agentharness/tools/generate-qwen-md.sh --output QWEN.md
+```
+
+Re-run it the same way you'd re-run the `GEMINI.md` generator — no CI
+check keeps a *consumer* project's copy in sync, only this harness's own
+root `QWEN.md` has that. **Not verified against a live Qwen Code
+session** — confirmed from the CLI's own installed docs as of
+2026-08-28, but the local OAuth free tier was discontinued and
+completing a real agentic-session check would require opting into a
+paid provider, which wasn't authorized as part of adding this adapter
+(see `docs/CLIENT_COMPATIBILITY.md`).
+
 ### GitHub Copilot (`.github/copilot-instructions.md` + `.github/instructions/*.instructions.md`)
 
 Copilot (VS Code, github.com, the Copilot coding agent) reads
