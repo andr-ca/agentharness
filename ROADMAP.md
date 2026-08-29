@@ -369,13 +369,17 @@ label by the review filename cited next to it, never by number alone.
   `load_state()` already migrates a v1-shaped file in memory (adds the
   v2 list fields, bumps the version, leaves v1 fields untouched — see
   `tools/tests/test_install_transaction.py::test_load_state_migrates_v1_to_v2`).
-  **Still genuinely open:** that migration is exercised only as a unit
-  test against a synthetic v1 fixture, not an end-to-end `update`/
-  `uninstall` run against real old-release state in CI; there's no
-  retained state fixture per actual release; and there's no explicit
-  error for a schema version this CLI doesn't recognize (older code
-  reading a newer state file, or a version below v1) — it would
-  currently just get overwritten in place rather than failing loudly.
+  **The "no explicit error for an unrecognized schema version" gap is
+  now closed:** `load_state()` raises `ValueError` for any explicit
+  `schema_version` other than the current value (a newer value written
+  by a future release, or a corrupt/garbage value) instead of silently
+  coercing it and overwriting it in place on the next save — see
+  `test_load_state_rejects_newer_schema_version` and
+  `test_load_state_rejects_garbage_schema_version`. **Still genuinely
+  open:** the v1→v2 migration itself is exercised only as a unit test
+  against a synthetic v1 fixture, not an end-to-end `update`/`uninstall`
+  run against real old-release state in CI; and there's no retained
+  state fixture per actual release.
 - **P1-10 — Consolidate operational review history.** The review/status
   chain is valuable but long, repetitive, and easy to read out of
   chronological context; several current docs link deep into old status

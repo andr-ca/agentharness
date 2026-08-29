@@ -8,6 +8,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 MODULE_PATH = Path(__file__).resolve().parents[1] / "setup" / "install_transaction.py"
 spec = importlib.util.spec_from_file_location("install_transaction", MODULE_PATH)
 it = importlib.util.module_from_spec(spec)
@@ -43,6 +45,27 @@ def test_load_state_already_v2_is_passthrough(tmp_path):
     }
     state_path.write_text(json.dumps(original))
     assert it.load_state(state_path) == original
+
+
+def test_load_state_rejects_newer_schema_version(tmp_path):
+    state_path = tmp_path / ".agentharness-state.json"
+    state_path.write_text(json.dumps({"schema_version": 3, "mode": "link"}))
+    with pytest.raises(ValueError, match="schema_version"):
+        it.load_state(state_path)
+
+
+def test_load_state_rejects_garbage_schema_version(tmp_path):
+    state_path = tmp_path / ".agentharness-state.json"
+    state_path.write_text(json.dumps({"schema_version": "not-a-version", "mode": "link"}))
+    with pytest.raises(ValueError, match="schema_version"):
+        it.load_state(state_path)
+
+
+def test_load_state_rejects_explicit_null_schema_version(tmp_path):
+    state_path = tmp_path / ".agentharness-state.json"
+    state_path.write_text(json.dumps({"schema_version": None, "mode": "link"}))
+    with pytest.raises(ValueError, match="schema_version"):
+        it.load_state(state_path)
 
 
 def test_save_state_writes_valid_json(tmp_path):
