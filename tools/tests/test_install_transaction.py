@@ -45,6 +45,27 @@ def test_load_state_already_v2_is_passthrough(tmp_path):
     assert it.load_state(state_path) == original
 
 
+def test_load_state_rejects_newer_schema_version(tmp_path):
+    state_path = tmp_path / ".agentharness-state.json"
+    state_path.write_text(json.dumps({"schema_version": 3, "mode": "link"}))
+    try:
+        it.load_state(state_path)
+        raise AssertionError("expected ValueError for unrecognized schema_version")
+    except ValueError as exc:
+        assert "schema_version" in str(exc)
+        assert "3" in str(exc)
+
+
+def test_load_state_rejects_garbage_schema_version(tmp_path):
+    state_path = tmp_path / ".agentharness-state.json"
+    state_path.write_text(json.dumps({"schema_version": "not-a-version", "mode": "link"}))
+    try:
+        it.load_state(state_path)
+        raise AssertionError("expected ValueError for unrecognized schema_version")
+    except ValueError as exc:
+        assert "schema_version" in str(exc)
+
+
 def test_save_state_writes_valid_json(tmp_path):
     state_path = tmp_path / ".agentharness-state.json"
     data = it.load_state(state_path)
