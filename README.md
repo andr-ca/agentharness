@@ -179,7 +179,8 @@ into — flagged as unconfirmed rather than built against a guess. **None
 of these seven generators translate tool/permission scoping** (Claude
 Code's `tools:` field, Cursor's `readonly`/`is_background`, Kilo's
 `permission`, Copilot's `target`/`disable-model-invocation`/
-`user-invocable`, Gemini's `tools`/`temperature`/`max_turns`) — that
+`user-invocable`, Gemini's `tools`/`temperature`/`max_turns`, Qwen's
+`tools`/`disallowedTools`/`approvalMode`) — that
 vocabulary is unverified per platform, so ported files carry only
 `name`/`description`/`model`/body; re-specify the tool/permission scope
 by hand for the target platform. See `docs/CLIENT_COMPATIBILITY.md`'s
