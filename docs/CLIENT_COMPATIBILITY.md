@@ -44,7 +44,7 @@ support, mechanism doesn't exist for this tool yet.
 
 ## On-demand skills
 
-Six of the nine non-Claude tools researched implement the **Agent
+Seven of the nine non-Claude tools researched implement the **Agent
 Skills open standard** (SKILL.md: `name`/`description` frontmatter,
 progressive disclosure — an agent sees only name+description up front
 and loads the full body once the description matches its task).
