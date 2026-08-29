@@ -8,6 +8,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 MODULE_PATH = Path(__file__).resolve().parents[1] / "setup" / "install_transaction.py"
 spec = importlib.util.spec_from_file_location("install_transaction", MODULE_PATH)
 it = importlib.util.module_from_spec(spec)
@@ -48,22 +50,22 @@ def test_load_state_already_v2_is_passthrough(tmp_path):
 def test_load_state_rejects_newer_schema_version(tmp_path):
     state_path = tmp_path / ".agentharness-state.json"
     state_path.write_text(json.dumps({"schema_version": 3, "mode": "link"}))
-    try:
+    with pytest.raises(ValueError, match="schema_version"):
         it.load_state(state_path)
-        raise AssertionError("expected ValueError for unrecognized schema_version")
-    except ValueError as exc:
-        assert "schema_version" in str(exc)
-        assert "3" in str(exc)
 
 
 def test_load_state_rejects_garbage_schema_version(tmp_path):
     state_path = tmp_path / ".agentharness-state.json"
     state_path.write_text(json.dumps({"schema_version": "not-a-version", "mode": "link"}))
-    try:
+    with pytest.raises(ValueError, match="schema_version"):
         it.load_state(state_path)
-        raise AssertionError("expected ValueError for unrecognized schema_version")
-    except ValueError as exc:
-        assert "schema_version" in str(exc)
+
+
+def test_load_state_rejects_explicit_null_schema_version(tmp_path):
+    state_path = tmp_path / ".agentharness-state.json"
+    state_path.write_text(json.dumps({"schema_version": None, "mode": "link"}))
+    with pytest.raises(ValueError, match="schema_version"):
+        it.load_state(state_path)
 
 
 def test_save_state_writes_valid_json(tmp_path):

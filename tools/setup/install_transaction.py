@@ -33,27 +33,32 @@ def load_state(path: Path) -> dict[str, Any]:
     no other fields — callers merge in mode/skills/etc. themselves.
 
     The only recognized "old" shape is the legacy v1 one, which has no
-    schema_version key at all. Any *explicit* schema_version other than
-    SCHEMA_VERSION is unrecognized (e.g. a newer value written by a
-    future version of this tool, or a corrupt/garbage value) and raises
-    rather than being silently coerced to SCHEMA_VERSION and overwritten
-    in place on the next save_state()."""
+    schema_version key at all -- an explicit schema_version key, even
+    JSON null, does not qualify. Any *explicit* schema_version other
+    than SCHEMA_VERSION is unrecognized (e.g. a newer value written by
+    a future version of this tool, an explicit null, or a corrupt/
+    garbage value) and raises rather than being silently coerced to
+    SCHEMA_VERSION and overwritten in place on the next save_state()."""
     path = Path(path)
     if not path.exists():
         return _fresh_v2_skeleton()
     data: dict[str, Any] = json.loads(path.read_text())
-    version = data.get("schema_version")
+    if "schema_version" not in data:
+        data["schema_version"] = SCHEMA_VERSION
+        for f in _V2_LIST_FIELDS:
+            data.setdefault(f, [])
+        return data
+    version = data["schema_version"]
     if version == SCHEMA_VERSION:
         return data
-    if version is not None:
-        raise ValueError(
-            f"{path}: unrecognized schema_version {version!r} (this tool "
-            f"understands schema_version {SCHEMA_VERSION} and the legacy "
-            "unversioned v1 shape) -- refusing to silently overwrite it. "
-            "This state file was likely written by a newer or "
-            "incompatible version of agentharness; upgrade before "
-            "operating on it."
-        )
+    raise ValueError(
+        f"{path}: unrecognized schema_version {version!r} (this tool "
+        f"understands schema_version {SCHEMA_VERSION} and the legacy "
+        "unversioned v1 shape) -- refusing to silently overwrite it. "
+        "This state file was likely written by a newer or "
+        "incompatible version of agentharness; upgrade before "
+        "operating on it."
+    )
     data["schema_version"] = SCHEMA_VERSION
     for f in _V2_LIST_FIELDS:
         data.setdefault(f, [])
