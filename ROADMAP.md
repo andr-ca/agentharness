@@ -353,12 +353,30 @@ label by the review filename cited next to it, never by number alone.
   defect fixed as P0-01 survived because tests checked init and uninstall
   only in isolation, never as a sequence with external state changes
   between them.)
-- **P1-07 — Make `update` previews match the documentation.** Docs claim
-  copy-mode `update` "shows a diff"; current output only lists changed
-  skill names (`~ content changed upstream`), no content diff. Proposed:
-  `update --diff`/`plan` with bounded diffs, confirmation operating on
-  the exact previewed plan, and separate detection of consumer-local
-  edits vs. upstream changes instead of one generic "changed" label.
+- **P1-07 — Make `update` previews match the documentation.** **The
+  literal "shows a diff" claim is fixed** (`docs/INTEGRATION.md`'s
+  `update` row and the copy-mode section no longer promise a content
+  diff — current output only lists changed skill names). Review found
+  the actual gap runs deeper than that one line, and the docs now say so
+  explicitly rather than re-overclaiming a narrower fix as complete: in
+  `copy` mode, `cmd_update` re-copies *every* currently-selected skill
+  from source on each run, not just the ones the pre-confirmation diff
+  flagged as changed — so a consumer's local hand-edit to *any* selected
+  skill is silently lost on the next confirmed `update`, whether or not
+  that skill appeared in the "changed" list, and that list itself can't
+  distinguish an actual upstream change from the user's own edit (both
+  produce a source/target diff). **Still open (both the doc-accuracy
+  gap's root cause and the larger feature this item originally
+  proposed):** `update` doesn't currently detect or protect
+  consumer-local edits at all — it only detects *some* drift and
+  mislabels its cause; a real fix needs `update --diff`/`plan` with
+  bounded content diffs, confirmation operating on the exact previewed
+  plan, and genuine separate detection of consumer-local edits vs.
+  upstream changes (e.g. tracking each installed skill's
+  as-installed hash to tell "diverged because I edited it" apart from
+  "diverged because upstream changed") before `update` can safely skip
+  re-copying a skill nobody touched, or warn distinctly for one the
+  consumer did.
 - **P1-08 (this review's numbering) — Reconcile universal policy with
   language/product reality.** The "universal" coding guide mandates
   camelCase functions, global UI capitalization rules, and JS-specific
