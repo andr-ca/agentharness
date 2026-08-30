@@ -61,6 +61,11 @@ htmlcov/
 # .github/.gitignore.template entry and local test/debug runs.
 .agentharness-pkg/
 
+# npm prepack/postpack symlink-materialize manifest — transient bookkeeping
+# for tools/release/materialize-skill-symlinks.py, never meant to persist
+# past a single pack/publish run.
+.agentharness-materialize-manifest.json
+
 # Git worktrees for isolated development branches
 .worktrees/
 
