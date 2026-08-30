@@ -325,11 +325,17 @@ label by the review filename cited next to it, never by number alone.
   numeric-only duplicate detector (B7) can't catch these semantic
   conflicts.
 - **P1-04 — Decouple package materialization from writable Git
-  metadata.** `materialize-skill-symlinks.py restore` uses `git
-  checkout`, so it fails (and can leave file-type changes behind) in a
-  restricted or non-Git source package. Proposed: restore from an
-  on-disk backup `materialize` itself creates, not from Git, and test
-  against an isolated fixture.
+  metadata.** **Done:** `materialize-skill-symlinks.py`'s `restore()` no
+  longer calls `git checkout` at all. `materialize()` now records each
+  symlink's original (unresolved) target into a manifest
+  (`.agentharness-materialize-manifest.json`, gitignored) before
+  replacing it with a real file; `restore()` reads that manifest back
+  and recreates the symlinks directly, with no git dependency and no
+  work-tree requirement — a bare repo or a git-less source package now
+  round-trips correctly instead of silently leaving materialized files
+  in place. Verified against an isolated fixture with no `.git` anywhere
+  in the tree (`materialize-skill-symlinks.bats`'s "restore works with
+  no git repo present at all").
 - **P1-05 (this review's numbering) — Make tests hermetic by default.**
   **Done:** submodule lifecycle tests now clone a local bare remote
   (`setup_local_bare_remote`, via the new `AGENTHARNESS_SUBMODULE_REMOTE`

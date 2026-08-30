@@ -7,20 +7,26 @@ resources as relative symlinks back into patterns/ (e.g.
 agentic-loops/agent_loop.py) rather than duplicating the file. Left
 alone, `npm pack`/`npm publish` would silently drop those files from the
 published tarball. 'materialize' replaces each such symlink with a real
-copy of its target just before packing; 'restore' puts the symlinks back
-afterward via `git checkout` so the working tree stays exactly what git
-tracks.
+copy of its target just before packing, recording each one's original
+(unresolved) link target in a manifest; 'restore' puts the symlinks back
+afterward from that manifest. Restoring from the manifest we wrote,
+rather than `git checkout`, means this round-trips correctly even
+outside a normal git work tree (a bare repo, or a source package with no
+.git at all) instead of failing or silently leaving materialized files
+in place.
 """
+import json
 import shutil
-import subprocess
 import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SKILLS_DIR = REPO_ROOT / ".claude" / "skills"
+MANIFEST_PATH = REPO_ROOT / ".agentharness-materialize-manifest.json"
 
 
 def materialize() -> None:
+    manifest: dict[str, str] = {}
     for link in sorted(SKILLS_DIR.rglob("*")):
         if not link.is_symlink():
             continue
@@ -36,6 +42,12 @@ def materialize() -> None:
             )
         if not target.is_file():
             raise ValueError(f"{link} resolves to {target}, which isn't a regular file")
+        # Record the raw (unresolved) link target before touching
+        # anything, and persist after each entry — a crash partway
+        # through a multi-symlink run still leaves a manifest that
+        # accurately describes everything materialized so far.
+        manifest[str(link.relative_to(REPO_ROOT))] = str(link.readlink())
+        MANIFEST_PATH.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
         # Copy before unlinking: if copy2() fails partway (disk full, a
         # permissions error), the symlink is still there to retry/restore
         # from, instead of leaving neither a symlink nor a real file.
@@ -45,26 +57,24 @@ def materialize() -> None:
 
 
 def restore() -> None:
-    """Restore symlinks via git checkout.
+    """Restore symlinks from the manifest materialize() wrote.
 
-    In a bare git repository (or any context where git requires a work tree),
-    git checkout -- will fail. In that case, log a warning and skip — the
-    materialized files will remain, which is acceptable for local dev; the
-    prepack/postpack cycle is intended for npm pack in CI (a normal clone).
+    A missing manifest means there is nothing to restore (already
+    restored, or materialize() was never run) -- not an error.
     """
-    is_work_tree = subprocess.run(
-        ["git", "rev-parse", "--is-inside-work-tree"],
-        capture_output=True,
-        text=True,
-    ).stdout.strip() == "true"
-    if not is_work_tree:
+    if not MANIFEST_PATH.exists():
         print(
-            "materialize-skill-symlinks.py restore: not inside a work tree "
-            "(bare repo?); skipping git checkout. Materialized files remain.",
+            "materialize-skill-symlinks.py restore: no manifest at "
+            f"{MANIFEST_PATH} -- nothing to restore.",
             file=sys.stderr,
         )
         return
-    subprocess.run(["git", "checkout", "--", str(SKILLS_DIR)], check=True)
+    manifest: dict[str, str] = json.loads(MANIFEST_PATH.read_text())
+    for rel_path, raw_target in manifest.items():
+        link = REPO_ROOT / rel_path
+        link.unlink()
+        link.symlink_to(raw_target)
+    MANIFEST_PATH.unlink()
 
 
 if __name__ == "__main__":
