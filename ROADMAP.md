@@ -353,12 +353,16 @@ label by the review filename cited next to it, never by number alone.
   defect fixed as P0-01 survived because tests checked init and uninstall
   only in isolation, never as a sequence with external state changes
   between them.)
-- **P1-07 — Make `update` previews match the documentation.** Docs claim
-  copy-mode `update` "shows a diff"; current output only lists changed
-  skill names (`~ content changed upstream`), no content diff. Proposed:
-  `update --diff`/`plan` with bounded diffs, confirmation operating on
-  the exact previewed plan, and separate detection of consumer-local
-  edits vs. upstream changes instead of one generic "changed" label.
+- **P1-07 — Make `update` previews match the documentation.** **The
+  doc/behavior contradiction itself is fixed:** `docs/INTEGRATION.md`'s
+  `update` row claimed it "shows a diff"; current output only lists
+  changed skill names (`~ content changed upstream`), no content diff —
+  the table now says that explicitly instead of overpromising. **Still
+  open (the larger feature this item originally proposed):**
+  `update --diff`/`plan` with bounded content diffs, confirmation
+  operating on the exact previewed plan, and separate detection of
+  consumer-local edits vs. upstream changes instead of one generic
+  "changed" label.
 - **P1-08 (this review's numbering) — Reconcile universal policy with
   language/product reality.** The "universal" coding guide mandates
   camelCase functions, global UI capitalization rules, and JS-specific
