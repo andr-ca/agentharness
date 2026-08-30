@@ -40,7 +40,7 @@ act on it later:
 | `doctor` | Validate the install is healthy (skills present, bundled resources resolve, hook configured); nonzero exit if not — usable as a CI check. |
 | `audit` | Report drift: skills available upstream but not installed, installed skills no longer available, commits since your recorded revision; your selected profile, whether `.agentharness-publish-mode` is active, your effective authority (from `.agentharness-authority.json` if present, else the bare flag's default, else the default verify-and-stage), whether the recorded harness checkout's own validation commands still exist, hook state (`with_hook`/`coverage_hook`/`core.hooksPath`), the consumer-local check wrapper's availability, and a `can_mechanically_enforce` summary boolean. `--json` for machine-readable output (CI/scripting). Doesn't run policy-conflict detection itself — points at `tools/verify-content-quality.py` instead. |
 | `enforce-profile` | Read `.agentharness-profile` and gate on it for real: Python (`pytest --cov-fail-under` at the selected tier's floor), or JS/TS if `package.json`'s `"test"` script already runs `node --test`. Other project types/test runners get "not implemented yet". Invoked automatically by `--with-coverage-hook`'s generated pre-push hook, and by the generated `.agentharness-bin/check` wrapper below; also callable directly. |
-| `update` | Re-sync to the current harness state; shows the plan (skills to add/remove, and in `copy` mode which changed upstream — by name, not a content diff) and asks for confirmation (`--yes` to skip it) before changing anything. |
+| `update` | Re-sync to the current harness state; shows the plan (skills to add/remove, and in `copy` mode which installed skills differ from source — by name, not a content diff, and not distinguishing an upstream change from your own local edit) and asks for confirmation (`--yes` to skip it) before changing anything. In `copy` mode, confirming re-copies *every* currently-selected skill from source, not just the flagged ones — a hand-edited installed skill file will not survive it. |
 | `uninstall` | Reverse everything `init` recorded — skills, gitignore block, hook (including a generated coverage hook), profile file, state file (and the submodule/durable npm copy, in those modes). |
 
 ### Consumer-local completion gate (`.agentharness-bin/check`)
@@ -277,8 +277,12 @@ is portable across machines and safe to commit and clone elsewhere.
 Automated: `harness-link.sh init ~/my-project` (`--mode copy` is the
 default; `--mode` can be omitted). Run `harness-link.sh update
 ~/my-project` later to see (and, after confirming) apply upstream
-changes — it diffs your copy against the current source first, so
-local edits aren't silently overwritten.
+changes. `update` diffs your copy against the current source first and
+flags any skill that differs — but that diff can't tell an upstream
+change from your own local edit, and once you confirm, `update`
+re-copies *every* currently-selected skill from source, not just the
+flagged ones. Hand-edit an installed skill file and it will not survive
+the next `update`.
 
 Manual, what that does under the hood (`-L` dereferences any bundled-
 resource symlinks inside a skill — e.g. agentic-loops' `agent_loop.py` —
@@ -933,7 +937,12 @@ matters here for picking up newly-added skills or a widened/narrowed
 `--skills` filter.
 
 **Copies:** `update` diffs your copy against the current source per
-skill and only touches ones that actually changed.
+skill and flags any that differ — but that diff can't distinguish an
+actual upstream change from your own local edit, and confirming the
+update re-copies *every* currently-selected skill from source
+regardless of which ones were flagged. There is no local-edit
+preservation: hand-edit an installed skill file and `update` will
+overwrite it once you confirm.
 
 **Submodules:** `update` re-syncs the skill symlinks the same way as
 link mode; to also pull the submodule itself to the harness's latest
