@@ -394,10 +394,12 @@ label by the review filename cited next to it, never by number alone.
   `tools/tests/test_install_transaction.py::test_load_state_migrates_v1_to_v3`,
   plus `test_load_state_migrates_v2_to_v3` for the intermediate step).
   **The "no explicit error for an unrecognized schema version" gap is
-  now closed:** `load_state()` raises `ValueError` for any explicit
-  `schema_version` other than the current value (a newer value written
-  by a future release, or a corrupt/garbage/boolean/null value) instead of
-  silently coercing it and overwriting it in place on the next save — see
+  now closed:** `load_state()` raises `ValueError` for any *unrecognized*
+  `schema_version` — newer than current (a value written by a future
+  release) or never a real version at all (corrupt/garbage/boolean/null)
+  — while an older, known version (e.g. `2`) still migrates forward as
+  before, instead of silently coercing an unrecognized value and
+  overwriting it in place on the next save — see
   `test_load_state_rejects_newer_schema_version`,
   `test_load_state_rejects_garbage_schema_version`, and
   `test_load_state_rejects_boolean_schema_version`. **Still genuinely
