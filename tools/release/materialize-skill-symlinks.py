@@ -26,7 +26,15 @@ MANIFEST_PATH = REPO_ROOT / ".agentharness-materialize-manifest.json"
 
 
 def materialize() -> None:
-    manifest: dict[str, str] = {}
+    # Seed from any existing manifest rather than starting empty: if a
+    # prior materialize() run crashed partway through, its already-
+    # materialized entries are no longer symlinks, so the loop below
+    # can't rediscover them. Starting empty would silently drop those
+    # entries from the rewritten manifest, orphaning them as real files
+    # restore() can never turn back into symlinks.
+    manifest: dict[str, str] = (
+        json.loads(MANIFEST_PATH.read_text()) if MANIFEST_PATH.exists() else {}
+    )
     for link in sorted(SKILLS_DIR.rglob("*")):
         if not link.is_symlink():
             continue

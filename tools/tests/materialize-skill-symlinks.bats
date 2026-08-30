@@ -88,6 +88,34 @@ PYEOF
     rm -rf "$scratch"
 }
 
+@test "materialize-skill-symlinks: materialize preserves manifest entries from a crashed prior run" {
+    local link="$REPO_ROOT/.claude/skills/agentic-loops/agent_loop.py"
+    local raw_target
+    raw_target="$(python3 -c "from pathlib import Path; print(Path('$link').readlink())")"
+
+    # Simulate a materialize() run that crashed after processing this one
+    # symlink but before finishing any others: the file is already a real
+    # file (not a symlink, so the loop won't rediscover it) and a manifest
+    # already exists recording its original target.
+    local content
+    content="$(cat "$link")"
+    rm "$link"
+    printf '%s' "$content" > "$link"
+    printf '{\n  "%s": "%s"\n}\n' ".claude/skills/agentic-loops/agent_loop.py" "$raw_target" > "$MANIFEST"
+
+    python3 "$SCRIPT" materialize
+
+    # The pre-existing entry must survive materialize()'s rewritten manifest.
+    run python3 -c "import json; print(json.load(open('$MANIFEST'))['.claude/skills/agentic-loops/agent_loop.py'])"
+    [ "$status" -eq 0 ]
+    [ "$output" = "$raw_target" ]
+
+    python3 "$SCRIPT" restore
+    [ -L "$link" ]
+    run git -C "$REPO_ROOT" status --short .claude/skills
+    [ -z "$output" ]
+}
+
 @test "materialize-skill-symlinks: restore is a no-op when no manifest exists" {
     [ ! -f "$MANIFEST" ]
     run python3 "$SCRIPT" restore
