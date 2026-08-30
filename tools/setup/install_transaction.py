@@ -1,11 +1,15 @@
 """Preflight planning, collision classification, and crash-safe apply
 for harness-link.sh's existing-surface integration. Orchestrates
-block_installer.py; owns state schema v2. See
+block_installer.py; owns state schema (currently v3, which added
+skill_sources -- an as-installed content-hash map used to distinguish a
+consumer's local edit to a copy-mode skill from an upstream change; see
+GitHub issue #300). See
 docs/superpowers/specs/2026-07-17-existing-surface-integration-design.md.
 """
 from __future__ import annotations
 
 import datetime
+import hashlib
 import json
 import sys
 from collections.abc import Callable
@@ -17,57 +21,78 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import block_installer as bi  # noqa: E402
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 _V2_LIST_FIELDS = ("managed_blocks", "overwritten_files", "collision_decisions")
+_V3_DICT_FIELDS = ("skill_sources",)
 
 
-def _fresh_v2_skeleton() -> dict[str, Any]:
-    return {"schema_version": SCHEMA_VERSION, **{k: [] for k in _V2_LIST_FIELDS}}
+def _fresh_state_skeleton() -> dict[str, Any]:
+    return {
+        "schema_version": SCHEMA_VERSION,
+        **{k: [] for k in _V2_LIST_FIELDS},
+        **{k: {} for k in _V3_DICT_FIELDS},
+    }
 
 
 def load_state(path: Path) -> dict[str, Any]:
-    """Load state, migrating v1 -> v2 in memory (schema migration policy
-    tracked as F-12; this only adds the new v2 list fields, never
-    rewrites v1 fields). Missing file returns a fresh v2 skeleton with
-    no other fields — callers merge in mode/skills/etc. themselves.
+    """Load state, migrating legacy v1 -> v2 -> v3 in memory (schema
+    migration policy tracked as F-12; each step only adds that
+    version's new fields via setdefault, never rewrites fields an
+    earlier version already wrote). Missing file returns a fresh
+    skeleton at SCHEMA_VERSION with no other fields — callers merge in
+    mode/skills/etc. themselves.
 
-    The only recognized "old" shape is the legacy v1 one, which has no
-    schema_version key at all -- an explicit schema_version key, even
-    JSON null, does not qualify. Any *explicit* schema_version other
-    than SCHEMA_VERSION is unrecognized (e.g. a newer value written by
-    a future version of this tool, an explicit null, or a corrupt/
-    garbage value) and raises rather than being silently coerced to
+    The only recognized "old" shape with no schema_version key at all
+    is legacy v1 -- an explicit schema_version key, even JSON null,
+    does not qualify. Any *known*, older-than-current schema_version
+    (currently: 1 through SCHEMA_VERSION - 1) migrates forward. Any
+    *unrecognized* schema_version -- newer than SCHEMA_VERSION, or
+    something that was never a real version at all (garbage, an
+    explicit null) -- raises rather than being silently coerced to
     SCHEMA_VERSION and overwritten in place on the next save_state()."""
     path = Path(path)
     if not path.exists():
-        return _fresh_v2_skeleton()
+        return _fresh_state_skeleton()
     data: dict[str, Any] = json.loads(path.read_text())
-    if "schema_version" not in data:
-        data["schema_version"] = SCHEMA_VERSION
-        for f in _V2_LIST_FIELDS:
-            data.setdefault(f, [])
-        return data
-    version = data["schema_version"]
+    version: Any = data["schema_version"] if "schema_version" in data else 1
     if version == SCHEMA_VERSION:
         return data
-    raise ValueError(
-        f"{path}: unrecognized schema_version {version!r} (this tool "
-        f"understands schema_version {SCHEMA_VERSION} and the legacy "
-        "unversioned v1 shape) -- refusing to silently overwrite it. "
-        "This state file was likely written by a newer or "
-        "incompatible version of agentharness; upgrade before "
-        "operating on it."
-    )
-    data["schema_version"] = SCHEMA_VERSION
+    if not isinstance(version, int) or isinstance(version, bool) or not (1 <= version < SCHEMA_VERSION):
+        raise ValueError(
+            f"{path}: unrecognized schema_version {version!r} (this tool "
+            f"understands schema_version 1 through {SCHEMA_VERSION}) -- "
+            "refusing to silently overwrite it. This state file was "
+            "likely written by a newer or incompatible version of "
+            "agentharness; upgrade before operating on it."
+        )
     for f in _V2_LIST_FIELDS:
         data.setdefault(f, [])
+    for f in _V3_DICT_FIELDS:
+        data.setdefault(f, {})
+    data["schema_version"] = SCHEMA_VERSION
     return data
 
 
 def save_state(path: Path, data: dict[str, Any]) -> None:
     path = Path(path)
     path.write_text(json.dumps(data, indent=2) + "\n")
+
+
+def hash_dir_tree(path: Path) -> str:
+    """Deterministic sha256 over a directory's files (relative paths and
+    content), stable regardless of the directory's absolute location or
+    the filesystem's iteration order. Used to detect a consumer's local
+    edit to an installed copy-mode skill: compare this hash of the
+    skill's current on-disk content against the hash recorded at the
+    last (re-)install of that skill."""
+    h = hashlib.sha256()
+    for rel in sorted(p.relative_to(path).as_posix() for p in path.rglob("*") if p.is_file()):
+        h.update(rel.encode("utf-8"))
+        h.update(b"\0")
+        h.update((path / rel).read_bytes())
+        h.update(b"\0")
+    return h.hexdigest()
 
 
 class Classification(Enum):
@@ -706,6 +731,104 @@ def uninstall_all(state: dict[str, Any], base_dir: Path) -> list[str]:
     return log
 
 
+def classify_skill_updates(
+    *,
+    current: list[str],
+    to_add: list[str],
+    source_path: Path,
+    target: Path,
+    skill_sources: dict[str, str],
+) -> dict[str, list[str]]:
+    """For each copy-mode skill in `current` that isn't newly being
+    added, decide whether its drift from upstream (if any) is safe to
+    apply directly (upstream_changed -> to_refresh) or needs to
+    preserve a consumer's local edit instead (local_edit -> to_backup).
+    A skill with no recorded as-installed hash (predates skill_sources
+    tracking) is treated as upstream_changed -- a conservative default
+    that avoids false-positive backups for skills installed before this
+    tracking existed; the next apply starts tracking its hash. Scoped to
+    .claude/skills only -- the other skill destination mirrors
+    (.agents/skills, .qwen/skills) are classified in lockstep with it
+    rather than independently, since consumers interact with
+    .claude/skills directly and the mirrors exist for other clients'
+    on-demand discovery, not for hand-editing."""
+    to_refresh: list[str] = []
+    to_backup: list[str] = []
+    for name in current:
+        if name in to_add:
+            continue
+        source_dir = source_path / ".claude" / "skills" / name
+        installed_dir = target / ".claude" / "skills" / name
+        if not installed_dir.is_dir() or not source_dir.is_dir():
+            continue
+        installed_hash = hash_dir_tree(installed_dir)
+        if hash_dir_tree(source_dir) == installed_hash:
+            continue  # unchanged, nothing to do
+        as_installed = skill_sources.get(name)
+        if as_installed is None or as_installed == installed_hash:
+            to_refresh.append(name)
+        else:
+            to_backup.append(name)
+    return {"to_refresh": to_refresh, "to_backup": to_backup}
+
+
+def apply_skill_sources(
+    *,
+    state: dict[str, Any],
+    target: Path,
+    current: list[str],
+    to_remove: list[str],
+    to_backup: list[str],
+) -> None:
+    """Update state["skill_sources"] in place after a copy-mode apply:
+    drop entries for removed skills, preserve to_backup entries
+    unchanged (their on-disk content still diverges from upstream on
+    purpose -- a consumer's edit, backed up rather than overwritten, so
+    the next update must keep recognizing the divergence), and
+    recompute the hash for every other currently-selected skill from
+    its now-on-disk content (which matches upstream, since it was just
+    (re-)copied)."""
+    sources: dict[str, str] = state.setdefault("skill_sources", {})
+    for name in to_remove:
+        sources.pop(name, None)
+    for name in current:
+        if name in to_backup:
+            continue
+        installed_dir = target / ".claude" / "skills" / name
+        if installed_dir.is_dir():
+            sources[name] = hash_dir_tree(installed_dir)
+
+
+def _cli_classify_skill_updates(args: Any) -> None:
+    state = load_state(Path(args.state))
+    current = [s for s in args.current.split(",") if s]
+    to_add = [s for s in args.to_add.split(",") if s] if args.to_add else []
+    result = classify_skill_updates(
+        current=current,
+        to_add=to_add,
+        source_path=Path(args.source_path),
+        target=Path(args.target),
+        skill_sources=state.get("skill_sources", {}),
+    )
+    print(json.dumps(result))
+
+
+def _cli_apply_skill_sources(args: Any) -> None:
+    state = load_state(Path(args.state))
+    current = [s for s in args.current.split(",") if s]
+    to_remove = [s for s in args.to_remove.split(",") if s] if args.to_remove else []
+    to_backup = [s for s in args.to_backup.split(",") if s] if args.to_backup else []
+    apply_skill_sources(
+        state=state,
+        target=Path(args.target),
+        current=current,
+        to_remove=to_remove,
+        to_backup=to_backup,
+    )
+    save_state(Path(args.state), state)
+    print(json.dumps({"ok": True}))
+
+
 def _cli_uninstall(args: Any) -> None:
     state = load_state(Path(args.state))
     log = uninstall_all(state, base_dir=Path(args.base_dir))
@@ -837,6 +960,32 @@ def main() -> None:
         "--clients", required=True, help="comma-separated client names to remove"
     )
     p_remove_clients.set_defaults(func=_cli_remove_clients)
+
+    p_classify_skills = sub.add_parser(
+        "classify-skill-updates",
+        help="Split copy-mode skills with source/installed drift into "
+        "upstream-changed (safe to refresh) vs. local-edit (needs backup).",
+    )
+    names_help = "comma-separated skill names"
+    p_classify_skills.add_argument("--state", required=True)
+    p_classify_skills.add_argument("--source-path", required=True)
+    p_classify_skills.add_argument("--target", required=True)
+    p_classify_skills.add_argument("--current", required=True, help=names_help)
+    p_classify_skills.add_argument(
+        "--to-add", default="", help=f"{names_help} (newly added, skipped)"
+    )
+    p_classify_skills.set_defaults(func=_cli_classify_skill_updates)
+
+    p_apply_skill_sources = sub.add_parser(
+        "apply-skill-sources",
+        help="Recompute/prune state's skill_sources map after a copy-mode apply.",
+    )
+    p_apply_skill_sources.add_argument("--state", required=True)
+    p_apply_skill_sources.add_argument("--target", required=True)
+    p_apply_skill_sources.add_argument("--current", required=True, help=names_help)
+    p_apply_skill_sources.add_argument("--to-remove", default="", help=names_help)
+    p_apply_skill_sources.add_argument("--to-backup", default="", help=names_help)
+    p_apply_skill_sources.set_defaults(func=_cli_apply_skill_sources)
 
     args = parser.parse_args()
     args.func(args)

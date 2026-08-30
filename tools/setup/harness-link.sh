@@ -254,12 +254,19 @@ clients_csv = os.environ.get("AH_CLIENTS_CSV", "")
 now = datetime.datetime.now(datetime.timezone.utc).isoformat()
 existing_installed_at = os.environ.get("AH_EXISTING_INSTALLED_AT") or now
 
-# Preserve v2 fields from existing state if present
+# Preserve fields install_transaction.py owns (v2's managed_blocks/
+# collision_decisions/overwritten_files, v3's skill_sources) from
+# existing state if present -- this function builds a fresh dict below
+# and would otherwise silently drop them, discarding whatever the last
+# install_transaction.py call (apply/apply-skill-sources/etc.) wrote.
 v2_fields = {}
 if Path(path).exists():
     try:
         existing = json.loads(Path(path).read_text())
-        for field in ("managed_blocks", "collision_decisions", "overwritten_files"):
+        for field in (
+            "managed_blocks", "collision_decisions", "overwritten_files",
+            "skill_sources",
+        ):
             if field in existing:
                 v2_fields[field] = existing[field]
     except (OSError, json.JSONDecodeError):
@@ -1846,6 +1853,22 @@ cmd_init() {
         "${existing_hooks_path:-}" "${existing_merge_ff:-}" "$clients_csv" "$with_statusline" "$installed_statusline_path" \
         "$installed_codex_statusline_path" "$installed_gemini_statusline_path"
 
+    # copy mode only: seed skill_sources (the as-installed content hash
+    # per skill) so a later `update` can tell a consumer's local edit to
+    # an installed skill apart from an upstream change (issue #300).
+    # (--dry-run returns early well above this point, so this always
+    # runs against a real install.) Must run after state_write() above,
+    # not before -- state_write() builds a fresh state dict and only
+    # selectively preserves a fixed set of earlier fields, which doesn't
+    # include skill_sources; this command instead loads, mutates, and
+    # saves the whole file, so it's safe regardless of what
+    # state_write() already wrote.
+    if [ "$mode" = "copy" ]; then
+        python3 "$HARNESS_DIR/tools/setup/install_transaction.py" apply-skill-sources \
+            --state "$(state_path "$target")" --target "$target" \
+            --current "$skills_csv" --to-remove "" --to-backup "" >/dev/null
+    fi
+
     warn_if_untracked "$target" "$dry_run"
 
     echo "Done."
@@ -2670,11 +2693,11 @@ PYEOF
     #
     # state_schema_version is read via install_transaction.load_state()
     # here (not the raw state_field helper) to match --json: load_state()
-    # migrates an older on-disk state in memory, so a healthy pre-v2
-    # install correctly reports schema_version=2 -- the version this run
-    # of the tool actually treats it as -- instead of "unknown" just
-    # because cmd_init's own state-writing path predates schema_version
-    # and never persisted the key.
+    # migrates an older on-disk state in memory, so a healthy pre-v3
+    # install correctly reports the current SCHEMA_VERSION -- the
+    # version this run of the tool actually treats it as -- instead of
+    # "unknown" just because cmd_init's own state-writing path predates
+    # schema_version and never persisted the key.
     python3 - "$target" "$(state_path "$target")" "$HARNESS_DIR" <<'PYEOF'
 import sys
 target, state_json_path, harness_dir = sys.argv[1:4]
@@ -3402,22 +3425,34 @@ cmd_update() {
         printf '%s\n' "${current[@]}" | grep -qxF "$name" || to_remove+=("$name")
     done
 
-    local to_refresh=()
+    # Split copy-mode skills that drifted from source into two buckets:
+    # to_refresh (upstream changed, safe to re-copy) and to_backup (the
+    # consumer's own on-disk content diverged from what was originally
+    # installed -- an apparent local edit, which the apply step below
+    # preserves by backing up instead of overwriting). See issue #300;
+    # classify_skill_updates() in install_transaction.py owns the
+    # detection logic and its own hash-tracking precedent/edge cases.
+    local to_refresh=() to_backup=()
     if [ "$mode" = "copy" ]; then
-        for name in "${current[@]}"; do
-            if printf '%s\n' "${to_add[@]}" | grep -qxF "$name"; then
-                continue
-            fi
-            if ! diff -rq "$source_path/.claude/skills/$name" "$target/.claude/skills/$name" >/dev/null 2>&1; then
-                to_refresh+=("$name")
-            fi
-        done
+        local classify_json
+        classify_json="$(python3 "$HARNESS_DIR/tools/setup/install_transaction.py" classify-skill-updates \
+            --state "$(state_path "$target")" --source-path "$source_path" --target "$target" \
+            --current "$(IFS=,; echo "${current[*]}")" --to-add "$(IFS=,; echo "${to_add[*]}")")"
+        while IFS= read -r name; do [ -n "$name" ] && to_refresh+=("$name"); done < <(
+            echo "$classify_json" | python3 -c 'import json,sys
+for n in json.load(sys.stdin)["to_refresh"]:
+    print(n)')
+        while IFS= read -r name; do [ -n "$name" ] && to_backup+=("$name"); done < <(
+            echo "$classify_json" | python3 -c 'import json,sys
+for n in json.load(sys.stdin)["to_backup"]:
+    print(n)')
     fi
 
     echo "Update plan for $target (mode: $mode):"
     [ "${#to_add[@]}" -gt 0 ] && printf '  + add: %s\n' "${to_add[@]}"
     [ "${#to_remove[@]}" -gt 0 ] && printf '  - remove: %s\n' "${to_remove[@]}"
-    [ "${#to_refresh[@]}" -gt 0 ] && printf '  ~ content changed upstream: %s\n' "${to_refresh[@]}"
+    [ "${#to_refresh[@]}" -gt 0 ] && printf '  ~ upstream changed (safe to apply): %s\n' "${to_refresh[@]}"
+    [ "${#to_backup[@]}" -gt 0 ] && printf '  ⚠ your local edits will be backed up, not overwritten: %s\n' "${to_backup[@]}"
 
     if [ "$dry_run" = true ]; then
         # --dry-run must never mutate: skip skill sync, .gitignore merge,
@@ -3445,7 +3480,7 @@ cmd_update() {
         return 0
     fi
 
-    if [ "${#to_add[@]}" -eq 0 ] && [ "${#to_remove[@]}" -eq 0 ] && [ "${#to_refresh[@]}" -eq 0 ]; then
+    if [ "${#to_add[@]}" -eq 0 ] && [ "${#to_remove[@]}" -eq 0 ] && [ "${#to_refresh[@]}" -eq 0 ] && [ "${#to_backup[@]}" -eq 0 ]; then
         # Preserve the original "(nothing to do)" wording several existing
         # tests assert on. We still fall through to the unconditional
         # managed-block flow below (outside this if/else) to catch drifted
@@ -3475,15 +3510,32 @@ cmd_update() {
                 if [ -L "$dst" ] || [ -d "$dst" ]; then
                     rm -rf "$dst"
                 fi
+                # Drop any orphaned backup for a skill that's being removed
+                # entirely -- nothing will ever compare against it again.
+                rm -rf "${dst}.pre-update-backup"
             done
             echo "  Removed: $name"
         done
 
+        local backed_up_count=0
         for name in "${current[@]}"; do
+            local is_local_edit=false
+            if [ "$mode" = "copy" ] && printf '%s\n' "${to_backup[@]}" | grep -qxF "$name"; then
+                is_local_edit=true
+            fi
             for dest_subdir in "${SKILL_DEST_SUBDIRS[@]}"; do
                 mkdir -p "$target/$dest_subdir"
                 local src="$source_path/.claude/skills/$name"
                 local dst="$target/$dest_subdir/$name"
+                if [ "$is_local_edit" = true ]; then
+                    # Don't overwrite a consumer's local edit -- preserve it
+                    # by copying it aside instead, and leave $dst untouched
+                    # so skill_sources keeps tracking it as diverged (see
+                    # apply-skill-sources below, called after this loop).
+                    rm -rf "${dst}.pre-update-backup"
+                    [ -d "$dst" ] && cp -r "$dst" "${dst}.pre-update-backup"
+                    continue
+                fi
                 case "$mode" in
                     link|submodule|npm)
                         [ -e "$dst" ] && [ ! -L "$dst" ] && continue
@@ -3506,8 +3558,12 @@ cmd_update() {
                         ;;
                 esac
             done
+            [ "$is_local_edit" = true ] && backed_up_count=$((backed_up_count + 1))
         done
-        echo "  Re-synced ${#current[@]} skill(s)"
+        echo "  Re-synced $((${#current[@]} - backed_up_count)) skill(s)"
+        if [ "$backed_up_count" -gt 0 ]; then
+            echo "  Backed up $backed_up_count skill(s) with local edits to <name>.pre-update-backup — not overwritten; review and merge or delete manually"
+        fi
 
         local gitignore_template="$HARNESS_DIR/.github/.gitignore.template"
         local gitignore_dst="$target/.gitignore"
@@ -3575,6 +3631,17 @@ for line in json.load(sys.stdin)["log"]:
         "$previous_hooks_path" "$previous_merge_ff" "$clients_csv" "$with_statusline" "$statusline_path" \
         "$codex_statusline_path" "$gemini_statusline_path"
 
+    # Must run after state_write() above, not before -- see cmd_init's
+    # matching call for why (state_write() would otherwise drop
+    # skill_sources from its freshly-built state dict).
+    if [ "$mode" = "copy" ]; then
+        python3 "$HARNESS_DIR/tools/setup/install_transaction.py" apply-skill-sources \
+            --state "$(state_path "$target")" --target "$target" \
+            --current "$new_skills_csv" \
+            --to-remove "$(IFS=,; echo "${to_remove[*]}")" \
+            --to-backup "$(IFS=,; echo "${to_backup[*]}")" >/dev/null
+    fi
+
     warn_if_untracked "$target" false
 
     echo "Updated."
@@ -3622,6 +3689,11 @@ cmd_uninstall() {
     [ -f "$(echo_check_wrapper_path "$target")" ] && echo "  - $CHECK_WRAPPER_DIR/$CHECK_WRAPPER_NAME"
     [ "$mode" = "submodule" ] && [ -e "$target/$SUBMODULE_PATH/.git" ] && echo "  - the $SUBMODULE_PATH submodule"
     [ "$mode" = "npm" ] && [ -e "$target/$NPM_DURABLE_PATH" ] && echo "  - the $NPM_DURABLE_PATH durable source copy"
+    for name in "${installed[@]}"; do
+        [ -z "$name" ] && continue
+        [ -d "$target/${SKILL_DEST_SUBDIRS[0]}/$name.pre-update-backup" ] && \
+            echo "  - $name.pre-update-backup (a saved local edit from a prior update — review it before uninstalling if you want to keep it)"
+    done
     echo "  - $STATE_FILE_NAME"
 
     confirm "$yes" "Proceed with uninstall?" || { echo "Aborted."; return 1; }
@@ -3633,6 +3705,9 @@ cmd_uninstall() {
             if [ -L "$dst" ] || [ -d "$dst" ]; then
                 rm -rf "$dst"
             fi
+            # Any copy-mode local-edit backup (issue #300) for this skill
+            # is meaningless once the skill itself is gone.
+            rm -rf "${dst}.pre-update-backup"
         done
         echo "  Removed skill: $name"
     done

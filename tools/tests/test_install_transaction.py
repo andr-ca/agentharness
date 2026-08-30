@@ -1,6 +1,8 @@
-"""Tests for install_transaction.py: state schema v2, collision
-classification, backups, preflight plan construction, and the crash
-journal used by harness-link.sh's existing-surface integration.
+"""Tests for install_transaction.py: state schema (currently v3),
+collision classification, backups, preflight plan construction, the
+crash journal used by harness-link.sh's existing-surface integration,
+and copy-mode skill-update classification/hash tracking (skill_sources,
+issue #300).
 """
 import importlib.util
 import json
@@ -17,25 +19,27 @@ sys.modules["install_transaction"] = it
 spec.loader.exec_module(it)
 
 
-def test_load_state_migrates_v1_to_v2(tmp_path):
+def test_load_state_migrates_v1_to_v3(tmp_path):
     state_path = tmp_path / ".agentharness-state.json"
     state_path.write_text(json.dumps({"version": 1, "mode": "link", "skills": []}))
     data = it.load_state(state_path)
-    assert data["schema_version"] == 2
+    assert data["schema_version"] == 3
     assert data["managed_blocks"] == []
     assert data["overwritten_files"] == []
     assert data["collision_decisions"] == []
+    assert data["skill_sources"] == {}
     # v1 fields survive untouched
     assert data["mode"] == "link"
 
 
-def test_load_state_missing_file_returns_fresh_v2_skeleton(tmp_path):
+def test_load_state_missing_file_returns_fresh_skeleton(tmp_path):
     data = it.load_state(tmp_path / "does-not-exist.json")
-    assert data["schema_version"] == 2
+    assert data["schema_version"] == 3
     assert data["managed_blocks"] == []
+    assert data["skill_sources"] == {}
 
 
-def test_load_state_already_v2_is_passthrough(tmp_path):
+def test_load_state_migrates_v2_to_v3(tmp_path):
     state_path = tmp_path / ".agentharness-state.json"
     original = {
         "schema_version": 2, "mode": "link", "skills": [],
@@ -44,12 +48,39 @@ def test_load_state_already_v2_is_passthrough(tmp_path):
         "overwritten_files": [], "collision_decisions": [],
     }
     state_path.write_text(json.dumps(original))
+    data = it.load_state(state_path)
+    assert data["schema_version"] == 3
+    assert data["skill_sources"] == {}
+    # v2 fields survive untouched
+    assert data["managed_blocks"] == original["managed_blocks"]
+    assert data["mode"] == "link"
+
+
+def test_load_state_already_v3_is_passthrough(tmp_path):
+    state_path = tmp_path / ".agentharness-state.json"
+    original = {
+        "schema_version": 3, "mode": "link", "skills": [],
+        "managed_blocks": [{"file": "AGENTS.md", "block_id": "core-instructions",
+                             "rendered_version": "0.2.1", "rendered_sha256": "abc"}],
+        "overwritten_files": [], "collision_decisions": [],
+        "skill_sources": {"foo": "abc123"},
+    }
+    state_path.write_text(json.dumps(original))
     assert it.load_state(state_path) == original
 
 
 def test_load_state_rejects_newer_schema_version(tmp_path):
     state_path = tmp_path / ".agentharness-state.json"
-    state_path.write_text(json.dumps({"schema_version": 3, "mode": "link"}))
+    state_path.write_text(json.dumps({"schema_version": 4, "mode": "link"}))
+    with pytest.raises(ValueError, match="schema_version"):
+        it.load_state(state_path)
+
+
+def test_load_state_rejects_boolean_schema_version(tmp_path):
+    # JSON true/false are technically ints in Python (bool subclasses
+    # int); True == 1 must not be silently accepted as version 1.
+    state_path = tmp_path / ".agentharness-state.json"
+    state_path.write_text(json.dumps({"schema_version": True, "mode": "link"}))
     with pytest.raises(ValueError, match="schema_version"):
         it.load_state(state_path)
 
@@ -75,7 +106,107 @@ def test_save_state_writes_valid_json(tmp_path):
     it.save_state(state_path, data)
     reloaded = json.loads(state_path.read_text())
     assert reloaded["mode"] == "link"
-    assert reloaded["schema_version"] == 2
+    assert reloaded["schema_version"] == 3
+
+
+def _make_skill(base: Path, name: str, content: str = "hello") -> Path:
+    skill_dir = base / ".claude" / "skills" / name
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(content)
+    return skill_dir
+
+
+def test_hash_dir_tree_stable_regardless_of_location(tmp_path):
+    a = _make_skill(tmp_path / "a", "foo")
+    b = _make_skill(tmp_path / "b", "foo")
+    assert it.hash_dir_tree(a) == it.hash_dir_tree(b)
+
+
+def test_hash_dir_tree_changes_with_content(tmp_path):
+    a = _make_skill(tmp_path / "a", "foo", content="v1")
+    before = it.hash_dir_tree(a)
+    (a / "SKILL.md").write_text("v2")
+    assert it.hash_dir_tree(a) != before
+
+
+def test_classify_skill_updates_unrecorded_hash_treated_as_upstream_changed(tmp_path):
+    source = tmp_path / "source"
+    target = tmp_path / "target"
+    _make_skill(source, "foo", content="upstream-v2")
+    _make_skill(target, "foo", content="upstream-v1")
+    result = it.classify_skill_updates(
+        current=["foo"], to_add=[], source_path=source, target=target, skill_sources={},
+    )
+    assert result == {"to_refresh": ["foo"], "to_backup": []}
+
+
+def test_classify_skill_updates_detects_local_edit(tmp_path):
+    source = tmp_path / "source"
+    target = tmp_path / "target"
+    _make_skill(source, "foo", content="original")
+    _make_skill(target, "foo", content="original")
+    as_installed_hash = it.hash_dir_tree(target / ".claude" / "skills" / "foo")
+    (target / ".claude" / "skills" / "foo" / "SKILL.md").write_text("consumer edited this")
+    result = it.classify_skill_updates(
+        current=["foo"], to_add=[], source_path=source, target=target,
+        skill_sources={"foo": as_installed_hash},
+    )
+    assert result == {"to_refresh": [], "to_backup": ["foo"]}
+
+
+def test_classify_skill_updates_recognizes_pure_upstream_drift(tmp_path):
+    source = tmp_path / "source"
+    target = tmp_path / "target"
+    _make_skill(source, "foo", content="upstream-v2")
+    _make_skill(target, "foo", content="original")
+    as_installed_hash = it.hash_dir_tree(target / ".claude" / "skills" / "foo")
+    result = it.classify_skill_updates(
+        current=["foo"], to_add=[], source_path=source, target=target,
+        skill_sources={"foo": as_installed_hash},
+    )
+    assert result == {"to_refresh": ["foo"], "to_backup": []}
+
+
+def test_classify_skill_updates_skips_unchanged_and_to_add(tmp_path):
+    source = tmp_path / "source"
+    target = tmp_path / "target"
+    _make_skill(source, "foo", content="same")
+    _make_skill(target, "foo", content="same")
+    _make_skill(source, "bar", content="new-skill")
+    result = it.classify_skill_updates(
+        current=["foo", "bar"], to_add=["bar"], source_path=source, target=target,
+        skill_sources={},
+    )
+    assert result == {"to_refresh": [], "to_backup": []}
+
+
+def test_apply_skill_sources_records_hash_for_refreshed_skill(tmp_path):
+    target = tmp_path / "target"
+    skill_dir = _make_skill(target, "foo", content="synced")
+    state: dict[str, Any] = {"skill_sources": {}}
+    it.apply_skill_sources(
+        state=state, target=target, current=["foo"], to_remove=[], to_backup=[],
+    )
+    assert state["skill_sources"]["foo"] == it.hash_dir_tree(skill_dir)
+
+
+def test_apply_skill_sources_preserves_backed_up_entry(tmp_path):
+    target = tmp_path / "target"
+    _make_skill(target, "foo", content="consumer edit")
+    state: dict[str, Any] = {"skill_sources": {"foo": "original-hash-unchanged"}}
+    it.apply_skill_sources(
+        state=state, target=target, current=["foo"], to_remove=[], to_backup=["foo"],
+    )
+    assert state["skill_sources"]["foo"] == "original-hash-unchanged"
+
+
+def test_apply_skill_sources_drops_removed_skill(tmp_path):
+    target = tmp_path / "target"
+    state: dict[str, Any] = {"skill_sources": {"foo": "x", "bar": "y"}}
+    it.apply_skill_sources(
+        state=state, target=target, current=[], to_remove=["bar"], to_backup=[],
+    )
+    assert "bar" not in state["skill_sources"]
 
 
 def test_classify_path_block_managed_when_supported_instructions_file(tmp_path):

@@ -29,6 +29,14 @@ teardown() {
     [ -n "${BARE_REMOTE_PARENT:-}" ] && rm -rf "$BARE_REMOTE_PARENT"
     unset AGENTHARNESS_SUBMODULE_REMOTE
     unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0
+    # A test simulating an upstream skill change edits this checkout's own
+    # tracked .claude/skills/committing/SKILL.md directly (harness-link.sh
+    # has no override for where it reads the harness source from — it's
+    # always wherever the script itself lives). Restore it unconditionally
+    # here, not just at the end of that test's own body, so a failed
+    # assertion mid-test can't leave the real repo dirty for every test
+    # (or the completion gate) that runs after it. A no-op if untouched.
+    git -C "$HARNESS_ROOT" checkout -- .claude/skills/committing/SKILL.md 2>/dev/null || true
     true
 }
 
@@ -593,7 +601,7 @@ print('ok')
     run python3 -c "
 import json
 d = json.loads('''$output''')
-assert d['state_schema_version'] == 2, d
+assert d['state_schema_version'] == 3, d
 print('ok')
 "
     [ "$status" -eq 0 ]
@@ -1302,19 +1310,64 @@ print('importable')
     [[ "$output" =~ "nothing to do" ]]
 }
 
-@test "lifecycle: --mode copy update detects when the copied content has diverged from source" {
+@test "lifecycle: --mode copy update backs up a local edit instead of overwriting it (issue #300)" {
     bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
-    # 'update' diffs the copy against the current source regardless of
-    # which side actually changed — editing the consumer's copy is the
-    # simplest way to produce a real divergence without touching this
-    # repo's own tracked files.
+    # init seeded skill_sources with this skill's as-installed hash, so
+    # editing the consumer's own copy now (not the source) produces a
+    # detectable local edit, not just generic drift.
     echo "local edit" >> "$TEST_PROJECT/.claude/skills/committing/SKILL.md"
 
     run bash "$SCRIPT" update "$TEST_PROJECT" --yes
     [ "$status" -eq 0 ]
-    [[ "$output" =~ "content changed upstream: committing" ]]
-    # --yes applied the refresh, so the local edit is gone (overwritten from source).
-    ! grep -q "local edit" "$TEST_PROJECT/.claude/skills/committing/SKILL.md"
+    [[ "$output" =~ "your local edits will be backed up, not overwritten: committing" ]]
+    [[ "$output" =~ "Backed up 1 skill(s) with local edits" ]]
+    # The consumer's edit survives in place...
+    grep -q "local edit" "$TEST_PROJECT/.claude/skills/committing/SKILL.md"
+    # ...and is also preserved in a backup, in case a future update fixes it forward.
+    [ -d "$TEST_PROJECT/.claude/skills/committing.pre-update-backup" ]
+    grep -q "local edit" "$TEST_PROJECT/.claude/skills/committing.pre-update-backup/SKILL.md"
+}
+
+@test "lifecycle: --mode copy update refreshes a skill that changed upstream, not locally" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    # Editing the SOURCE (not the consumer's copy) simulates a genuine
+    # upstream change: the consumer's on-disk copy still matches its own
+    # as-installed hash, so this must refresh normally, not back up.
+    echo "upstream change" >> "$HARNESS_ROOT/.claude/skills/committing/SKILL.md"
+
+    run bash "$SCRIPT" update "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "upstream changed (safe to apply): committing" ]]
+    [[ ! "$output" =~ "will be backed up" ]]
+    grep -q "upstream change" "$TEST_PROJECT/.claude/skills/committing/SKILL.md"
+    [ ! -d "$TEST_PROJECT/.claude/skills/committing.pre-update-backup" ]
+    # teardown() restores $HARNESS_ROOT's own tracked SKILL.md unconditionally.
+}
+
+@test "lifecycle: --mode copy update keeps backing up a local edit across repeated updates" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    echo "local edit" >> "$TEST_PROJECT/.claude/skills/committing/SKILL.md"
+    bash "$SCRIPT" update "$TEST_PROJECT" --yes >/dev/null
+
+    # A second update, with no further changes, must keep recognizing
+    # the same still-present local edit rather than losing track of it
+    # after the first backup (the backed-up entry's hash must stay
+    # unchanged in skill_sources across applies).
+    run bash "$SCRIPT" update "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "your local edits will be backed up, not overwritten: committing" ]]
+    grep -q "local edit" "$TEST_PROJECT/.claude/skills/committing/SKILL.md"
+}
+
+@test "lifecycle: --mode copy uninstall removes a skill's local-edit backup too" {
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing
+    echo "local edit" >> "$TEST_PROJECT/.claude/skills/committing/SKILL.md"
+    bash "$SCRIPT" update "$TEST_PROJECT" --yes >/dev/null
+    [ -d "$TEST_PROJECT/.claude/skills/committing.pre-update-backup" ]
+
+    run bash "$SCRIPT" uninstall "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+    [ ! -d "$TEST_PROJECT/.claude/skills/committing.pre-update-backup" ]
 }
 
 @test "lifecycle: --mode copy --with-hook uninstall removes the copied hook files, not just core.hooksPath" {

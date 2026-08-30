@@ -353,26 +353,26 @@ label by the review filename cited next to it, never by number alone.
   defect fixed as P0-01 survived because tests checked init and uninstall
   only in isolation, never as a sequence with external state changes
   between them.)
-- **P1-07 — Detect-and-backup hand-edited skills in `copy` mode.** **The
-  literal "shows a diff" claim is fixed** (`docs/INTEGRATION.md`'s
-  `update` row and the copy-mode section no longer promise a content
-  diff — current output only lists changed skill names, per PR #299).
-  **The product decision is made; the fix itself is not yet built.**
-  GitHub issue #300 has a product-owner ruling for **Design B
-  (Detect-and-Backup)**: in `copy` mode, `cmd_update` would track each
-  installed skill's content hash at install time (a new `skill_sources`
-  field, requiring a `schema_version: 3` bump — `install_transaction.py`
-  is still at `schema_version: 2` today, with no such field). On
-  `update`, a skill whose installed content differs from both current
-  upstream and its own as-installed hash would be treated as a local
-  edit — backed up to `.claude/skills/<name>.pre-update-backup` instead
-  of being overwritten, and listed separately in the preview ("your
-  local edits will be backed up") from skills that changed upstream.
-  `uninstall` would clean up any backup directories. **None of this is
-  implemented yet** — `cmd_update` still unconditionally re-copies every
-  currently-selected skill in `copy` mode exactly as before; see issue
-  #300 for the full ruling and rationale before starting the
-  implementation.
+- **P1-07 — Detect-and-backup hand-edited skills in `copy` mode.** **Done.**
+  GitHub issue #300's product-owner ruling, **Design B
+  (Detect-and-Backup)**, is implemented: `install_transaction.py` is at
+  `schema_version: 3`, adding a `skill_sources` field (skill name -> the
+  sha256 content hash recorded at its last (re-)install). `cmd_update`
+  in `copy` mode now classifies each drifted skill by comparing its
+  current on-disk hash against `skill_sources`: a skill matching its own
+  as-installed hash has only drifted because upstream changed and is
+  refreshed normally; a skill that no longer matches its own
+  as-installed hash has been locally edited and is never overwritten —
+  it's backed up to `<name>.pre-update-backup` (across all skill
+  destination dirs, not just `.claude/skills/`) instead, stays flagged
+  on every subsequent `update` until resolved by hand, and its backup is
+  removed by `uninstall` along with the skill. A skill installed before
+  this tracking existed has no recorded hash and is conservatively
+  treated as upstream-changed on its first post-upgrade `update`, which
+  starts tracking it from then on. See `classify_skill_updates()`/
+  `apply_skill_sources()` in `install_transaction.py` and
+  `tools/tests/test_install_transaction.py`/`harness-lifecycle.bats`'s
+  `#300`-tagged tests.
   `uninstall` cleans up any backup directories. See issue #300 for full
   rationale and implementation scope.
 - **P1-08 (this review's numbering) — Reconcile universal policy with
