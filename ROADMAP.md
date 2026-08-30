@@ -357,17 +357,22 @@ label by the review filename cited next to it, never by number alone.
   literal "shows a diff" claim is fixed** (`docs/INTEGRATION.md`'s
   `update` row and the copy-mode section no longer promise a content
   diff — current output only lists changed skill names, per PR #299).
-  **Root cause addressed via Design B (Detect-and-Backup)** (GitHub issue
-  #300): In `copy` mode, `cmd_update` will now track each installed
-  skill's content hash at install time. On `update`, if the installed
-  version differs from upstream AND differs from the as-installed hash,
-  the consumer has edited it locally — in that case, the tool backs up
-  the local version to `.claude/skills/<name>.pre-update-backup` instead
-  of overwriting it, and the preview lists it separately as "your local
-  edits will be backed up" (distinct from "upstream changed"). The
-  consumer can then manually review and merge or delete the backup. State
-  tracking uses existing `install_transaction.py` schema (v3, with
-  `skill_sources` field mapping skill name to sha256 hash at install).
+  **The product decision is made; the fix itself is not yet built.**
+  GitHub issue #300 has a product-owner ruling for **Design B
+  (Detect-and-Backup)**: in `copy` mode, `cmd_update` would track each
+  installed skill's content hash at install time (a new `skill_sources`
+  field, requiring a `schema_version: 3` bump — `install_transaction.py`
+  is still at `schema_version: 2` today, with no such field). On
+  `update`, a skill whose installed content differs from both current
+  upstream and its own as-installed hash would be treated as a local
+  edit — backed up to `.claude/skills/<name>.pre-update-backup` instead
+  of being overwritten, and listed separately in the preview ("your
+  local edits will be backed up") from skills that changed upstream.
+  `uninstall` would clean up any backup directories. **None of this is
+  implemented yet** — `cmd_update` still unconditionally re-copies every
+  currently-selected skill in `copy` mode exactly as before; see issue
+  #300 for the full ruling and rationale before starting the
+  implementation.
   `uninstall` cleans up any backup directories. See issue #300 for full
   rationale and implementation scope.
 - **P1-08 (this review's numbering) — Reconcile universal policy with
