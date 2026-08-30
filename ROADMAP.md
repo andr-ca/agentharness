@@ -386,20 +386,25 @@ label by the review filename cited next to it, never by number alone.
   precedence and conflict examples.
 - **P1-09 (this review's numbering) — Give managed state a
   compatibility/migration contract.** **Partially done, and the original
-  premise is now stale:** the state file is at `schema_version: 2`, not
-  `version: 1` as originally written here, and `install_transaction.py`'s
-  `load_state()` already migrates a v1-shaped file in memory (adds the
-  v2 list fields, bumps the version, leaves v1 fields untouched — see
-  `tools/tests/test_install_transaction.py::test_load_state_migrates_v1_to_v2`).
+  premise is now stale:** the state file is at `schema_version: 3` (bumped
+  from 2 by P1-07's `skill_sources` field), not `version: 1` as originally
+  written here, and `install_transaction.py`'s `load_state()` already
+  migrates a v1-shaped file in memory (adds the v2 list fields and v3 dict
+  fields, bumps the version, leaves v1 fields untouched — see
+  `tools/tests/test_install_transaction.py::test_load_state_migrates_v1_to_v3`,
+  plus `test_load_state_migrates_v2_to_v3` for the intermediate step).
   **The "no explicit error for an unrecognized schema version" gap is
-  now closed:** `load_state()` raises `ValueError` for any explicit
-  `schema_version` other than the current value (a newer value written
-  by a future release, or a corrupt/garbage value) instead of silently
-  coercing it and overwriting it in place on the next save — see
-  `test_load_state_rejects_newer_schema_version` and
-  `test_load_state_rejects_garbage_schema_version`. **Still genuinely
-  open:** the v1→v2 migration itself is exercised only as a unit test
-  against a synthetic v1 fixture, not an end-to-end `update`/`uninstall`
+  now closed:** `load_state()` raises `ValueError` for any *unrecognized*
+  `schema_version` — newer than current (a value written by a future
+  release) or never a real version at all (corrupt/garbage/boolean/null)
+  — while an older, known version (e.g. `2`) still migrates forward as
+  before, instead of silently coercing an unrecognized value and
+  overwriting it in place on the next save — see
+  `test_load_state_rejects_newer_schema_version`,
+  `test_load_state_rejects_garbage_schema_version`, and
+  `test_load_state_rejects_boolean_schema_version`. **Still genuinely
+  open:** the migration chain itself is exercised only as unit tests
+  against synthetic fixtures, not an end-to-end `update`/`uninstall`
   run against real old-release state in CI; and there's no retained
   state fixture per actual release.
 - **P1-10 — Consolidate operational review history.** The review/status
