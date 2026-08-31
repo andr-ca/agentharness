@@ -64,7 +64,7 @@ it grows.
 
 ## 3. The trap: budget enforcement without a gating strategy
 
-The [root-instruction inventory](root-instruction-inventory-2026-07-28.md)
+The [root-instruction inventory](../root-instruction-inventory-2026-07-28.md)
 found that **size does not predict what is safe to remove — mechanical
 enforcement does**:
 
