@@ -811,10 +811,11 @@ validate_skills_filter() {
 # npm durable source (P0-02)
 # ----------------------------------------------------------------------------
 
-# Copies HARNESS_DIR into <target>/$NPM_DURABLE_PATH, excluding .git — the
-# npm-installed package tree HARNESS_DIR points at when invoked via the npm
-# CLI shim has already been pruned to package.json's "files" allowlist by npm
-# itself, so this is a small, self-contained copy, not the whole dev repo.
+# Copies a source directory (defaults to NPM_HARNESS_DIR, which can be
+# overridden by the optional second parameter for test isolation) into
+# <target>/$NPM_DURABLE_PATH, excluding .git — the npm-installed package tree
+# already pruned to package.json's "files" allowlist by npm itself is a small,
+# self-contained copy, not the whole dev repo.
 copy_npm_durable_source() {
     local target="$1"
     local dst="${target:?copy_npm_durable_source: target must not be empty}/$NPM_DURABLE_PATH"
