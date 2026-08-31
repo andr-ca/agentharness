@@ -189,8 +189,7 @@ json.dump(data, open(p, 'w'))
     local pkg_v1="$BATS_TMPDIR/agentharness-pkg-v1"
     local pkg_v2="$BATS_TMPDIR/agentharness-pkg-v2"
 
-    mkdir -p "$pkg_v1/package.json" "$pkg_v1/.claude/skills/committing"
-    mkdir -p "$pkg_v2/package.json" "$pkg_v2/.claude/skills/committing"
+    mkdir -p "$pkg_v1/.claude/skills/committing" "$pkg_v2/.claude/skills/committing"
 
     # Each package needs its own package.json with version field.
     # Minimal valid package.json for this harness.
