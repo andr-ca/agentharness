@@ -58,7 +58,8 @@ def load_state(path: Path) -> dict[str, Any]:
     version: Any = data["schema_version"] if "schema_version" in data else 1
     if version == SCHEMA_VERSION:
         return data
-    if not isinstance(version, int) or isinstance(version, bool) or not (1 <= version < SCHEMA_VERSION):
+    is_known_old = isinstance(version, int) and not isinstance(version, bool)
+    if not is_known_old or not (1 <= version < SCHEMA_VERSION):
         raise ValueError(
             f"{path}: unrecognized schema_version {version!r} (this tool "
             f"understands schema_version 1 through {SCHEMA_VERSION}) -- "
@@ -87,7 +88,8 @@ def hash_dir_tree(path: Path) -> str:
     skill's current on-disk content against the hash recorded at the
     last (re-)install of that skill."""
     h = hashlib.sha256()
-    for rel in sorted(p.relative_to(path).as_posix() for p in path.rglob("*") if p.is_file()):
+    files = (p for p in path.rglob("*") if p.is_file())
+    for rel in sorted(p.relative_to(path).as_posix() for p in files):
         h.update(rel.encode("utf-8"))
         h.update(b"\0")
         h.update((path / rel).read_bytes())
@@ -205,7 +207,7 @@ class Surface:
     content: str = ""
     block_id: str = "core-instructions"
     block_version: str = "0.0.0"
-    client: str = ""  # which client generated this surface (codex, cursor, etc), empty for core
+    client: str = ""  # generating client (codex, cursor, etc); empty for core
 
 
 @dataclass
@@ -576,7 +578,10 @@ def _restore_or_delete_entry(entry: dict[str, Any], base_dir: Path) -> tuple[str
             False,
         )
     if not backup.exists():
-        return f"{entry['file']}: backup missing ({entry['backup']}) — left in place", False
+        return (
+            f"{entry['file']}: backup missing ({entry['backup']}) — left in place",
+            False,
+        )
     bi.atomic_write(path, backup.read_text())
     return f"{entry['file']}: restored from backup", True
 
@@ -618,7 +623,9 @@ _MANAGED_BLOCK_CLIENT_BY_FILE = {
 }
 
 
-def client_surface_status(state: dict[str, Any], base_dir: Path) -> list[dict[str, Any]]:
+def client_surface_status(
+    state: dict[str, Any], base_dir: Path
+) -> list[dict[str, Any]]:
     """Drift status for every client-facing surface this install tracks --
     the always-on managed_blocks files and any --client-generated
     overwritten_files -- for 'audit --json' (P2-07). A new function rather
@@ -646,8 +653,11 @@ def client_surface_status(state: dict[str, Any], base_dir: Path) -> list[dict[st
                     status = "malformed"
                 else:
                     m = matches[0]
-                    current_hash = bi.sha256_bytes(content[m.start : m.end].encode("utf-8"))
-                    status = "ok" if current_hash == entry.get("rendered_sha256") else "drift"
+                    current_hash = bi.sha256_bytes(
+                        content[m.start : m.end].encode("utf-8")
+                    )
+                    rendered = entry.get("rendered_sha256")
+                    status = "ok" if current_hash == rendered else "drift"
         results.append(
             {
                 "file": file_rel,

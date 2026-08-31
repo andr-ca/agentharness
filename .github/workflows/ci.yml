@@ -259,11 +259,11 @@ jobs:
       - name: Ruff (legacy surfaces)
         run: ruff check --isolated patterns/logging/config_loader.py patterns/logging/test_config_loader.py patterns/agentic-loops/agent_loop.py patterns/agentic-loops/test_agent_loop.py tools/eval/score.py tools/eval/run.py tools/verify-content-quality.py tools/tests/test_verify_content_quality.py tools/generate-manifest.py tools/release/materialize-skill-symlinks.py
       - name: Ruff (configured core surfaces)
-        run: ruff check src tools/runtime tests/unit tools/tests/helpers/make-runtime-fixtures.py
+        run: ruff check src tools/runtime tools/setup tests/unit tools/tests/helpers/make-runtime-fixtures.py
       - name: mypy (legacy surfaces)
         run: mypy --config-file=/dev/null patterns/logging/config_loader.py patterns/agentic-loops/agent_loop.py tools/eval/score.py tools/eval/run.py tools/verify-content-quality.py tools/generate-manifest.py tools/release/materialize-skill-symlinks.py
       - name: mypy (configured core surfaces)
-        run: mypy --strict src tools/runtime tools/tests/helpers/make-runtime-fixtures.py
+        run: mypy --strict src tools/runtime tools/setup tools/tests/helpers/make-runtime-fixtures.py
       - name: Run runtime bootstrap lock contracts
         run: |
           pytest \
