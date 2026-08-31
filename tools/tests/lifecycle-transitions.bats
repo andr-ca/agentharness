@@ -10,6 +10,7 @@
 
 setup() {
     SCRIPT="$BATS_TEST_DIRNAME/../setup/harness-link.sh"
+    HARNESS_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     TEST_PROJECT=$(mktemp -d)
     cd "$TEST_PROJECT"
 }
@@ -119,4 +120,50 @@ teardown() {
     # left pointing at the (now-removed) harness-managed hook dir.
     hooks_after="$(git -C "$TEST_PROJECT" config --get core.hooksPath || true)"
     [[ "$hooks_after" != *"agentharness"* ]]
+}
+
+@test "transition: update/audit fail clearly (not crash) once the recorded source path stops existing, and heal once it's restored" {
+    # copy mode records source.path = HARNESS_DIR at init time (link/copy
+    # mode have no --source override — see resolved_source_path). Simulate
+    # the harness checkout having moved or been deleted since install by
+    # rewriting the recorded path directly in state, the same way the
+    # existing .agentharness-profile transition test simulates external
+    # drift, rather than actually relocating this live checkout.
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --client none
+
+    python3 -c "
+import json
+p = '$TEST_PROJECT/.agentharness-state.json'
+data = json.load(open(p))
+data['source']['path'] = '/nonexistent/moved-away/agentharness'
+json.dump(data, open(p, 'w'))
+"
+
+    run bash "$SCRIPT" status "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "source path no longer exists" ]]
+
+    run bash "$SCRIPT" update "$TEST_PROJECT" --yes
+    [ "$status" -ne 0 ]
+    [[ "$output" =~ "Error: source path not found" ]]
+
+    run bash "$SCRIPT" audit "$TEST_PROJECT" --json
+    [ "$status" -ne 0 ]
+    [[ "$output" =~ "Error: source path not found" ]]
+
+    # Restoring the recorded path to somewhere real heals both commands
+    # without needing a fresh init.
+    python3 -c "
+import json
+p = '$TEST_PROJECT/.agentharness-state.json'
+data = json.load(open(p))
+data['source']['path'] = '$HARNESS_ROOT'
+json.dump(data, open(p, 'w'))
+"
+
+    run bash "$SCRIPT" update "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+
+    run bash "$SCRIPT" audit "$TEST_PROJECT" --json
+    [ "$status" -eq 0 ]
 }

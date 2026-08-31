@@ -347,12 +347,14 @@ label by the review filename cited next to it, never by number alone.
   **Started:** `tools/tests/lifecycle-transitions.bats` adds state-machine
   sequences — the full init→status→doctor→update→doctor→uninstall→status
   chain, repeated uninstall, user-file preservation across uninstall,
-  break-then-re-init heal, mid-run profile edit, and hook
-  install→uninstall restore. Still open: moved-source and package-upgrade
-  transitions, and broader partial-install matrices. (The hook-ownership
-  defect fixed as P0-01 survived because tests checked init and uninstall
-  only in isolation, never as a sequence with external state changes
-  between them.)
+  break-then-re-init heal, mid-run profile edit, hook install→uninstall
+  restore, and a moved/deleted recorded source path (`status` notes it,
+  `update`/`audit` fail with a clear error instead of crashing, and both
+  heal once the path is restored — no fresh `init` needed). Still open:
+  package-upgrade transitions, and broader partial-install matrices. (The
+  hook-ownership defect fixed as P0-01 survived because tests checked
+  init and uninstall only in isolation, never as a sequence with external
+  state changes between them.)
 - **P1-07 — Detect-and-backup hand-edited skills in `copy` mode.** **Done.**
   GitHub issue #300's product-owner ruling, **Design B
   (Detect-and-Backup)**, is implemented: `install_transaction.py` is at
