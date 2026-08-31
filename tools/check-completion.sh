@@ -62,7 +62,7 @@ if command -v ruff >/dev/null 2>&1; then
         run_gate "ruff-core" ruff check "${local_targets[@]}"
     fi
     # Legacy surfaces (--isolated, pre-pyproject contract) — mirrors CI's
-    # "Ruff (legacy surfaces)" line exactly, plus tools/analyze_structure.py
+    # "Ruff (legacy surfaces)" line exactly, including tools/analyze_structure.py
     # and tools/context-budget.py, two loose scripts with no other lint gate.
     legacy_targets=()
     for f in \
@@ -100,7 +100,7 @@ if command -v mypy >/dev/null 2>&1; then
         run_gate "mypy-core" mypy --strict --no-error-summary "${core_targets[@]}"
     fi
     # Legacy surfaces (no strict) — mirrors CI's "mypy (legacy surfaces)"
-    # line exactly, plus tools/analyze_structure.py and
+    # line exactly, including tools/analyze_structure.py and
     # tools/context-budget.py, two loose scripts with no other type gate.
     legacy_mypy=()
     for f in \
