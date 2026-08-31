@@ -61,14 +61,23 @@ if command -v ruff >/dev/null 2>&1; then
         [ -f tools/tests/helpers/make-runtime-fixtures.py ] && local_targets+=("tools/tests/helpers/make-runtime-fixtures.py")
         run_gate "ruff-core" ruff check "${local_targets[@]}"
     fi
-    # Legacy surfaces (--isolated, pre-pyproject contract)
+    # Legacy surfaces (--isolated, pre-pyproject contract) — mirrors CI's
+    # "Ruff (legacy surfaces)" line exactly, plus tools/analyze_structure.py
+    # and tools/context-budget.py, two loose scripts with no other lint gate.
     legacy_targets=()
     for f in \
         patterns/logging/config_loader.py \
+        patterns/logging/test_config_loader.py \
         patterns/agentic-loops/agent_loop.py \
+        patterns/agentic-loops/test_agent_loop.py \
+        tools/eval/score.py \
+        tools/eval/run.py \
         tools/verify-content-quality.py \
+        tools/tests/test_verify_content_quality.py \
         tools/generate-manifest.py \
-        tools/release/materialize-skill-symlinks.py; do
+        tools/release/materialize-skill-symlinks.py \
+        tools/analyze_structure.py \
+        tools/context-budget.py; do
         [ -f "$f" ] && legacy_targets+=("$f")
     done
     if [ ${#legacy_targets[@]} -gt 0 ]; then
@@ -90,14 +99,20 @@ if command -v mypy >/dev/null 2>&1; then
         [ -f tools/tests/helpers/make-runtime-fixtures.py ] && core_targets+=("tools/tests/helpers/make-runtime-fixtures.py")
         run_gate "mypy-core" mypy --strict --no-error-summary "${core_targets[@]}"
     fi
-    # Legacy surfaces (no strict)
+    # Legacy surfaces (no strict) — mirrors CI's "mypy (legacy surfaces)"
+    # line exactly, plus tools/analyze_structure.py and
+    # tools/context-budget.py, two loose scripts with no other type gate.
     legacy_mypy=()
     for f in \
         patterns/logging/config_loader.py \
         patterns/agentic-loops/agent_loop.py \
+        tools/eval/score.py \
+        tools/eval/run.py \
         tools/verify-content-quality.py \
         tools/generate-manifest.py \
-        tools/release/materialize-skill-symlinks.py; do
+        tools/release/materialize-skill-symlinks.py \
+        tools/analyze_structure.py \
+        tools/context-budget.py; do
         [ -f "$f" ] && legacy_mypy+=("$f")
     done
     if [ ${#legacy_mypy[@]} -gt 0 ]; then
