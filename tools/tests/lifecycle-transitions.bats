@@ -167,3 +167,106 @@ json.dump(data, open(p, 'w'))
     run bash "$SCRIPT" audit "$TEST_PROJECT" --json
     [ "$status" -eq 0 ]
 }
+
+@test "transition: --mode npm package-upgrade cycles through versions correctly (init → v1.0.0 → update to v2.0.0 → update back to v1.0.0)" {
+    # P1-06: test the npm mode's package-upgrade story — when a consumer
+    # upgrades their pinned npm version of agentharness, the next 'update'
+    # should refresh the durable copy AND its package.json version field,
+    # which 'audit --json' reports as package_source.durable_copy_version.
+    # This test exercises a full upgrade→rollback→re-upgrade cycle using
+    # isolated fixture "packages" (not this live repo) to avoid mutating
+    # tracked files during the test.
+    #
+    # The preferred approach (see task description) is to use an env-var
+    # override (AGENTHARNESS_NPM_HARNESS_DIR, added by P1-06) to point
+    # copy_npm_durable_source at an isolated scratch copy rather than
+    # HARNESS_DIR, the same way AGENTHARNESS_SUBMODULE_REMOTE works for
+    # submodule mode.
+
+    # Create two fixture "packages" with different versions, both containing
+    # the minimal content npm mode actually needs: package.json and
+    # .claude/skills/ (at least one skill so validation doesn't fail).
+    local pkg_v1="$BATS_TMPDIR/agentharness-pkg-v1"
+    local pkg_v2="$BATS_TMPDIR/agentharness-pkg-v2"
+
+    mkdir -p "$pkg_v1/package.json" "$pkg_v1/.claude/skills/committing"
+    mkdir -p "$pkg_v2/package.json" "$pkg_v2/.claude/skills/committing"
+
+    # Each package needs its own package.json with version field.
+    # Minimal valid package.json for this harness.
+    python3 -c "
+import json
+pkg_v1 = '$pkg_v1/package.json'
+with open(pkg_v1, 'w') as f:
+    json.dump({'name': 'agentharness', 'version': '1.0.0', 'description': 'test fixture'}, f)
+
+pkg_v2 = '$pkg_v2/package.json'
+with open(pkg_v2, 'w') as f:
+    json.dump({'name': 'agentharness', 'version': '2.0.0', 'description': 'test fixture'}, f)
+"
+
+    # Copy real skill content into both fixtures so the harness validates
+    # (the skill symlink target itself doesn't matter, but the name must exist
+    # in the source for validate_skills_filter to pass).
+    cp "$HARNESS_ROOT/.claude/skills/committing/SKILL.md" "$pkg_v1/.claude/skills/committing/"
+    cp "$HARNESS_ROOT/.claude/skills/committing/SKILL.md" "$pkg_v2/.claude/skills/committing/"
+
+    # Also copy .github/hooks since init validates its presence too.
+    mkdir -p "$pkg_v1/.github/hooks" "$pkg_v2/.github/hooks"
+    touch "$pkg_v1/.github/hooks/pre-commit" "$pkg_v2/.github/hooks/pre-commit"
+
+    # Init against v1.0.0 using the env override.
+    export AGENTHARNESS_NPM_HARNESS_DIR="$pkg_v1"
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode npm --skills committing
+
+    # Verify initial state: durable_copy_version should be 1.0.0
+    run bash "$SCRIPT" audit "$TEST_PROJECT" --json
+    [ "$status" -eq 0 ]
+    run python3 -c "
+import json
+d = json.loads('''$output''')
+assert d['package_source']['durable_copy_version'] == '1.0.0', f\"Expected 1.0.0, got {d['package_source']['durable_copy_version']}\"
+print('ok')
+"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "ok" ]]
+
+    # Upgrade to v2.0.0: change the override and run update.
+    export AGENTHARNESS_NPM_HARNESS_DIR="$pkg_v2"
+    run bash "$SCRIPT" update "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Refreshing durable npm source" ]]
+
+    # Verify the durable copy was refreshed: durable_copy_version should now be 2.0.0
+    run bash "$SCRIPT" audit "$TEST_PROJECT" --json
+    [ "$status" -eq 0 ]
+    run python3 -c "
+import json
+d = json.loads('''$output''')
+assert d['package_source']['durable_copy_version'] == '2.0.0', f\"Expected 2.0.0, got {d['package_source']['durable_copy_version']}\"
+print('ok')
+"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "ok" ]]
+
+    # Rollback to v1.0.0: change the override back and update again.
+    export AGENTHARNESS_NPM_HARNESS_DIR="$pkg_v1"
+    run bash "$SCRIPT" update "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+
+    # Verify the rollback worked: durable_copy_version should be back to 1.0.0
+    run bash "$SCRIPT" audit "$TEST_PROJECT" --json
+    [ "$status" -eq 0 ]
+    run python3 -c "
+import json
+d = json.loads('''$output''')
+assert d['package_source']['durable_copy_version'] == '1.0.0', f\"Expected 1.0.0 after rollback, got {d['package_source']['durable_copy_version']}\"
+print('ok')
+"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "ok" ]]
+
+    # Cleanup (bats doesn't auto-clean BATS_TMPDIR in older versions).
+    rm -rf "$pkg_v1" "$pkg_v2"
+    unset AGENTHARNESS_NPM_HARNESS_DIR
+}
