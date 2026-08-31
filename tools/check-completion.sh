@@ -51,11 +51,12 @@ run_gate "content-quality" python3 tools/verify-content-quality.py
 # Gate 2: Ruff lint — mirrors CI's exact configured core surfaces
 # ---------------------------------------------------------------------------
 if command -v ruff >/dev/null 2>&1; then
-    if [ -d src ] || [ -d tools/runtime ]; then
+    if [ -d src ] || [ -d tools/runtime ] || [ -d tools/setup ]; then
         # Core surfaces (configured via pyproject.toml)
         local_targets=()
         [ -d src ] && local_targets+=("src")
         [ -d tools/runtime ] && local_targets+=("tools/runtime")
+        [ -d tools/setup ] && local_targets+=("tools/setup")
         [ -d tests/unit ] && local_targets+=("tests/unit")
         run_gate "ruff-core" ruff check "${local_targets[@]}"
     fi
@@ -80,10 +81,11 @@ fi
 # Gate 3: mypy type check — mirrors CI's exact configured core surfaces
 # ---------------------------------------------------------------------------
 if command -v mypy >/dev/null 2>&1; then
-    if [ -d src ] || [ -d tools/runtime ]; then
+    if [ -d src ] || [ -d tools/runtime ] || [ -d tools/setup ]; then
         core_targets=()
         [ -d src ] && core_targets+=("src")
         [ -d tools/runtime ] && core_targets+=("tools/runtime")
+        [ -d tools/setup ] && core_targets+=("tools/setup")
         run_gate "mypy-core" mypy --strict --no-error-summary "${core_targets[@]}"
     fi
     # Legacy surfaces (no strict)
