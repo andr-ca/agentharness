@@ -257,11 +257,11 @@ jobs:
       # Preserve the pre-pyproject lint contract for legacy files while new
       # core/runtime code remains under the configured strict Ruff policy.
       - name: Ruff (legacy surfaces)
-        run: ruff check --isolated patterns/logging/config_loader.py patterns/logging/test_config_loader.py patterns/agentic-loops/agent_loop.py patterns/agentic-loops/test_agent_loop.py tools/eval/score.py tools/eval/run.py tools/verify-content-quality.py tools/tests/test_verify_content_quality.py tools/generate-manifest.py tools/release/materialize-skill-symlinks.py
+        run: ruff check --isolated patterns/logging/config_loader.py patterns/logging/test_config_loader.py patterns/agentic-loops/agent_loop.py patterns/agentic-loops/test_agent_loop.py tools/eval/score.py tools/eval/run.py tools/verify-content-quality.py tools/tests/test_verify_content_quality.py tools/generate-manifest.py tools/release/materialize-skill-symlinks.py tools/analyze_structure.py tools/context-budget.py
       - name: Ruff (configured core surfaces)
         run: ruff check src tools/runtime tools/setup tests/unit tools/tests/helpers/make-runtime-fixtures.py
       - name: mypy (legacy surfaces)
-        run: mypy --config-file=/dev/null patterns/logging/config_loader.py patterns/agentic-loops/agent_loop.py tools/eval/score.py tools/eval/run.py tools/verify-content-quality.py tools/generate-manifest.py tools/release/materialize-skill-symlinks.py
+        run: mypy --config-file=/dev/null patterns/logging/config_loader.py patterns/agentic-loops/agent_loop.py tools/eval/score.py tools/eval/run.py tools/verify-content-quality.py tools/generate-manifest.py tools/release/materialize-skill-symlinks.py tools/analyze_structure.py tools/context-budget.py
       - name: mypy (configured core surfaces)
         run: mypy --strict src tools/runtime tools/setup tools/tests/helpers/make-runtime-fixtures.py
       - name: Run runtime bootstrap lock contracts
