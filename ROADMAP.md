@@ -350,8 +350,11 @@ label by the review filename cited next to it, never by number alone.
   break-then-re-init heal, mid-run profile edit, hook install→uninstall
   restore, and a moved/deleted recorded source path (`status` notes it,
   `update`/`audit` fail with a clear error instead of crashing, and both
-  heal once the path is restored — no fresh `init` needed). Still open:
-  package-upgrade transitions, and broader partial-install matrices. (The
+  heal once the path is restored — no fresh `init` needed). **Package-upgrade
+  transitions done (PR #308):** `--mode npm` now has a complete test
+  exercising init→v1.0.0→update to v2.0.0→rollback to v1.0.0, verifying
+  `audit --json`'s `package_source.durable_copy_version` tracks correctly.
+  Still open: broader partial-install matrices. (The
   hook-ownership defect fixed as P0-01 survived because tests checked
   init and uninstall only in isolation, never as a sequence with external
   state changes between them.)

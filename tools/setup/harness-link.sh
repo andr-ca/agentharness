@@ -82,6 +82,10 @@
 set -euo pipefail
 
 HARNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# AGENTHARNESS_NPM_HARNESS_DIR overrides HARNESS_DIR for --mode npm only,
+# used by hermetic tests to point at a local fixture instead of the live repo
+# (P1-06, package-upgrade-transitions). Consumers should never set this.
+NPM_HARNESS_DIR="${AGENTHARNESS_NPM_HARNESS_DIR:-$HARNESS_DIR}"
 STATE_FILE_NAME=".agentharness-state.json"
 PROFILE_FILE_NAME=".agentharness-profile"
 GITIGNORE_MARKER="# --- Added by agentharness harness-link.sh ---"
@@ -814,20 +818,21 @@ validate_skills_filter() {
 copy_npm_durable_source() {
     local target="$1"
     local dst="${target:?copy_npm_durable_source: target must not be empty}/$NPM_DURABLE_PATH"
+    local src_root="${2:-$NPM_HARNESS_DIR}"
     rm -rf "$dst"
     mkdir -p "$dst"
     # Exclude the durable-copy directory itself from the tar source: if
-    # 'target' is HARNESS_DIR or a subdirectory of it (e.g. dogfooding this
-    # harness's own repo as an init target), the freshly-created, empty
-    # $dst would otherwise sit inside the tree being read, and get read
-    # back into itself mid-stream. Compute the exclude path relative to
-    # HARNESS_DIR (not just "./$NPM_DURABLE_PATH", which only matches when
-    # target IS HARNESS_DIR) so a target that's a subdirectory of
-    # HARNESS_DIR is covered too.
+    # 'target' is the npm source or a subdirectory of it (e.g. dogfooding
+    # this harness's own repo as an init target), the freshly-created,
+    # empty $dst would otherwise sit inside the tree being read, and get
+    # read back into itself mid-stream. Compute the exclude path relative
+    # to src_root (not just "./$NPM_DURABLE_PATH", which only matches when
+    # target IS src_root) so a target that's a subdirectory of src_root
+    # is covered too.
     local tar_exclude="./$NPM_DURABLE_PATH"
     case "$dst" in
-        "$HARNESS_DIR"/*)
-            tar_exclude="./${dst#"$HARNESS_DIR"/}"
+        "$src_root"/*)
+            tar_exclude="./${dst#"$src_root"/}"
             ;;
     esac
     # Explicitly exclude sensitive/ephemeral files that npm pack's "files"
@@ -835,7 +840,7 @@ copy_npm_durable_source() {
     # exist in a dev-checkout source (where this copy runs via 'npm mode').
     # Without these excludes, an untracked .env* or a cache directory
     # would silently land in every consumer's .agentharness-pkg/.
-    (cd "$HARNESS_DIR" && tar cf -         --exclude=.git         --exclude="$tar_exclude"         --exclude=".env"         --exclude=".env.*"         --exclude="*.env"         --exclude="node_modules"         --exclude=".cache"         --exclude="__pycache__"         --exclude="*.pyc"         --exclude=".worktrees"         .) | (cd "$dst" && tar xf -)
+    (cd "$src_root" && tar cf -         --exclude=.git         --exclude="$tar_exclude"         --exclude=".env"         --exclude=".env.*"         --exclude="*.env"         --exclude="node_modules"         --exclude=".cache"         --exclude="__pycache__"         --exclude="*.pyc"         --exclude=".worktrees"         .) | (cd "$dst" && tar xf -)
 }
 
 # Symlinks $dst -> $src using a path relative to $dst's parent directory,
