@@ -18,17 +18,16 @@ noted — resolve any label against the review filename cited next to it in
   *published* behavior, not dogfooded end-to-end. See
   [CLIENT_COMPATIBILITY.md](./CLIENT_COMPATIBILITY.md)'s intro and
   [DECISIONS.md](./DECISIONS.md)'s "Claude-first client scope".
-- **Dogfood is real but not independent.** No longer "fixtures only": the
-  harness has been installed and used in non-fixture repositories
-  (`andr-ca/recalium`, `andr-ca/infoocode`), and that use has produced
-  real friction filed upstream as issues — #76, #77, #78, #79, #88, #149
-  (recalium) and #110, #117 (infoocode). What remains open is the part
-  that matters most for generalization: **every one of those repos is the
-  author's own**, so correlated blind spots are untested, and none of the
-  systematic signals `docs/operational/planning/DOGFOODING.md` asks for
-  (install time, overrides needed, false-positive rate, update friction,
-  context cost, abandoned features) has been recorded in a dated dogfood
-  status doc. → ROADMAP "P2-05 (real dogfood)" / P2-02.
+- **Dogfood is real but not independent.** The harness has been installed
+  and used in non-fixture repositories (`andr-ca/recalium`,
+  `andr-ca/infoocode`), producing real friction filed upstream as issues —
+  #76, #77, #78, #79, #88, #149 (recalium) and #110, #117 (infoocode).
+  Systematic dogfooding signals have been recorded: a dated status doc
+  (`docs/operational/reviews/dogfood-recalium-2026-08-20-status.md`)
+  covers the recalium install against the DOGFOODING.md checklist (install
+  time, overrides, false-positive rate, update friction, abandoned
+  features). What remains open: **every dogfooded repo is the author's own**,
+  so correlated blind spots are still untested. → ROADMAP P2-05 / P2-02.
 - **Evals now have first evidence for enforcement, none for code
   quality.** Live baseline/treatment runs exist and are written up in
   `docs/operational/eval-harness-observations-2026-07-23.md`: governed-action
@@ -49,11 +48,13 @@ noted — resolve any label against the review filename cited next to it in
 
 ## Enforcement
 
-- **Profile enforcement is partial.** `harness-link.sh enforce-profile`
-  gates for real on Python, Go, and `node --test`/Vitest/Jest JS/TS
-  projects; Mocha and unrecognized project types are advisory (exit 0,
-  or fail under `--strict`). It is also **not wired into the pre-push
-  hook** — it ships as an explicitly-invoked subcommand. → ROADMAP P1-02.
+- **Profile enforcement is partial and optional.** `harness-link.sh
+  enforce-profile` gates for real on Python, Go, and `node --test`/Vitest/Jest
+  JS/TS projects; Mocha and unrecognized project types are advisory (exit 0,
+  or fail under `--strict`). It is **not wired into the pre-push hook** —
+  it ships as an explicitly-invoked subcommand — and therefore not enforced
+  on every push. A `--strict` flag is available to make unsupported
+  project/runner combinations fail instead of pass silently. → ROADMAP P1-02.
 
 ## Runtime upgrades
 
@@ -67,12 +68,13 @@ noted — resolve any label against the review filename cited next to it in
 
 ## Client integration
 
-- **Client-adapter generation isn't wired into `init`/`update` yet.**
-  `harness-link.sh generate-clients <project> --client all` now produces
-  the router/instruction files in one command, but generation is still a
-  separate step from `init`/`update`, and generated files aren't tracked
-  in state for `doctor`/`uninstall` via managed blocks. → ROADMAP P1-01
-  (first increment shipped; managed-block lifecycle integration open).
+- **Client-adapter generation is partially integrated.** The second
+  increment is done: client generation is wired into `init`/`update` (a
+  selected client's whole-file surface is generated automatically, and
+  tracked via `install_transaction.py`'s `overwritten_files`/`managed_blocks`).
+  The standalone `generate-clients` subcommand still exists unchanged.
+  Still open: wiring language/framework/pattern guides (not just client
+  routing files) into the same generation flow. → ROADMAP P1-01.
 - **Custom sub-agent tool/permission scoping is not ported.** The
   agent generators carry `name`/`description`/`model` and the body
   verbatim, but not Claude Code's `tools:` allow-list or any target
@@ -94,14 +96,20 @@ noted — resolve any label against the review filename cited next to it in
 
 ## Maintenance & robustness
 
-- **Review history isn't archived yet.** This file and
-  [STATUS.md](./STATUS.md) are the first step of consolidating the long
-  dated review chain under [docs/operational/reviews/](./operational/reviews/);
-  moving completed cycles into dated archive directories is still open.
-  → ROADMAP P1-10.
-- **Managed state has no migration contract.** `.agentharness-state.json`
-  declares `version: 1` with no forward-migration machinery or
-  cross-version test matrix. → ROADMAP P1-09.
-- **Package materialization is coupled to writable Git metadata.**
-  `materialize-skill-symlinks.py restore` uses `git checkout`, so it
-  fails in a restricted/non-Git source package. → ROADMAP P1-04.
+- **Review history archival is in progress.** This file and
+  [STATUS.md](./STATUS.md) are the active consolidation point for current
+  capabilities and open gaps; completed review cycles are moved to
+  [docs/operational/reviews/archives/](./operational/reviews/archives/)
+  as their findings are fully incorporated. See
+  [docs/operational/README.md](./operational/README.md) for the promote/archive/delete
+  lifecycle. → ROADMAP P1-10.
+- **Managed state has partial forward-migration support.** The state file
+  is at `schema_version: 3` with `load_state()` migrating v1-shaped and
+  v2-shaped files forward in memory. Raises `ValueError` for unrecognized
+  (newer) versions. Still open: end-to-end `update`/`uninstall` testing
+  against real old-release state, and retained state fixtures per
+  actual release. → ROADMAP P1-09.
+- **Package materialization no longer requires Git.** Materialized
+  symlinks are now restored directly from a recorded manifest, with no
+  `git checkout` call or `.git` directory required. Works in bare repos
+  and git-less source packages. → ROADMAP P1-04 (done).

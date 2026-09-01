@@ -17,7 +17,7 @@ line is the bug.
 
 - **Maintained by hand** — update it in the same PR that changes what it
   describes.
-- **Last verified against the tree:** 2026-07-17 (commit `af36f2c`).
+- **Last verified against the tree:** 2026-09-01 (commit `99e1537`).
 - **Standing caveat:** everything except Claude Code is implemented
   against each tool's *published* behavior, **not** dogfooded against a
   live session — see
@@ -26,7 +26,7 @@ line is the bug.
 
 ## Release
 
-- **Current version:** `v0.2.1` (npm `package.json`; `pyproject.toml` at 0.1.1 — Python core is experimental/unreleased). Published to
+- **Current version:** `v0.8.1` (npm `package.json`; `pyproject.toml` at 0.1.1 — Python core is experimental/unreleased, not yet distributed via npm). Published to
   npm as `agentharness-toolkit`. See
   [RELEASING.md](./RELEASING.md) and [DECISIONS.md](./DECISIONS.md).
 
@@ -70,8 +70,8 @@ custom-agent table.
 |---|---|---|
 | Languages | Python, TypeScript, Go, Rust | [languages/](../languages/) |
 | Frameworks | React | [frameworks/react/](../frameworks/react/) |
-| Patterns | testing, logging, agentic-loops, error-handling, profiles, accessibility, api-design, clean-architecture, dependency-injection, design-patterns, file-placement-policy, multi-agent-coordination, mutation-testing, solid-principles | [patterns/](../patterns/) |
-| Skills | 32 (accessibility, agentic-loops, api-design, audit-review-followup, branching, clean-architecture, code-review, code-review-api, code-review-db, code-review-ui, committing, database-conventions, dependency-audit, dependency-injection, design-patterns, docker-conventions, error-handling, file-placement-policy, go-conventions, logging, multi-agent-coordination, mutation-testing, performance-profiling, planning-with-files, port-agent-config, python-conventions, react-best-practices, requirements-clarification, security-review, solid-principles, testing, typescript-conventions) | [.claude/skills/](../.claude/skills/) |
+| Patterns | testing, logging, agentic-loops, error-handling, profiles, accessibility, api-design, clean-architecture, dependency-injection, design-patterns, file-placement-policy, multi-agent-coordination, mutation-testing, solid-principles, refactoring, recurring-maintenance-loops | [patterns/](../patterns/) |
+| Skills | 37 (accessibility, agentic-loops, api-design, audit-review-followup, big-work-plan-review, branching, clean-architecture, code-review, code-review-api, code-review-db, code-review-ui, committing, database-conventions, dependency-audit, dependency-injection, design-patterns, docker-conventions, error-handling, file-placement-policy, github-issue-triage, go-conventions, harness-feedback, logging, multi-agent-coordination, mutation-testing, performance-profiling, planning-with-files, port-agent-config, project-bootstrap, python-conventions, react-best-practices, refactoring, requirements-clarification, security-review, solid-principles, testing, typescript-conventions) | [.claude/skills/](../.claude/skills/) |
 
 ## Enforcement (built)
 
