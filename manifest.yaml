@@ -552,7 +552,7 @@ sections:
   - asset: Symlink materializer
     path: tools/release/materialize-skill-symlinks.py
     type: script
-    when_to_use: '`prepack`/`postpack` hook — npm tarballs don''t preserve symlinks, so bundled-resource symlinks (e.g. `agentic-loops`''s) are copied to real files before packing, then restored via `git checkout`'
+    when_to_use: '`prepack`/`postpack` hook — npm tarballs don''t preserve symlinks, so bundled-resource symlinks (e.g. `agentic-loops`''s) are copied to real files before packing, then restored from a recorded manifest (not `git checkout`), so it round-trips outside a normal git work tree too'
   - asset: Manifest source of truth
     path: manifest.yaml
     type: config

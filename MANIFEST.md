@@ -175,7 +175,7 @@ they drift (`check_manifest_md_sync()` in `tools/verify-content-quality.py`).
 | Go fixture | `examples/go-project/` | project | Realistic Go consumer (pre-existing `.gitignore`); CI-verified across all install modes |
 | npm package manifest | `package.json` | config | `files` allowlist for `npm publish`; `bin.agentharness` entry point; see `docs/RELEASING.md#npm-distribution` for what's built vs. not-yet-published |
 | npm CLI shim | `bin/cli.js` | script | Execs `tools/setup/harness-link.sh` from an npm/npx install; fails clearly if `bash`/`python3` are missing |
-| Symlink materializer | `tools/release/materialize-skill-symlinks.py` | script | `prepack`/`postpack` hook — npm tarballs don't preserve symlinks, so bundled-resource symlinks (e.g. `agentic-loops`'s) are copied to real files before packing, then restored via `git checkout` |
+| Symlink materializer | `tools/release/materialize-skill-symlinks.py` | script | `prepack`/`postpack` hook — npm tarballs don't preserve symlinks, so bundled-resource symlinks (e.g. `agentic-loops`'s) are copied to real files before packing, then restored from a recorded manifest (not `git checkout`), so it round-trips outside a normal git work tree too |
 | Manifest source of truth | `manifest.yaml` | config | Structured source MANIFEST.md is generated from (B2) — edit this, not MANIFEST.md directly |
 | MANIFEST.md generator | `tools/generate-manifest.py` | script | Renders MANIFEST.md from manifest.yaml; drift-checked in CI the same way tools/generate-agents-md.sh is (B2) |
 

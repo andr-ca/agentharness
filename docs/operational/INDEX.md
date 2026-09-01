@@ -23,11 +23,7 @@ Items currently under development:
 
 Documents ready to be promoted to harness or archived:
 
-- `harness-engineering-recommendations-status.md` — completed product-fit
-  assessment of `lopopolo/harness-engineering`; seven feature recommendations
-  filed as issues #137–#143 with current MVPs, future stages, and boundary
-  decisions. Retain while those issues are open, then archive after they are
-  closed or incorporated into `ROADMAP.md`.
+(none currently)
 
 See [`reviews/README.md`](reviews/README.md) for the full cycle-by-cycle
 index of all review documents. Summary below for quick navigation:
@@ -109,6 +105,11 @@ index of all review documents. Summary below for quick navigation:
 ## 📚 Archives
 
 Historical documents kept for reference:
+
+- **Harness Engineering recommendations status (2026-07-22)** — completed
+  product-fit assessment of `lopopolo/harness-engineering`; all seven
+  feature recommendations (issues #137–#143) have now closed. Archived
+  after closure. [`archives/harness-engineering-recommendations-status.md`](archives/harness-engineering-recommendations-status.md)
 
 - **Context management analysis (2026-07-29)** — build-order assessment
   for the Context Plane epic (#194); the epic's slices 0-3 have since
