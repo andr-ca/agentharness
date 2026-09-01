@@ -99,7 +99,7 @@ noted — resolve any label against the review filename cited next to it in
 - **Review history archival is in progress.** This file and
   [STATUS.md](./STATUS.md) are the active consolidation point for current
   capabilities and open gaps; completed review cycles are moved to
-  [docs/operational/reviews/archives/](./operational/reviews/archives/)
+  [docs/operational/archives/](./operational/archives/)
   as their findings are fully incorporated. See
   [docs/operational/README.md](./operational/README.md) for the promote/archive/delete
   lifecycle. → ROADMAP P1-10.
