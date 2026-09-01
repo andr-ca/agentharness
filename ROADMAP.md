@@ -565,11 +565,15 @@ below is an extension of an existing asset, not a new subsystem.
   behavior, a "prototype" heading for production — stop and re-confirm
   the task type with the user instead of continuing under the original
   framing. A pattern-level rule, not a router subsystem.
-- **I-05 — `patterns/refactoring/`.** The one workflow genuinely missing
+- ~~**I-05 — `patterns/refactoring/`.** The one workflow genuinely missing
   from `patterns/`: a behavior-preservation contract, characterization
   tests before restructuring, incremental reversible steps, and an
-  explicit list of protected public contracts. (Prototype→production
-  promotion needs no new doc — one line in rigor tiers covers it.)
+  explicit list of protected public contracts.~~ — **IMPLEMENTED**. Guide at
+  `patterns/refactoring/README.md` covers behavior-preservation contracts,
+  characterization tests before restructuring, incremental reversible commits,
+  and protected public contracts; skill at `.claude/skills/refactoring/SKILL.md`
+  provides condensed day-to-day reference. (Prototype→production promotion
+  needs no new doc — one line in rigor tiers covers it.)
 - **I-06 — Repository context contract — unblocked and superseded.**
   PR #47 merged, clearing the original blocker, but scope moved to the
   Context Plane registry rather than a standalone subsystem: the

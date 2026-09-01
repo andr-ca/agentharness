@@ -63,6 +63,7 @@ they drift (`check_manifest_md_sync()` in `tools/verify-content-quality.py`).
 | Error handling patterns | `patterns/error-handling/README.md` | guide | Explicit errors, wrapping, retry/circuit-breaker, structured logging |
 | API design overview | `patterns/api-design/README.md` | guide | Entry point for HTTP API design — routes to REST_CONVENTIONS.md |
 | REST API conventions | `patterns/api-design/REST_CONVENTIONS.md` | guide | Resource naming, HTTP methods/status codes, RFC 9457 errors, versioning, pagination, auth |
+| Refactoring | `patterns/refactoring/README.md` | guide | Safe code restructuring — behavior-preservation contracts, characterization tests, incremental reversible steps, protected public contracts |
 
 ## Agentic & Autonomous Systems
 
@@ -132,6 +133,7 @@ they drift (`check_manifest_md_sync()` in `tools/verify-content-quality.py`).
 | SOLID principles | `.claude/skills/solid-principles/SKILL.md` | skill | SRP, OCP, LSP, ISP, DIP; load during design review or when a class feels too large |
 | Design patterns | `.claude/skills/design-patterns/SKILL.md` | skill | Factory, Strategy, Observer, Repository, Decorator, Command, Builder; load when recognizing a recurring design problem |
 | Clean architecture | `.claude/skills/clean-architecture/SKILL.md` | skill | Hexagonal/ports-and-adapters, domain isolation; load when business logic is tangled with infrastructure |
+| Refactoring | `.claude/skills/refactoring/SKILL.md` | skill | Loads on demand when restructuring code, renaming, extracting functions, or moving modules — ensures refactoring preserves behavior |
 
 ## Custom Agents (task delegation to a separate agent instance — a different mechanism from skills, ported to Codex/OpenCode/Cursor/Kilo Code/Copilot/Gemini CLI/Qwen Code)
 

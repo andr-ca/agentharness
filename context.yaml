@@ -336,6 +336,17 @@ entries:
     last_verified: '2026-08-07'
     invalidate_on:
     - patterns/api-design/REST_CONVENTIONS.md
+- id: refactoring-guide
+  path: patterns/refactoring/README.md
+  kind: policy
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_verified: '2026-08-31'
+    invalidate_on:
+    - patterns/refactoring/README.md
 - id: agentic-loops-guide
   path: patterns/agentic-loops/README.md
   kind: policy
@@ -710,6 +721,17 @@ entries:
     last_verified: '2026-08-07'
     invalidate_on:
     - .claude/skills/requirements-clarification/SKILL.md
+- id: skill-refactoring
+  path: .claude/skills/refactoring/SKILL.md
+  kind: pattern
+  authority: none
+  lifecycle: durable
+  loading: on-demand
+  provenance: verified
+  freshness:
+    last_verified: '2026-08-31'
+    invalidate_on:
+    - .claude/skills/refactoring/SKILL.md
 - id: skill-security-review
   path: .claude/skills/security-review/SKILL.md
   kind: pattern

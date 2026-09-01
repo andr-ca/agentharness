@@ -179,6 +179,10 @@ sections:
     path: patterns/api-design/REST_CONVENTIONS.md
     type: guide
     when_to_use: Resource naming, HTTP methods/status codes, RFC 9457 errors, versioning, pagination, auth
+  - asset: Refactoring
+    path: patterns/refactoring/README.md
+    type: guide
+    when_to_use: Safe code restructuring — behavior-preservation contracts, characterization tests, incremental reversible steps, protected public contracts
 - name: Agentic & Autonomous Systems
   columns:
   - Asset
@@ -403,6 +407,10 @@ sections:
     path: .claude/skills/clean-architecture/SKILL.md
     type: skill
     when_to_use: Hexagonal/ports-and-adapters, domain isolation; load when business logic is tangled with infrastructure
+  - asset: Refactoring
+    path: .claude/skills/refactoring/SKILL.md
+    type: skill
+    when_to_use: Loads on demand when restructuring code, renaming, extracting functions, or moving modules — ensures refactoring preserves behavior
 - name: Custom Agents (task delegation to a separate agent instance — a different mechanism from skills, ported to Codex/OpenCode/Cursor/Kilo Code/Copilot/Gemini CLI/Qwen Code)
   columns:
   - Asset
