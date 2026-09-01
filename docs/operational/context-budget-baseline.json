@@ -4,39 +4,39 @@
       "bytes": 20010,
       "name": "CLAUDE.md",
       "present": true,
-      "tokens": 4964
+      "tokens": 5211
     },
     {
       "bytes": 31312,
       "name": "AGENTS.md",
       "present": true,
-      "tokens": 7757
+      "tokens": 8180
     },
     {
       "bytes": 31566,
       "name": "GEMINI.md",
       "present": true,
-      "tokens": 7821
+      "tokens": 8244
     },
     {
       "bytes": 31504,
       "name": ".github/copilot-instructions.md",
       "present": true,
-      "tokens": 7805
+      "tokens": 8228
     },
     {
       "bytes": 31396,
       "name": ".kilo/rules/agentharness.md",
       "present": true,
-      "tokens": 7778
+      "tokens": 8135
     },
     {
       "bytes": 20966,
       "name": ".cursor/rules/agentharness-router.mdc",
       "present": true,
-      "tokens": 5202
+      "tokens": 5448
     }
   ],
   "total_bytes": 166754,
-  "total_tokens": 41327
+  "total_tokens": 43446
 }

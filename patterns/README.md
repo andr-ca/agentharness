@@ -17,6 +17,7 @@ list):
 - **mutation-testing/** – Mutation testing: operators, score thresholds, mutmut/Stryker/gremlins tooling, surviving mutant triage
 - **multi-agent-coordination/** – Per-feature lock-file protocol for concurrent agent sessions; stale detection, worktree isolation
 - **file-placement-policy/** – Where agents may create files; guarded paths, init-time analysis, pre-commit enforcement
+- **refactoring/** – Safe code restructuring; behavior-preservation contracts, characterization tests, incremental reversible steps, protected public contracts
 
 Other pattern categories remain unbuilt — see
 [ROADMAP.md](../ROADMAP.md) before assuming one exists.
