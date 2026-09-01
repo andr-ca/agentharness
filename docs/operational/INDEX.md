@@ -106,10 +106,10 @@ index of all review documents. Summary below for quick navigation:
 
 Historical documents kept for reference:
 
-- **Harness Engineering recommendations status (2026-07-15)** — completed
+- **Harness Engineering recommendations status (2026-07-22)** — completed
   product-fit assessment of `lopopolo/harness-engineering`; all seven
   feature recommendations (issues #137–#143) have now closed. Archived
-  after closure. `archives/harness-engineering-recommendations-status.md`
+  after closure. [`archives/harness-engineering-recommendations-status.md`](archives/harness-engineering-recommendations-status.md)
 
 - **Context management analysis (2026-07-29)** — build-order assessment
   for the Context Plane epic (#194); the epic's slices 0-3 have since

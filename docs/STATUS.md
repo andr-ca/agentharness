@@ -26,7 +26,7 @@ line is the bug.
 
 ## Release
 
-- **Current version:** `v0.8.1` (npm `package.json`; `pyproject.toml` at 0.1.1 — Python core is experimental/unreleased, not yet distributed via npm). Published to
+- **Current version:** `v0.8.1` (npm `package.json`; `pyproject.toml` at 0.1.1 — Python core is experimental, bundled into the npm tarball (`dist/agentharness.pyz` etc.) but not yet published to PyPI as a standalone package). Published to
   npm as `agentharness-toolkit`. See
   [RELEASING.md](./RELEASING.md) and [DECISIONS.md](./DECISIONS.md).
 
