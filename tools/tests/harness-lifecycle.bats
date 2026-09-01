@@ -792,6 +792,66 @@ print('ok')
     [[ "$output" =~ "ok" ]]
 }
 
+@test "lifecycle: update/status/doctor handle legacy v1 state files without schema_version key (P1-09)" {
+    # P1-09: real E2E test that exercises state migration through actual CLI
+    # commands against a genuine old-format state file (v1 with no schema_version).
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing --mode copy
+
+    # Create a legacy v1-format state file (no schema_version key, just "version": 1)
+    python3 -c "
+import json
+p = '$TEST_PROJECT/.agentharness-state.json'
+with open(p) as f:
+    data = json.load(f)
+# Remove schema_version to simulate an old v1 file
+data.pop('schema_version', None)
+# Optionally remove to make it truly v1 (no version field either, which defaults to 1)
+# but keep version: 1 for clarity
+with open(p, 'w') as f:
+    json.dump(data, f, indent=2)
+    f.write('\n')
+"
+
+    # status should work without crashing and properly handle the v1 file
+    run bash "$SCRIPT" status "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "agentharness install status" ]]
+
+    # doctor should work and report state_schema_version as 3 (migrated)
+    run bash "$SCRIPT" doctor "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+
+    # audit --json should work and report state_schema_version as 3
+    run bash "$SCRIPT" audit "$TEST_PROJECT" --json
+    [ "$status" -eq 0 ]
+    run python3 -c "
+import json
+d = json.loads('''$output''')
+assert d['state_schema_version'] == 3, f'Expected schema_version=3, got {d.get(\"state_schema_version\")}'
+print('ok')
+"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "ok" ]]
+
+    # update should work without crashing
+    run bash "$SCRIPT" update "$TEST_PROJECT" --yes
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Updated" ]]
+
+    # After update, the state file should be at v3 with schema_version key
+    run python3 -c "
+import json
+p = '$TEST_PROJECT/.agentharness-state.json'
+with open(p) as f:
+    data = json.load(f)
+assert data.get('version') == 1, f'Expected version=1, got {data.get(\"version\")}'
+assert data.get('schema_version') == 3, f'Expected schema_version=3, got {data.get(\"schema_version\")}'
+print('ok')
+"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "ok" ]]
+}
+
 @test "lifecycle: update declining the confirmation prompt does not regenerate the check wrapper (Copilot review)" {
     bash "$SCRIPT" init "$TEST_PROJECT" --skills committing,branching --mode link
     rm -f "$TEST_PROJECT/.agentharness-bin/check"

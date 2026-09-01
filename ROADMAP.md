@@ -407,11 +407,17 @@ label by the review filename cited next to it, never by number alone.
   overwriting it in place on the next save — see
   `test_load_state_rejects_newer_schema_version`,
   `test_load_state_rejects_garbage_schema_version`, and
-  `test_load_state_rejects_boolean_schema_version`. **Still genuinely
-  open:** the migration chain itself is exercised only as unit tests
-  against synthetic fixtures, not an end-to-end `update`/`uninstall`
-  run against real old-release state in CI; and there's no retained
-  state fixture per actual release.
+  `test_load_state_rejects_boolean_schema_version`. **The end-to-end
+  testing gap is now closed:** `tools/tests/harness-lifecycle.bats` includes
+  the test "lifecycle: update/status/doctor handle legacy v1 state files
+  without schema_version key" which exercises `update`/`status`/`doctor`/`audit`
+  against a real v1-format old state file, verifying they work correctly and
+  migrate the state to v3. Also fixed: `harness-link.sh`'s `state_write()` now
+  persists `schema_version: 3` to disk, ensuring the on-disk representation
+  matches what `load_state()` reports (previously `schema_version` was computed
+  in memory by `load_state()` but not written back, creating an inconsistency).
+  **Still open:** retained state fixtures per actual release to test against
+  multiple archived release formats.
 - **P1-10 — Consolidate operational review history.** The review/status
   chain is valuable but long, repetitive, and easy to read out of
   chronological context; several current docs link deep into old status

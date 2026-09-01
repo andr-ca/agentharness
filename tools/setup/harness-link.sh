@@ -278,6 +278,7 @@ if Path(path).exists():
 
 data = {
     "version": 1,
+    "schema_version": 3,  # Must stay in sync with SCHEMA_VERSION in install_transaction.py
     "mode": os.environ["AH_MODE"],
     "source": {
         "path": os.environ["AH_SOURCE_PATH"],
