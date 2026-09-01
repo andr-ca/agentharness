@@ -95,16 +95,17 @@ Never change these during refactoring:
 **Changing a contract is a feature.** Use a deprecation pattern instead:
 
 ```python
-# Old way (deprecated)
-def get_user_name(user):
+# Step 1: Add new name as primary
+def full_name(user):
     return user.full_name
 
-# New way
-@deprecated("Use user.full_name directly")
+# Step 2: Keep old name as deprecated alias (thin wrapper calling new name)
+@deprecated("Use full_name() instead")
 def get_user_name(user):
-    return user.full_name  # Thin wrapper, logs warning
+    return full_name(user)
 
-# Later release: remove deprecated function
+# Step 3: Update all call sites to full_name()
+# Step 4: Later release: remove get_user_name()
 ```
 
 What *can* change freely (internal details):
