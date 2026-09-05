@@ -17,7 +17,7 @@ line is the bug.
 
 - **Maintained by hand** — update it in the same PR that changes what it
   describes.
-- **Last verified against the tree:** 2026-09-05 (commit `104413e`).
+- **Last verified against the tree:** 2026-09-05 (commit `2d86576`).
 - **Standing caveat:** Claude Code is dogfooded in this repo. Cursor and
   Codex CLI have dated live-session notes from
   [#240](https://github.com/andr-ca/agentharness/issues/240)
