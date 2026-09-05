@@ -8,7 +8,7 @@ Currently being researched, developed, or planned:
 
 | Document                     | Status            | Purpose                                                                                                                                                      | Location                                         |
 | ---------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------ |
-| Dogfooding plan              | Not started       | Executable plan + tracking template to get real-world evidence (P2-05/P2-02)                                                                                 | `planning/DOGFOODING.md`                         |
+| Dogfooding plan              | One row recorded; independent-repo half still open | Executable plan + tracking template. First dated row: `reviews/dogfood-recalium-2026-08-20-status.md`. What's still missing is a target that isn't the same operator's own project. | `planning/DOGFOODING.md`                         |
 | Skill recommendations        | Analysis complete | Survey of up to 15 optional skills to add; analysis and prioritized recommendations only, no implementation yet                                              | `skill-recommendations-2026-07-14.md`            |
 | Harness ideation disposition | Analysis complete | Filtered assessment of an external intent-first-harness ideation note; 6 items added to ROADMAP.md (I-01…I-06), heavy machinery rejected with rationale      | `reviews/harness-ideation-2026-07-15-status.md`  |
 | Public-launch readiness plan | In progress       | Sequenced pre-attention checklist verified against HEAD 2026-07-16: close open P0s (F-02–F-05), repo front-door polish, doc-accuracy sweep, dogfood evidence | `planning/public-launch-readiness-2026-07-16.md` |
@@ -97,10 +97,10 @@ index of all review documents. Summary below for quick navigation:
   Filed 2026-07-14. 5 P0 blockers (1 done, 4 not started), 11 P1
   improvements, 4 P2 follow-ups. **Requires user scoping for P1+ before implementation.**
 
-- `reviews/fable-gpt5-sol-disposition-2026-07-14.md` — merged disposition
-  of Fable (7.2/10) + GPT-5.6 fourth-pass (7.4/10 at different commits).
-  Filed 2026-07-14. 5 P0 blockers (1 done, 4 not started), 11 P1
-  improvements, 4 P2 follow-ups. **Requires user scoping for P1+ before implementation.**
+- `reviews/dogfood-recalium-2026-08-20-status.md` — first dated P2-05/P2-02
+  dogfood row (`andr-ca/recalium`, compiled 2026-08-20). Closes the
+  recorded-row half of the dogfood plan; the independent-operator half
+  is still open.
 
 ## 📚 Archives
 
