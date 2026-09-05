@@ -20,11 +20,11 @@ or `production`:
 echo production > .agentharness-profile
 ```
 
-**Current state — enforced for Python, Go, and JS/TS (`node --test` or
-Vitest) projects; advisory for everything else.** `harness-link.sh
-enforce-profile <project>` reads `.agentharness-profile` and gates on it
-for real, at a tier where `tests.required` is not `false` (prototype
-skips entirely):
+**Current state — enforced for Python, Go, and JS/TS (`node --test`,
+Vitest, or Jest) projects; advisory for everything else.**
+`harness-link.sh enforce-profile <project>` reads
+`.agentharness-profile` and gates on it for real, at a tier where
+`tests.required` is not `false` (prototype skips entirely):
 
 - **Python** (`pyproject.toml`/`setup.py`/`requirements.txt` present):
   runs `pytest --cov-fail-under=<tier's coverage_min>` and fails if it
@@ -47,18 +47,30 @@ turn every such "not implemented" case into a failure instead, so a CI
 job can require that every project it runs against is one enforcement
 actually understands.
 
-This is **not** wired into `.github/hooks/pre-push` automatically —
-that hook still only ever runs *this* repo's own hardcoded test suites
-and no-ops for a consumer's push (see the hook's own comments and
-`docs/operational/reviews/gpt-5.6-review-status.md`, finding 1).
-Silently changing that default for every project that already has
-`--with-hook` installed is its own decision; `enforce-profile` ships
-first as an explicitly-invoked subcommand, same posture as
-`audit`/`doctor`, so a project or CI job opts in by calling it.
+**Push gate (opt-in).** `--with-coverage-hook` generates a project-owned
+`pre-push` that invokes `enforce-profile` against the *consumer*
+project — not this harness checkout — on every push (P0-03 / issue #317).
+That is the install that makes the coverage floor mechanical.
+`--with-hook` alone still only installs trunk protection; silently
+changing that default for existing `--with-hook`-only installs is a
+breaking-ish decision this repo will not make.
 
-Go profile enforcement, and JS/TS enforcement for runners other than
-`node --test`, remain unimplemented — tracked in `ROADMAP.md` as natural
-extensions once there's real usage to learn from.
+The generated hook calls `enforce-profile` **without** `--strict`.
+Unsupported project types and runners (Mocha, unclassified projects)
+stay advisory on push (exit 0), matching `enforce-profile`'s default.
+`--strict` remains an explicit extra call — pass it when invoking
+`enforce-profile` directly (CI, or by hand) if you want unsupported
+runners to fail. There is no install-time flag that selects strict for
+this hook.
+
+This harness's own `.github/hooks/pre-push` is unchanged: it still only
+ever runs *this* repo's hardcoded suites and no-ops for a borrowed
+`core.hooksPath` (see the hook's own comments). A copy-mode install
+whose recorded `harness-link.sh` path is gone fails the next push with
+a clear missing-path message rather than that wrong-repo no-op.
+
+A Mocha adapter remains unimplemented — tracked in `ROADMAP.md` as
+P1-02's remaining runner gap.
 
 ## Precedence order
 
@@ -77,9 +89,9 @@ higher wins:
    `languages/python/CONVENTIONS.md` — where it's more specific than the
    generic tier table for that language.
 5. **The generic default** — the Rigor Tiers table's `internal` column,
-   used when nothing above says otherwise. If profile selection is ever
-   wired into a mechanical gate (see "Current state" above), that gate
-   must default to `production` (fail-safe) rather than `internal`
+   used when nothing above says otherwise. The mechanical gate
+   (`enforce-profile`, including the `--with-coverage-hook` pre-push)
+   already defaults to `production` (fail-safe) rather than `internal`
    whenever `.agentharness-profile` is absent or unrecognized — a missing
    or misspelled file must never silently relax enforcement.
 

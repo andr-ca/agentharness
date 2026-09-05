@@ -40,6 +40,17 @@ section into a tagged version.
   now checks both shapes.
 
 ### Fixed
+- **Docs still described `enforce-profile` as unwired into consumer
+  `pre-push` after `--with-coverage-hook` already did that (issue #317 /
+  ROADMAP P1-02).** The generated hook has called `enforce-profile`
+  against the consumer since P0-03; `KNOWN_LIMITATIONS`, `STATUS`,
+  `patterns/profiles/README.md`, and the P1-02 ROADMAP entry still said
+  it was an explicitly-invoked subcommand only. Those now match the
+  install: `--with-coverage-hook` is the push gate; `--with-hook` alone
+  is unchanged; the generated hook does not pass `--strict`. Tests now
+  also cover a copy-mode missing harness path (clear error, not the
+  harness self-test no-op) and that a `--with-hook`-only undercovered
+  push still succeeds.
 - **`doctor` reported stale drift ("expected one managed block, found
   0") after `generate-clients` legitimately converted an init-written
   block-managed file to a whole-file surface.** Standalone

@@ -102,7 +102,7 @@ entries:
   loading: on-demand
   provenance: verified
   freshness:
-    last_verified: '2026-08-21'
+    last_verified: '2026-09-05'
     invalidate_on:
     - patterns/profiles/README.md
 - id: branching-strategy
