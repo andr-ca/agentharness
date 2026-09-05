@@ -792,6 +792,72 @@ print('ok')
     [[ "$output" =~ "ok" ]]
 }
 
+@test "lifecycle: update/status/doctor handle legacy v1 state files without schema_version key (P1-09)" {
+    # P1-09: real E2E test that exercises state migration through actual CLI
+    # commands against a genuine old-format state file (v1 with no schema_version).
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills committing --mode copy
+
+    # Create a legacy v1-format state file: no schema_version key, and none
+    # of the v2 (managed_blocks, overwritten_files, collision_decisions) or
+    # v3 (skill_sources) fields either, since real v1 state predates all of
+    # them. This exercises load_state()'s setdefault() migration path for
+    # those fields, not just the schema_version write-back.
+    python3 -c "
+import json
+p = '$TEST_PROJECT/.agentharness-state.json'
+with open(p) as f:
+    data = json.load(f)
+for f in ('schema_version', 'managed_blocks', 'overwritten_files', 'collision_decisions', 'skill_sources'):
+    data.pop(f, None)
+with open(p, 'w') as f:
+    json.dump(data, f, indent=2)
+    f.write('\n')
+"
+
+    # status should work without crashing and properly handle the v1 file
+    run bash "$SCRIPT" status "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "agentharness install status" ]]
+
+    # doctor should work against the migrated state without crashing (doctor
+    # itself doesn't report schema_version — audit --json does, checked below)
+    run bash "$SCRIPT" doctor "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+
+    # audit --json should work and report state_schema_version as 3
+    run bash "$SCRIPT" audit "$TEST_PROJECT" --json
+    [ "$status" -eq 0 ]
+    run python3 -c "
+import json
+d = json.loads('''$output''')
+assert d['state_schema_version'] == 3, f'Expected schema_version=3, got {d.get(\"state_schema_version\")}'
+print('ok')
+"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "ok" ]]
+
+    # update should work without crashing. A true v1 file has no
+    # overwritten_files record, so update no longer recognizes AGENTS.md as
+    # harness-created and treats it as a collision -- --keep-existing
+    # resolves it (content is unchanged since init, so this is safe).
+    run bash "$SCRIPT" update "$TEST_PROJECT" --yes --keep-existing
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Updated" ]]
+
+    # After update, the state file should be at v3 with schema_version key
+    run python3 -c "
+import json
+p = '$TEST_PROJECT/.agentharness-state.json'
+with open(p) as f:
+    data = json.load(f)
+assert data.get('version') == 1, f'Expected version=1, got {data.get(\"version\")}'
+assert data.get('schema_version') == 3, f'Expected schema_version=3, got {data.get(\"schema_version\")}'
+print('ok')
+"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "ok" ]]
+}
+
 @test "lifecycle: update declining the confirmation prompt does not regenerate the check wrapper (Copilot review)" {
     bash "$SCRIPT" init "$TEST_PROJECT" --skills committing,branching --mode link
     rm -f "$TEST_PROJECT/.agentharness-bin/check"

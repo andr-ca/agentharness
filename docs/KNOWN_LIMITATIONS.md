@@ -113,12 +113,12 @@ noted — resolve any label against the review filename cited next to it in
   as their findings are fully incorporated. See
   [docs/operational/README.md](./operational/README.md) for the promote/archive/delete
   lifecycle. → ROADMAP P1-10.
-- **Managed state has partial forward-migration support.** The state file
+- **Managed state has forward-migration support.** The state file
   is at `schema_version: 3` with `load_state()` migrating v1-shaped and
   v2-shaped files forward in memory. Raises `ValueError` for unrecognized
-  (newer) versions. Still open: end-to-end `update`/`uninstall` testing
-  against real old-release state, and retained state fixtures per
-  actual release. → ROADMAP P1-09.
+  (newer) versions. End-to-end testing exists (`tools/tests/harness-lifecycle.bats`
+  test "handle legacy v1 state files"). Still open: retained state fixtures per
+  actual release to test against multiple archived release formats. → ROADMAP P1-09.
 - **Package materialization no longer requires Git.** Materialized
   symlinks are now restored directly from a recorded manifest, with no
   `git checkout` call or `.git` directory required. Works in bare repos
