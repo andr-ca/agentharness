@@ -16,11 +16,12 @@ Cursor and Codex rows marked below, plus the full write-ups in
 [docs/operational/reviews/issue-240-client-live-verification-2026-08-19.md](operational/reviews/issue-240-client-live-verification-2026-08-19.md)
 and
 [docs/operational/reviews/issue-240-codex-live-verification-2026-08-23.md](operational/reviews/issue-240-codex-live-verification-2026-08-23.md).
-Treat every other row's "built" claim the same way this repo already
-treats its Codex support: implemented against the tool's published
-behavior, not dogfooded end-to-end. See `docs/DECISIONS.md`'s
-"Claude-first client scope" entry for the standing caveat this table
-doesn't relax.
+Treat every remaining row's "built" claim as implemented against that
+tool's published behavior, not dogfooded end-to-end — Gemini, Copilot,
+Kilo, OpenCode/Zed, Qwen, Antigravity, and the unverified Cursor/Codex
+surfaces named above. See `docs/DECISIONS.md`'s "Claude-first client
+scope" entry for the policy this table doesn't relax: don't claim a
+live session you haven't run.
 
 Status legend: ✅ built and dogfooded in this repo · ⚠️ passively
 covered (this repo's files match the tool's documented convention, but

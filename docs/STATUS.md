@@ -17,10 +17,16 @@ line is the bug.
 
 - **Maintained by hand** — update it in the same PR that changes what it
   describes.
-- **Last verified against the tree:** 2026-09-01 (commit `99e1537`).
-- **Standing caveat:** everything except Claude Code is implemented
-  against each tool's *published* behavior, **not** dogfooded against a
-  live session — see
+- **Last verified against the tree:** 2026-09-05 (commit `104413e`).
+- **Standing caveat:** Claude Code is dogfooded in this repo. Cursor and
+  Codex CLI have dated live-session notes from
+  [#240](https://github.com/andr-ca/agentharness/issues/240)
+  ([2026-08-19 Cursor](./operational/reviews/issue-240-client-live-verification-2026-08-19.md),
+  [2026-08-23 Codex](./operational/reviews/issue-240-codex-live-verification-2026-08-23.md);
+  Cursor's 2026-08-22 pre-tool guard is in
+  [CLIENT_COMPATIBILITY.md](./CLIENT_COMPATIBILITY.md)). Remaining
+  clients are still published-behavior only, not live-verified, unless
+  that matrix says otherwise — see
   [CLIENT_COMPATIBILITY.md](./CLIENT_COMPATIBILITY.md)'s intro and
   [KNOWN_LIMITATIONS.md](./KNOWN_LIMITATIONS.md).
 
