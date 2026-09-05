@@ -55,6 +55,12 @@ across the INDEX.md and inter-file references.
 |---|---|
 | [issue-240-client-live-verification-2026-08-19.md](issue-240-client-live-verification-2026-08-19.md) | Partial — setup for live Cursor/Codex verification surfaced and fixed 3 real `generate-clients` defects (PR #243); the live-agent runs themselves remain blocked externally (Codex quota, OpenCode server error, Cursor login pending) and are not yet done |
 
+### First dated dogfood row (2026-08-20)
+
+| File | Purpose |
+|---|---|
+| [dogfood-recalium-2026-08-20-status.md](dogfood-recalium-2026-08-20-status.md) | First recorded P2-05/P2-02 dogfood row for `andr-ca/recalium` (npm mode, 2026-07-16 install). Fills the DOGFOODING.md signal table from that repo's own `harness-feedback.md` and upstream issues #76, #77, #78, #79, #88, #149, #154. Install time and context cost were never measured — recorded as "not recorded", not invented. Independent-operator half of P2-05 remains open. |
+
 ### Cycle 7 — Issue #143 recurring-loop-contract evidence pass (2026-08-23)
 
 | File | Purpose |

@@ -13,6 +13,7 @@ Guides for understanding and using the agentharness repository.
 - **[CHANGELOG.md](../CHANGELOG.md)** – release history
 - **[SECURITY.md](../SECURITY.md)** – secrets-in-history procedure
 - **[INTEGRATION.md](./INTEGRATION.md)** – symlink/copy/submodule methods, per-component steps
+- **[COMPARE.md](./COMPARE.md)** – when to use agentharness vs a single `CLAUDE.md`, a native plugin, a submodule of markdown, or an org template — and the smallest migration from one existing project
 - **[ARCHITECTURE.md](./ARCHITECTURE.md)** – design philosophy and target-state layering
 - **[Project bootstrap policy design](./superpowers/specs/2026-07-14-project-bootstrap-policy-design.md)** – approved design for first-use capability discovery, modular profiles, plugins, and deterministic gates (not implemented yet)
 - **[Project bootstrap implementation plan](./superpowers/plans/2026-07-14-project-bootstrap-policy-master-plan.md)** – six-slice, test-first execution plan, including the locked runtime/distribution method
@@ -33,6 +34,13 @@ Guides for understanding and using the agentharness repository.
 2. Review `patterns/testing/` and `patterns/logging/`.
 3. Use the Claude Code skills in `.claude/skills/` — they load on
    demand instead of requiring you to read the full guide every time.
+
+### "Should I switch to this from what I already have?"
+1. Read [COMPARE.md](./COMPARE.md) for when agentharness is (and is
+   not) the right tool, and for the smallest migration from one
+   existing project.
+2. If you decide to switch, follow that page's `init --mode npm`
+   walkthrough, then INTEGRATION.md for the full command reference.
 
 ### "I need to integrate the harness into a project"
 1. Read INTEGRATION.md for the three methods and their tradeoffs.
@@ -62,6 +70,7 @@ Guides for understanding and using the agentharness repository.
 docs/
 ├── README.md                    # This file (navigation hub)
 ├── INTEGRATION.md               # How to use in projects
+├── COMPARE.md                   # When to use us vs alternatives + smallest migration
 ├── ARCHITECTURE.md              # Design and philosophy
 └── superpowers/                 # Approved specifications and execution plans
 

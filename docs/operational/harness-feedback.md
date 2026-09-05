@@ -1030,3 +1030,41 @@ fix — not filed as a separate gap here since "should `update` also
 repair hook files" is its own design question (whether silently
 touching a consumer's local hook config on update is ever wanted), not
 a bug in this fix.
+
+## 2026-09-05 – operational INDEX still said dogfood was "Not started" after #242
+
+**Recurrence key:** `one-source-of-truth-status-drift`
+
+**Harness version:** 104413e
+
+**Event class:** mandate-violation
+
+**What happened:** Implementing (really: verifying) issue #242 showed
+the comparison page, recalium dogfood row, and `DOGFOODING.md` status
+line already shipped in #252. `docs/operational/INDEX.md`'s Active
+Documents table still listed the dogfooding plan as "Not started" —
+the exact stale status #242 named, just one file over from the file
+that was updated.
+
+**Root cause:** #252 updated `DOGFOODING.md` and ROADMAP P2-05/P2-08
+but not the operational index that still advertised the old status.
+Two files stated the same fact differently, which this repo treats as
+a bug ("one source of truth per rule").
+
+**Impact:** A stranger (or a later agent assigned #242) reading the
+index still concludes dogfood never started, even though the dated
+row and the plan's own status line say otherwise. The original issue
+body quoted that stale line as the reason the pack was needed.
+
+**What agentharness should change:** when a planning doc's status
+line changes, update `docs/operational/INDEX.md` in the same commit.
+The index is not a historical snapshot — its "Active Documents"
+table claims to be current.
+
+**Corrective action taken:** updated the INDEX status to "One row
+recorded; independent-repo half still open", linked the dated
+recalium row from `reviews/README.md` and the INDEX reviews list,
+and linked `docs/COMPARE.md` from `docs/README.md` (the other #242
+success criterion that #252 left undone). Not filed as a separate
+upstream issue: this is the upstream repo and the fix lands in the
+same PR.
