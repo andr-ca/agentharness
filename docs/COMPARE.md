@@ -63,30 +63,59 @@ for why `--mode link` isn't safe there. `--skills` is optional; omit it
 to install every skill, or start narrow and widen later with `update
 --skills`.
 
+`init` does not run `agentharness bootstrap`. That is a separate,
+optional first-run tailoring step (`bootstrap plan` is read-only) —
+see [docs/INTEGRATION.md](INTEGRATION.md#first-run-bootstrap) if you
+want it after the install lands.
+
 ### 2. What lands
 
-- `.claude/skills/<name>/` (and `.agents/skills/<name>/` — the
-  Agent-Skills-standard path most non-Claude clients also read) for
-  each selected skill.
-- A managed block spliced into `CLAUDE.md`, `GEMINI.md`, and
+This is the default `--client codex` path. A selected client that
+owns one of the four always-on files generates that file whole-file
+instead of splicing a block into it:
+
+| Selected client | Owns (whole-file, not a block) |
+|---|---|
+| `codex` (default) | `AGENTS.md` |
+| `gemini` | `GEMINI.md` |
+| `copilot` | `.github/copilot-instructions.md` |
+
+Qwen → `QWEN.md`, Cursor → `.cursor/rules/*.mdc`, and Kilo →
+`.kilo/rules/agentharness.md` are extra whole-file surfaces; they do
+not take over one of the four. Pass `--client none` to skip every
+generated client surface (all four files then get a block).
+
+- `.claude/skills/<name>/`, `.agents/skills/<name>/` (the
+  Agent-Skills-standard path most non-Claude clients also read), and
+  `.qwen/skills/<name>/` (Qwen Code's own discovery directory) for
+  each selected skill. The three directories get the same `SKILL.md`;
+  `.qwen/skills/` is populated even when `--client qwen` is not
+  selected.
+- A managed block spliced into whichever of the four always-on files
+  the selected client does *not* own — on the default `--client
+  codex` path that is `CLAUDE.md`, `GEMINI.md`, and
   `.github/copilot-instructions.md` (created fresh if you don't have
-  them) — your file's other content is left alone; see
+  them). Your file's other content is left alone; see
   [docs/DEMO.md](DEMO.md) for exactly what that block looks like.
-  `AGENTS.md` is the one exception: Codex CLI is the default client
-  (`--client codex`), and a selected client that owns one of these four
-  files (Codex → `AGENTS.md`) generates it whole-file instead of
-  splicing a block in. If you're migrating from an existing `AGENTS.md`,
-  that means a collision prompt (keep/overwrite/backup) on first `init`,
-  not a silent splice — pass `--client none` if you'd rather have
-  `AGENTS.md` treated the same block-splice way as the other three.
+  `GEMINI.md` / `.github/copilot-instructions.md` stay block-spliced
+  only while `--client gemini` / `--client copilot` are not selected;
+  pick either and that file is generated whole-file instead, so an
+  existing file hits a collision prompt (keep/overwrite/backup), not
+  a silent splice. The same collision applies to `AGENTS.md` on this
+  default path — pass `--client none` if you'd rather have every one
+  of the four treated as a block splice.
 - `.agentharness-state.json`, recording mode, source revision, and
   installed skills/clients — `status`/`doctor`/`update`/`uninstall` all
   read this to know what they're managing.
+- `.agentharness-bin/check` — a small consumer-local wrapper that
+  runs `enforce-profile` against *this* project. Generated for
+  `link`/`submodule`/`npm` (not `copy`). `doctor` soft-warns if it's
+  missing; `update` regenerates it.
 - A merge of `.github/.gitignore.template` into your `.gitignore`
   (additive only — nothing pre-existing is overwritten).
 
-Nothing else. No telemetry, no background process, no network call
-beyond the one `npm install` you already agreed to by running `npx`.
+No telemetry, no background process, no network call beyond the one
+`npm install` you already agreed to by running `npx`.
 
 ### 3. What to delete from your old `CLAUDE.md`
 
@@ -130,12 +159,13 @@ healthy; `audit --json` gives a machine-readable status snapshot.
 npx agentharness-toolkit uninstall /path/to/your-project
 ```
 
-(same `harness-link.sh uninstall ...` alternative as above) removes the
-managed block (restoring your original content if the file predates the
-install), deletes files the harness created from nothing, and cleans up
-`.agentharness-state.json`. Nothing installed by `init` is left behind
-— see [docs/DEMO.md](DEMO.md) if you want to watch this in a scripted
-walkthrough first.
+(same `harness-link.sh uninstall ...` alternative as above) reverses
+what `init` recorded: the managed block (restoring your original
+content if the file predates the install), harness-created files,
+`.agentharness-bin/check`, the durable `.agentharness-pkg/` copy in
+npm mode, and `.agentharness-state.json`. See
+[docs/INTEGRATION.md](INTEGRATION.md) for the full reversal list, or
+[docs/DEMO.md](DEMO.md) to watch this in a scripted walkthrough first.
 
 ## Evidence this isn't just a pitch
 

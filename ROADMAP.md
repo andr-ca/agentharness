@@ -524,7 +524,7 @@ label by the review filename cited next to it, never by number alone.
   agent plugin, dotfiles/a submodule of policy docs, or an organization
   template — including when *not* to use it, the smallest migration from
   one existing project, and its ongoing maintenance cost via `update`.
-  Linked from README.
+  Linked from README and [docs/README.md](docs/README.md).
 
 ## Ideation Backlog (I-01…I-06, 2026-07-15)
 
