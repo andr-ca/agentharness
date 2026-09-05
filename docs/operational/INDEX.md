@@ -97,11 +97,6 @@ index of all review documents. Summary below for quick navigation:
   Filed 2026-07-14. 5 P0 blockers (1 done, 4 not started), 11 P1
   improvements, 4 P2 follow-ups. **Requires user scoping for P1+ before implementation.**
 
-- `reviews/fable-gpt5-sol-disposition-2026-07-14.md` — merged disposition
-  of Fable (7.2/10) + GPT-5.6 fourth-pass (7.4/10 at different commits).
-  Filed 2026-07-14. 5 P0 blockers (1 done, 4 not started), 11 P1
-  improvements, 4 P2 follow-ups. **Requires user scoping for P1+ before implementation.**
-
 - `reviews/dogfood-recalium-2026-08-20-status.md` — first dated P2-05/P2-02
   dogfood row (`andr-ca/recalium`, compiled 2026-08-20). Closes the
   recorded-row half of the dogfood plan; the independent-operator half
