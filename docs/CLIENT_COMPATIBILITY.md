@@ -18,8 +18,11 @@ and
 [docs/operational/reviews/issue-240-codex-live-verification-2026-08-23.md](operational/reviews/issue-240-codex-live-verification-2026-08-23.md).
 Treat every remaining row's "built" claim as implemented against that
 tool's published behavior, not dogfooded end-to-end — Gemini, Copilot,
-Kilo, OpenCode/Zed, Qwen, Antigravity, and the unverified Cursor/Codex
-surfaces named above. See `docs/DECISIONS.md`'s "Claude-first client
+Kilo, OpenCode/Zed, Qwen, and Antigravity. Cursor and Codex surfaces
+the opening does not mark live-verified (Cursor subagent porting)
+stay in that same unpublished-behavior bucket; Codex's `PreToolUse`
+runtime is already settled above as live-tested and confirmed
+non-functional. See `docs/DECISIONS.md`'s "Claude-first client
 scope" entry for the policy this table doesn't relax: don't claim a
 live session you haven't run.
 
