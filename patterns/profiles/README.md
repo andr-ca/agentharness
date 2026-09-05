@@ -49,8 +49,8 @@ actually understands.
 
 **Push gate (opt-in).** `--with-coverage-hook` generates a project-owned
 `pre-push` that invokes `enforce-profile` against the *consumer*
-project — not this harness checkout — on every push (P0-03 / issue
-#317). That is the install that makes the coverage floor mechanical.
+project — not this harness checkout — on every push (P0-03 / issue #317).
+That is the install that makes the coverage floor mechanical.
 `--with-hook` alone still only installs trunk protection; silently
 changing that default for existing `--with-hook`-only installs is a
 breaking-ish decision this repo will not make.
