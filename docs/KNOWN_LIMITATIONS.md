@@ -11,10 +11,20 @@ noted — resolve any label against the review filename cited next to it in
 
 ## Verification & evidence
 
-- **Not verified against live tool sessions (except Claude Code).** Every
-  generated adapter (`AGENTS.md`, `GEMINI.md`,
-  `.github/copilot-instructions.md`, `.cursor/rules/`, `.kilo/rules/`)
-  and every custom-agent port is implemented against each tool's
+- **Live-session verification is partial.** Claude Code is fully
+  dogfooded. Cursor and Codex CLI have dated live-session notes from
+  [#240](https://github.com/andr-ca/agentharness/issues/240)
+  ([Cursor 2026-08-19](./operational/reviews/issue-240-client-live-verification-2026-08-19.md)
+  always-on router + two on-demand rules;
+  [Codex 2026-08-23](./operational/reviews/issue-240-codex-live-verification-2026-08-23.md)
+  always-on `AGENTS.md` + on-demand skills). Cursor's 2026-08-22
+  `beforeShellExecution` guard is live-verified in
+  [CLIENT_COMPATIBILITY.md](./CLIENT_COMPATIBILITY.md); Cursor
+  subagent porting remains unverified, and Codex's `PreToolUse`
+  runtime was live-tested and confirmed non-functional. Remaining
+  generated adapters (`GEMINI.md`, `.github/copilot-instructions.md`,
+  `.kilo/rules/`, OpenCode/Zed `AGENTS.md` reuse, Qwen) and every
+  custom-agent port are still implemented against each tool's
   *published* behavior, not dogfooded end-to-end. See
   [CLIENT_COMPATIBILITY.md](./CLIENT_COMPATIBILITY.md)'s intro and
   [DECISIONS.md](./DECISIONS.md)'s "Claude-first client scope".
