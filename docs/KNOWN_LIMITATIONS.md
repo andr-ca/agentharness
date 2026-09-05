@@ -58,13 +58,16 @@ noted — resolve any label against the review filename cited next to it in
 
 ## Enforcement
 
-- **Profile enforcement is partial and optional.** `harness-link.sh
-  enforce-profile` gates for real on Python, Go, and `node --test`/Vitest/Jest
-  JS/TS projects; Mocha and unrecognized project types are advisory (exit 0,
-  or fail under `--strict`). It is **not wired into the pre-push hook** —
-  it ships as an explicitly-invoked subcommand — and therefore not enforced
-  on every push. A `--strict` flag is available to make unsupported
-  project/runner combinations fail instead of pass silently. → ROADMAP P1-02.
+- **Profile enforcement is opt-in on push, and still advisory for some
+  runners.** `harness-link.sh enforce-profile` gates for real on Python,
+  Go, and `node --test`/Vitest/Jest JS/TS projects; Mocha and unrecognized
+  project types are advisory (exit 0, or fail under `--strict`). A
+  consumer who installs with `--with-coverage-hook` gets that gate on
+  every push via a generated project-owned `pre-push` (P0-03 / issue
+  #317). `--with-hook` alone does not. The generated hook does **not**
+  pass `--strict` — unsupported runners stay advisory on push unless the
+  operator invokes `enforce-profile --strict` themselves. Still open: a
+  Mocha adapter. → ROADMAP P1-02.
 
 ## Runtime upgrades
 

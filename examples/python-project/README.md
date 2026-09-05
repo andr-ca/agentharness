@@ -13,5 +13,6 @@ bash verify.sh
 ```
 
 Exercised in CI across all three install modes (link/copy/submodule) by
-the `fixture-matrix` job in `.github/workflows/ci.yml`, which also runs
-`doctor`, `update`, and `uninstall` against it.
+the `fixture-matrix` job in `.github/workflows/ci.yml` (`init
+--with-coverage-hook`), which also runs `doctor`, `update`, and
+`uninstall` against it.
