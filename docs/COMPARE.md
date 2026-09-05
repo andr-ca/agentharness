@@ -70,12 +70,20 @@ want it after the install lands.
 
 ### 2. What lands
 
-This is the default `--client codex` path. Other `--client` values
-generate their own whole-file surfaces instead of (or in addition to)
-the block splice below — Gemini → `GEMINI.md`, Copilot →
-`.github/copilot-instructions.md`, Qwen → `QWEN.md`, Cursor →
-`.cursor/rules/*.mdc`, Kilo → `.kilo/rules/agentharness.md`. Pass
-`--client none` to skip every generated client surface.
+This is the default `--client codex` path. A selected client that
+owns one of the four always-on files generates that file whole-file
+instead of splicing a block into it:
+
+| Selected client | Owns (whole-file, not a block) |
+|---|---|
+| `codex` (default) | `AGENTS.md` |
+| `gemini` | `GEMINI.md` |
+| `copilot` | `.github/copilot-instructions.md` |
+
+Qwen → `QWEN.md`, Cursor → `.cursor/rules/*.mdc`, and Kilo →
+`.kilo/rules/agentharness.md` are extra whole-file surfaces; they do
+not take over one of the four. Pass `--client none` to skip every
+generated client surface (all four files then get a block).
 
 - `.claude/skills/<name>/`, `.agents/skills/<name>/` (the
   Agent-Skills-standard path most non-Claude clients also read), and
@@ -83,18 +91,19 @@ the block splice below — Gemini → `GEMINI.md`, Copilot →
   each selected skill. The three directories get the same `SKILL.md`;
   `.qwen/skills/` is populated even when `--client qwen` is not
   selected.
-- A managed block spliced into `CLAUDE.md`, `GEMINI.md`, and
+- A managed block spliced into whichever of the four always-on files
+  the selected client does *not* own — on the default `--client
+  codex` path that is `CLAUDE.md`, `GEMINI.md`, and
   `.github/copilot-instructions.md` (created fresh if you don't have
-  them) — your file's other content is left alone; see
+  them). Your file's other content is left alone; see
   [docs/DEMO.md](DEMO.md) for exactly what that block looks like.
-  `AGENTS.md` is the one exception on the default path: Codex CLI is
-  the default client (`--client codex`), and a selected client that
-  owns one of the four always-on files (Codex → `AGENTS.md`) generates
-  it whole-file instead of splicing a block in. If you're migrating
-  from an existing `AGENTS.md`, that means a collision prompt
-  (keep/overwrite/backup) on first `init`, not a silent splice — pass
-  `--client none` if you'd rather have `AGENTS.md` treated the same
-  block-splice way as the other three.
+  `GEMINI.md` / `.github/copilot-instructions.md` stay block-spliced
+  only while `--client gemini` / `--client copilot` are not selected;
+  pick either and that file is generated whole-file instead, so an
+  existing file hits a collision prompt (keep/overwrite/backup), not
+  a silent splice. The same collision applies to `AGENTS.md` on this
+  default path — pass `--client none` if you'd rather have every one
+  of the four treated as a block splice.
 - `.agentharness-state.json`, recording mode, source revision, and
   installed skills/clients — `status`/`doctor`/`update`/`uninstall` all
   read this to know what they're managing.
