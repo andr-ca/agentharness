@@ -1680,6 +1680,27 @@ cmd_init() {
                 existing_hooks_abs="$(python3 -c "import os.path, sys; print(os.path.normpath(sys.argv[1]))" "$existing_hooks_abs")"
                 hooks_path="$(python3 -c "import os.path, sys; print(os.path.normpath(sys.argv[1]))" "$hooks_path")"
             fi
+            # Record core.hooksPath relative to $target whenever it
+            # resolves inside the target's own tree (copy mode,
+            # coverage_hook-forced real files, submodule's/npm-durable's
+            # $target/<vendored-path>/.github/hooks) — never the absolute
+            # form. Git worktrees SHARE .git/config but each has its own
+            # working-tree root that a relative hooksPath resolves
+            # against at run time (see the normalization comment above);
+            # an absolute path baked in from a disposable worktree used
+            # at install time goes stale and silently no-ops the moment
+            # that worktree is removed, even though the consumer's other
+            # worktrees (including its main checkout) have the exact same
+            # hooks at the exact same *relative* location (issue #319).
+            # "link" mode's $HARNESS_DIR path is the one legitimate
+            # exception: it names a genuinely separate checkout outside
+            # $target's own tree, so it must stay absolute. Computed from
+            # the now-normalized $hooks_path so a trailing-slash/'./'
+            # artifact can't leak into the recorded relative form.
+            local hooks_path_record="$hooks_path"
+            case "$hooks_path" in
+                "$target"/*) hooks_path_record="${hooks_path#"$target"/}" ;;
+            esac
             if [ -n "$existing_hooks_abs" ] && [ "$existing_hooks_abs" != "$hooks_path" ] && [ "$force" != true ]; then
                 echo "  --with-hook requested but $target already has a different core.hooksPath set:" >&2
                 echo "    $existing_hooks_path" >&2
@@ -1713,10 +1734,10 @@ cmd_init() {
                     # install correctly ends up with no pre-push file at all.
                 fi
                 if [ -n "$existing_hooks_abs" ] && [ "$existing_hooks_abs" != "$hooks_path" ]; then
-                    git -C "$target" config core.hooksPath "$hooks_path"
+                    git -C "$target" config core.hooksPath "$hooks_path_record"
                     echo "  Overwrote existing core.hooksPath ($existing_hooks_path) with agentharness hooks (--force)"
                 else
-                    git -C "$target" config core.hooksPath "$hooks_path"
+                    git -C "$target" config core.hooksPath "$hooks_path_record"
                     if [ "$coverage_hook" = true ]; then
                         echo "  Installed trunk-protection + coverage-aware pre-push hooks (core.hooksPath)"
                     else
@@ -1743,7 +1764,7 @@ cmd_init() {
                 existing_merge_ff="$(git -C "$target" config --get merge.ff 2>/dev/null || true)"
                 git -C "$target" config merge.ff false
                 echo "  Set merge.ff=false (forces merge commits, closes the fast-forward trunk-protection bypass — issue #155)"
-                installed_hooks_path="$hooks_path"
+                installed_hooks_path="$hooks_path_record"
             fi
         fi
     fi
@@ -2027,41 +2048,67 @@ cmd_doctor() {
             echo "  ✗ core.hooksPath has changed since install (recorded: $recorded_hooks_path, actual: $actual_hooks_path)" >&2
             failed=1
         else
-            echo "  ✓ core.hooksPath set ($actual_hooks_path)"
-
-            # merge.ff=false is what makes a fast-forward `git merge` into
-            # trunk create a (blockable) merge commit instead of silently
-            # moving the ref with no commit for pre-commit/pre-merge-commit
-            # to fire on (issue #155) — without it, trunk protection has a
-            # hole reachable by the most ordinary integration command.
-            local actual_merge_ff
-            actual_merge_ff="$(git -C "$target" config --get merge.ff 2>/dev/null || true)"
-            if [ "$actual_merge_ff" != "false" ]; then
-                local escaped_target_merge_ff
-                printf -v escaped_target_merge_ff '%q' "$target"
-                echo "  ✗ merge.ff is not set to false — a fast-forward merge into a trunk branch bypasses trunk protection entirely (see issue #155 for details)" >&2
-                echo "    Fix: re-run the init command with --with-hook, or 'git -C $escaped_target_merge_ff config merge.ff false' directly." >&2
+            # recorded==actual alone doesn't mean hooks actually run: a
+            # worktree-based install can bake a since-deleted absolute
+            # path into shared .git/config (worktrees share config, not
+            # a working-tree root), and that stale string still matches
+            # what was recorded (issue #319). Resolve to an absolute
+            # directory (relative core.hooksPath values resolve against
+            # the work tree root — same normalization as the install-time
+            # conflict check above) and verify it's real before trusting
+            # the string match at all.
+            local actual_hooks_dir_abs
+            case "$actual_hooks_path" in
+                /*) actual_hooks_dir_abs="$actual_hooks_path" ;;
+                *) actual_hooks_dir_abs="$target/$actual_hooks_path" ;;
+            esac
+            if [ ! -d "$actual_hooks_dir_abs" ]; then
+                echo "  ✗ core.hooksPath ($actual_hooks_path) does not resolve to an existing directory — hooks are silently not running even though the recorded and actual config match (see issue #319)" >&2
+                echo "    This usually means the path was recorded from a worktree that no longer exists. Fix: re-run 'init --with-hook' from this project's primary checkout." >&2
                 failed=1
             else
-                echo "  ✓ merge.ff=false (fast-forward merges into trunk are blocked)"
-            fi
+                echo "  ✓ core.hooksPath set ($actual_hooks_path)"
 
-            # Check that both pre-commit and pre-merge-commit hook files exist.
-            # Git only falls back to pre-commit for merge commits under certain
-            # conditions; when the fallback fails, merge commits to trunk bypass
-            # protection entirely (see issue #76 for detailed analysis).
-            local pre_commit_path="$actual_hooks_path/pre-commit"
-            local pre_merge_commit_path="$actual_hooks_path/pre-merge-commit"
-            if [ -x "$pre_commit_path" ] && [ ! -x "$pre_merge_commit_path" ]; then
-                local escaped_target
-                printf -v escaped_target '%q' "$target"
-                echo "  ✗ pre-commit hook exists but pre-merge-commit is missing — merge commits to trunk branches may bypass protection (see issue #76 for details)" >&2
-                echo "    Fix: re-run 'harness-link.sh init $escaped_target --with-hook' (or, for npm mode," >&2
-                echo "    'npx agentharness-toolkit@latest init $escaped_target --with-hook') — 'update' never" >&2
-                echo "    touches hooks by design, so this file won't appear on its own after upgrading." >&2
-                failed=1
-            elif [ -x "$pre_commit_path" ] && [ -x "$pre_merge_commit_path" ]; then
-                echo "  ✓ both pre-commit and pre-merge-commit hooks present"
+                # merge.ff=false is what makes a fast-forward `git merge` into
+                # trunk create a (blockable) merge commit instead of silently
+                # moving the ref with no commit for pre-commit/pre-merge-commit
+                # to fire on (issue #155) — without it, trunk protection has a
+                # hole reachable by the most ordinary integration command.
+                local actual_merge_ff
+                actual_merge_ff="$(git -C "$target" config --get merge.ff 2>/dev/null || true)"
+                if [ "$actual_merge_ff" != "false" ]; then
+                    local escaped_target_merge_ff
+                    printf -v escaped_target_merge_ff '%q' "$target"
+                    echo "  ✗ merge.ff is not set to false — a fast-forward merge into a trunk branch bypasses trunk protection entirely (see issue #155 for details)" >&2
+                    echo "    Fix: re-run the init command with --with-hook, or 'git -C $escaped_target_merge_ff config merge.ff false' directly." >&2
+                    failed=1
+                else
+                    echo "  ✓ merge.ff=false (fast-forward merges into trunk are blocked)"
+                fi
+
+                # Check that both pre-commit and pre-merge-commit hook files
+                # exist. Git only falls back to pre-commit for merge commits
+                # under certain conditions; when the fallback fails, merge
+                # commits to trunk bypass protection entirely (issue #76).
+                # Resolved against actual_hooks_dir_abs, not actual_hooks_path
+                # directly — the latter is only safe to test-file against
+                # when it happens to be absolute (issue #319).
+                local pre_commit_path="$actual_hooks_dir_abs/pre-commit"
+                local pre_merge_commit_path="$actual_hooks_dir_abs/pre-merge-commit"
+                if [ -x "$pre_commit_path" ] && [ ! -x "$pre_merge_commit_path" ]; then
+                    local escaped_target
+                    printf -v escaped_target '%q' "$target"
+                    echo "  ✗ pre-commit hook exists but pre-merge-commit is missing — merge commits to trunk branches may bypass protection (see issue #76 for details)" >&2
+                    echo "    Fix: re-run 'harness-link.sh init $escaped_target --with-hook' (or, for npm mode," >&2
+                    echo "    'npx agentharness-toolkit@latest init $escaped_target --with-hook') — 'update' never" >&2
+                    echo "    touches hooks by design, so this file won't appear on its own after upgrading." >&2
+                    failed=1
+                elif [ -x "$pre_commit_path" ] && [ -x "$pre_merge_commit_path" ]; then
+                    echo "  ✓ both pre-commit and pre-merge-commit hooks present"
+                else
+                    echo "  ✗ core.hooksPath ($actual_hooks_path) exists but has neither an executable pre-commit nor pre-merge-commit at it — trunk protection is not actually installed there (see issue #319)" >&2
+                    failed=1
+                fi
             fi
         fi
 
@@ -2429,13 +2476,23 @@ cmd_audit() {
             hooks_path_matches_recorded=false
         fi
         if [ -n "$core_hooks_path" ]; then
-            [ -x "$core_hooks_path/pre-commit" ] && pre_commit_present=true || pre_commit_present=false
-            [ -x "$core_hooks_path/pre-merge-commit" ] && pre_merge_commit_present=true || pre_merge_commit_present=false
+            # core_hooks_path may be recorded relative to $target (the
+            # default since issue #319 for any in-tree hook location) —
+            # a plain `-x` test resolves that against this process's CWD,
+            # not $target, so it must be made absolute first the same way
+            # doctor's equivalent check does.
+            local core_hooks_dir_abs
+            case "$core_hooks_path" in
+                /*) core_hooks_dir_abs="$core_hooks_path" ;;
+                *) core_hooks_dir_abs="$target/$core_hooks_path" ;;
+            esac
+            [ -x "$core_hooks_dir_abs/pre-commit" ] && pre_commit_present=true || pre_commit_present=false
+            [ -x "$core_hooks_dir_abs/pre-merge-commit" ] && pre_merge_commit_present=true || pre_merge_commit_present=false
             local actual_merge_ff
             actual_merge_ff="$(git -C "$target" config --get merge.ff 2>/dev/null || true)"
             [ "$actual_merge_ff" = "false" ] && merge_ff_false=true || merge_ff_false=false
             if [ "$coverage_hook" = "true" ]; then
-                if [ -x "$core_hooks_path/pre-push" ] && grep -qF "$COVERAGE_HOOK_MARKER" "$core_hooks_path/pre-push" 2>/dev/null; then
+                if [ -x "$core_hooks_dir_abs/pre-push" ] && grep -qF "$COVERAGE_HOOK_MARKER" "$core_hooks_dir_abs/pre-push" 2>/dev/null; then
                     pre_push_owned_by_harness=true
                 else
                     pre_push_owned_by_harness=false
@@ -3778,7 +3835,11 @@ cmd_uninstall() {
             # behind (pre-push is no longer one of the copied files for
             # a bare --with-hook as of issue #288's fix, but `rm -f`
             # here is harmless either way if it's absent).
-            if [ "$recorded_hooks_path" = "$target/.github/hooks" ]; then
+            # Accept both forms: pre-#319 installs recorded the absolute
+            # path; installs from this fix onward record the relative
+            # form (".github/hooks") instead — see the hooks_path_record
+            # comment in the --with-hook install branch above.
+            if [ "$recorded_hooks_path" = "$target/.github/hooks" ] || [ "$recorded_hooks_path" = ".github/hooks" ]; then
                 local coverage_hook
                 coverage_hook="$(state_field "$target" coverage_hook 2>/dev/null || echo "false")"
                 rm -f "$target/.github/hooks/pre-push" "$target/.github/hooks/pre-commit" "$target/.github/hooks/pre-merge-commit" "$target/.github/hooks/prevent-trunk-commit"

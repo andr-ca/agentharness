@@ -1457,6 +1457,124 @@ print('importable')
     [ ! -e "$TEST_PROJECT/.github/hooks" ]
 }
 
+@test "lifecycle: --mode copy --with-hook records core.hooksPath relative to the target, not absolute (#319)" {
+    # Issue #319: an absolute core.hooksPath baked in at install time goes
+    # stale the moment the directory it was resolved from (e.g. a
+    # since-removed git worktree) disappears — a relative path resolves
+    # against each worktree's own root at run time instead, so it can't
+    # go stale that way. Anything the hooks live under $target's own tree
+    # (copy mode here; --with-coverage-hook and submodule/npm-durable
+    # modes share the same code path) must record the relative form.
+    git -C "$TEST_PROJECT" init --quiet
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --with-hook
+
+    hooks_path=$(git -C "$TEST_PROJECT" config core.hooksPath)
+    [ "$hooks_path" = ".github/hooks" ]
+
+    run python3 -c "
+import json
+d = json.load(open('$TEST_PROJECT/.agentharness-state.json'))
+assert d['hooks_path'] == '.github/hooks', d['hooks_path']
+print('ok')
+"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "ok" ]]
+}
+
+@test "lifecycle: --with-coverage-hook also records core.hooksPath relative to the target (#319)" {
+    git -C "$TEST_PROJECT" init --quiet
+    bash "$SCRIPT" init "$TEST_PROJECT" --skills agentic-loops --mode link --with-coverage-hook
+
+    hooks_path=$(git -C "$TEST_PROJECT" config core.hooksPath)
+    [ "$hooks_path" = ".github/hooks" ]
+}
+
+@test "lifecycle: a --mode copy --with-hook install survives its installing worktree being removed (#319 acceptance)" {
+    # Direct reproduction of the fpl-voip field report: install from a
+    # disposable worktree of the CONSUMER project (not the harness),
+    # remove that worktree, then verify the consumer's primary checkout
+    # still has working hooks and a healthy doctor report. Worktrees
+    # share .git/config but not a working-tree root, so this only holds
+    # if core.hooksPath was recorded relative (previous test) — with the
+    # pre-#319 absolute form this reproduces doctor's false "all checks
+    # passed" on a completely dead hooksPath.
+    git -C "$TEST_PROJECT" init --quiet
+    git -C "$TEST_PROJECT" -c user.email=t@e.com -c user.name=t commit --quiet --allow-empty -m init
+
+    local feature_worktree="$TEST_PROJECT-feat-agentharness"
+    git -C "$TEST_PROJECT" worktree add --quiet -b feat/agentharness "$feature_worktree"
+
+    bash "$SCRIPT" init "$feature_worktree" --mode copy --skills committing --with-hook
+
+    hooks_path=$(git -C "$TEST_PROJECT" config core.hooksPath)
+    [ "$hooks_path" = ".github/hooks" ]
+
+    # Merge the installed files back to the main worktree the way the
+    # field report's PR-and-merge flow would (everything init wrote,
+    # not just the hooks — a real merge brings the whole diff), then
+    # remove the disposable worktree entirely: the absolute-path bug
+    # only manifests once the installing worktree's directory is gone.
+    rsync -a --exclude=.git "$feature_worktree/" "$TEST_PROJECT/"
+    git -C "$TEST_PROJECT" worktree remove --force "$feature_worktree"
+    [ ! -d "$feature_worktree" ]
+
+    run bash "$SCRIPT" doctor "$TEST_PROJECT"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "core.hooksPath set" ]]
+    [[ "$output" =~ "both pre-commit and pre-merge-commit hooks present" ]]
+}
+
+@test "lifecycle: doctor fails when core.hooksPath resolves to a missing directory even though recorded matches actual (#319)" {
+    # The exact silent-pass scenario from issue #319: recorded==actual
+    # alone was previously treated as healthy, with no check that the
+    # directory the string names still exists.
+    git -C "$TEST_PROJECT" init --quiet
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --with-hook
+    rm -rf "$TEST_PROJECT/.github/hooks"
+
+    run bash "$SCRIPT" doctor "$TEST_PROJECT"
+    [ "$status" -ne 0 ]
+    [[ "$output" =~ "does not resolve to an existing directory" ]]
+}
+
+@test "lifecycle: doctor fails when the hooksPath directory exists but has neither hook executable (#319)" {
+    # Distinct from the #76 regression (one of the two hooks present,
+    # the other missing) -- this is BOTH missing, which the original
+    # if/elif silently fell through on with no ✓ or ✗ at all.
+    git -C "$TEST_PROJECT" init --quiet
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --with-hook
+    rm -f "$TEST_PROJECT/.github/hooks/pre-commit" "$TEST_PROJECT/.github/hooks/pre-merge-commit"
+
+    run bash "$SCRIPT" doctor "$TEST_PROJECT"
+    [ "$status" -ne 0 ]
+    [[ "$output" =~ "neither an executable pre-commit nor pre-merge-commit" ]]
+}
+
+@test "lifecycle: audit --json resolves a relative core.hooksPath correctly for hook_ownership (#319)" {
+    # audit had the same unresolved-relative-path bug as doctor
+    # (core_hooks_path/pre-commit tested without first resolving against
+    # $target) — exercise it through --mode copy, which now records the
+    # relative form by default.
+    git -C "$TEST_PROJECT" init --quiet
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --with-hook
+
+    run bash "$SCRIPT" audit "$TEST_PROJECT" --json
+    [ "$status" -eq 0 ]
+
+    run python3 -c "
+import json
+d = json.loads('''$output''')
+ho = d['hook_ownership']
+assert ho['hooks_path_matches_recorded'] is True, ho
+assert ho['pre_commit_present'] is True, ho
+assert ho['pre_merge_commit_present'] is True, ho
+assert ho['merge_ff_false'] is True, ho
+print('ok')
+"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "ok" ]]
+}
+
 @test "lifecycle: --mode submodule adds this harness as a real submodule and symlinks from it" {
     git -C "$TEST_PROJECT" init --quiet
     git -C "$TEST_PROJECT" -c user.email=test@example.com -c user.name=Test commit --quiet --allow-empty -m "init"

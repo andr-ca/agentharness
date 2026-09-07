@@ -223,8 +223,12 @@ print(len(d['skills']))
     [ "$status" -eq 0 ]
     [[ "$output" != *"already has a different core.hooksPath"* ]]
     [[ "$output" =~ "Installed trunk-protection hook" ]]
+    # Recorded relative to $TEST_PROJECT, not absolute (issue #319) — a
+    # worktree-installed absolute path goes stale once that worktree is
+    # removed, since worktrees share .git/config but not a working-tree
+    # root; a relative value resolves against each worktree's own root.
     hooks_path=$(git -C "$TEST_PROJECT" config core.hooksPath)
-    [ "$hooks_path" = "$TEST_PROJECT/.github/hooks" ]
+    [ "$hooks_path" = ".github/hooks" ]
 }
 
 @test "harness-link.sh: --mode copy --with-hook normalizes a './'-prefixed, trailing-slash hooksPath before comparing (Copilot review round 4)" {
@@ -238,8 +242,10 @@ print(len(d['skills']))
     [ "$status" -eq 0 ]
     [[ "$output" != *"already has a different core.hooksPath"* ]]
     [[ "$output" =~ "Installed trunk-protection hook" ]]
+    # Recorded relative to $TEST_PROJECT in canonical form, not absolute
+    # (issue #319) — see the sibling test above for why.
     hooks_path=$(git -C "$TEST_PROJECT" config core.hooksPath)
-    [ "$hooks_path" = "$TEST_PROJECT/.github/hooks" ]
+    [ "$hooks_path" = ".github/hooks" ]
 }
 
 @test "harness-link.sh: --mode copy --with-hook (no coverage) does not copy agentharness's own pre-push hook" {
