@@ -2105,6 +2105,19 @@ cmd_doctor() {
                     failed=1
                 elif [ -x "$pre_commit_path" ] && [ -x "$pre_merge_commit_path" ]; then
                     echo "  ✓ both pre-commit and pre-merge-commit hooks present"
+                elif [ -x "$pre_merge_commit_path" ]; then
+                    # pre-merge-commit present, pre-commit missing — the
+                    # mirror image of the #76 case above (Copilot review
+                    # on PR #325: the old catch-all "neither" else branch
+                    # below also fired here, misreporting a hook that is
+                    # actually present as missing).
+                    local escaped_target
+                    printf -v escaped_target '%q' "$target"
+                    echo "  ✗ pre-merge-commit hook exists but pre-commit is missing — direct commits to trunk branches bypass protection" >&2
+                    echo "    Fix: re-run 'harness-link.sh init $escaped_target --with-hook' (or, for npm mode," >&2
+                    echo "    'npx agentharness-toolkit@latest init $escaped_target --with-hook') — 'update' never" >&2
+                    echo "    touches hooks by design, so this file won't appear on its own after upgrading." >&2
+                    failed=1
                 else
                     echo "  ✗ core.hooksPath ($actual_hooks_path) exists but has neither an executable pre-commit nor pre-merge-commit at it — trunk protection is not actually installed there (see issue #319)" >&2
                     failed=1

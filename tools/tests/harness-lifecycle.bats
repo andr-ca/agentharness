@@ -1550,6 +1550,21 @@ print('ok')
     [[ "$output" =~ "neither an executable pre-commit nor pre-merge-commit" ]]
 }
 
+@test "lifecycle: doctor reports pre-commit missing (not 'neither') when only pre-merge-commit is present" {
+    # Copilot review on PR #325: the catch-all "neither" else branch
+    # above also fired for this case (pre-merge-commit present,
+    # pre-commit missing) — mirror image of the #76 regression test,
+    # which only covers pre-commit present/pre-merge-commit missing.
+    git -C "$TEST_PROJECT" init --quiet
+    bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills committing --with-hook
+    rm -f "$TEST_PROJECT/.github/hooks/pre-commit"
+
+    run bash "$SCRIPT" doctor "$TEST_PROJECT"
+    [ "$status" -ne 0 ]
+    [[ "$output" =~ "pre-merge-commit hook exists but pre-commit is missing" ]]
+    [[ "$output" != *"neither an executable"* ]]
+}
+
 @test "lifecycle: audit --json resolves a relative core.hooksPath correctly for hook_ownership (#319)" {
     # audit had the same unresolved-relative-path bug as doctor
     # (core_hooks_path/pre-commit tested without first resolving against
