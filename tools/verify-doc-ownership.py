@@ -12,6 +12,7 @@ See docs/superpowers/specs/2026-09-06-doc-ownership-gate-design.md.
 from __future__ import annotations
 
 import fnmatch
+import subprocess
 import sys
 from pathlib import Path
 from typing import NamedTuple
@@ -101,6 +102,37 @@ def required_docs_for(path: str, entries: list[OwnershipEntry]) -> set[str] | No
         if any(fnmatch.fnmatch(path, pattern) for pattern in entry.paths):
             matched = (matched or set()) | set(entry.docs)
     return matched
+
+
+def _git(repo_root: Path, *args: str) -> str:
+    result = subprocess.run(
+        ["git", *args], cwd=repo_root, capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"git {' '.join(args)} failed: {result.stderr.strip()}")
+    return result.stdout
+
+
+def resolve_merge_base(repo_root: Path, base_ref: str = "origin/main") -> str:
+    try:
+        return _git(repo_root, "merge-base", base_ref, "HEAD").strip()
+    except RuntimeError as exc:
+        raise MapError(
+            f"could not resolve merge-base with {base_ref}: {exc}. "
+            "This check needs a clone with an origin/main ref -- "
+            "run 'git fetch origin main' first if this is a shallow clone."
+        ) from exc
+
+
+def changed_files(repo_root: Path, merge_base: str) -> list[str]:
+    output = _git(repo_root, "diff", "--name-only", f"{merge_base}..HEAD")
+    return [line for line in output.splitlines() if line]
+
+
+def has_docs_not_needed_trailer(repo_root: Path, merge_base: str) -> bool:
+    output = _git(repo_root, "log", f"{merge_base}..HEAD", "--pretty=%B")
+    prefix = f"{TRAILER_KEY.lower()}:"
+    return any(line.strip().lower().startswith(prefix) for line in output.splitlines())
 
 
 def main() -> int:  # placeholder, replaced in Task 4

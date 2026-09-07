@@ -1,5 +1,6 @@
 """Tests for tools/verify-doc-ownership.py."""
 import importlib.util
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -115,3 +116,80 @@ def test_required_docs_for_unions_multiple_matching_entries():
     ]
     result = vdo.required_docs_for("tools/setup/harness-link.sh", entries)
     assert result == {"docs/INTEGRATION.md", "MANIFEST.md"}
+
+
+def _run_git(repo: Path, *args: str) -> str:
+    result = subprocess.run(
+        ["git", *args], cwd=repo, capture_output=True, text=True, check=True
+    )
+    return result.stdout
+
+
+def _init_repo_with_fake_origin_main(tmp_path: Path) -> Path:
+    """A repo with a `main` branch (commit A), a fake `origin/main` ref
+    pointing at the same commit (no real remote needed), and a checked-out
+    `feature` branch ready for the test to add commits to."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _run_git(repo, "init", "-q", "-b", "main")
+    _run_git(repo, "config", "user.email", "test@example.com")
+    _run_git(repo, "config", "user.name", "Test")
+    (repo / "README.md").write_text("# fixture\n")
+    _run_git(repo, "add", "README.md")
+    _run_git(repo, "commit", "-q", "-m", "initial")
+    main_sha = _run_git(repo, "rev-parse", "HEAD").strip()
+    _run_git(repo, "update-ref", "refs/remotes/origin/main", main_sha)
+    _run_git(repo, "checkout", "-q", "-b", "feature")
+    return repo
+
+
+def _commit_all(repo: Path, message: str, trailer: str | None = None) -> None:
+    _run_git(repo, "add", "-A")
+    msg = message if trailer is None else f"{message}\n\n{trailer}"
+    _run_git(repo, "commit", "-q", "-m", msg)
+
+
+def test_resolve_merge_base_finds_common_ancestor(tmp_path):
+    repo = _init_repo_with_fake_origin_main(tmp_path)
+    (repo / "src.py").write_text("x = 1\n")
+    _commit_all(repo, "add src.py")
+    merge_base = vdo.resolve_merge_base(repo)
+    assert merge_base == _run_git(repo, "rev-parse", "main").strip()
+
+
+def test_resolve_merge_base_raises_when_ref_missing(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _run_git(repo, "init", "-q", "-b", "main")
+    _run_git(repo, "config", "user.email", "test@example.com")
+    _run_git(repo, "config", "user.name", "Test")
+    (repo / "README.md").write_text("# fixture\n")
+    _run_git(repo, "add", "README.md")
+    _run_git(repo, "commit", "-q", "-m", "initial")
+    with pytest.raises(vdo.MapError, match="merge-base"):
+        vdo.resolve_merge_base(repo)
+
+
+def test_changed_files_lists_paths_since_merge_base(tmp_path):
+    repo = _init_repo_with_fake_origin_main(tmp_path)
+    (repo / "src.py").write_text("x = 1\n")
+    (repo / "docs.md").write_text("# doc\n")
+    _commit_all(repo, "add src and docs")
+    merge_base = vdo.resolve_merge_base(repo)
+    assert set(vdo.changed_files(repo, merge_base)) == {"src.py", "docs.md"}
+
+
+def test_has_docs_not_needed_trailer_false_by_default(tmp_path):
+    repo = _init_repo_with_fake_origin_main(tmp_path)
+    (repo / "src.py").write_text("x = 1\n")
+    _commit_all(repo, "add src.py")
+    merge_base = vdo.resolve_merge_base(repo)
+    assert vdo.has_docs_not_needed_trailer(repo, merge_base) is False
+
+
+def test_has_docs_not_needed_trailer_true_when_present(tmp_path):
+    repo = _init_repo_with_fake_origin_main(tmp_path)
+    (repo / "src.py").write_text("x = 1\n")
+    _commit_all(repo, "tweak timing", trailer="Docs-not-needed: internal only")
+    merge_base = vdo.resolve_merge_base(repo)
+    assert vdo.has_docs_not_needed_trailer(repo, merge_base) is True
