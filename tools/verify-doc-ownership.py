@@ -71,13 +71,17 @@ def load_ownership_map(repo_root: Path) -> list[OwnershipEntry]:
             )
         paths_val = item["paths"]
         docs_val = item["docs"]
-        if not isinstance(paths_val, list):
+        if not isinstance(paths_val, list) or not all(
+            isinstance(p, str) for p in paths_val
+        ):
             raise MapError(
-                f"{MAP_FILENAME} entry {i}: 'paths' must be a list"
+                f"{MAP_FILENAME} entry {i}: 'paths' must be a list of strings"
             )
-        if not isinstance(docs_val, list):
+        if not isinstance(docs_val, list) or not all(
+            isinstance(d, str) for d in docs_val
+        ):
             raise MapError(
-                f"{MAP_FILENAME} entry {i}: 'docs' must be a list"
+                f"{MAP_FILENAME} entry {i}: 'docs' must be a list of strings"
             )
         paths = tuple(paths_val)
         docs = tuple(docs_val)
@@ -130,9 +134,17 @@ def changed_files(repo_root: Path, merge_base: str) -> list[str]:
 
 
 def has_docs_not_needed_trailer(repo_root: Path, merge_base: str) -> bool:
-    output = _git(repo_root, "log", f"{merge_base}..HEAD", "--pretty=%B")
-    prefix = f"{TRAILER_KEY.lower()}:"
-    return any(line.strip().lower().startswith(prefix) for line in output.splitlines())
+    """True if any commit in the range carries a real Docs-not-needed
+    trailer, per git's own trailer-block parsing -- not just a line that
+    happens to start with the key, which could false-positive on body
+    text discussing the trailer itself (e.g. this file's own docstrings)."""
+    output = _git(
+        repo_root,
+        "log",
+        f"{merge_base}..HEAD",
+        f"--pretty=%(trailers:key={TRAILER_KEY},valueonly)",
+    )
+    return any(line.strip() for line in output.splitlines())
 
 
 def check_doc_ownership(repo_root: Path, base_ref: str = "origin/main") -> list[str]:

@@ -76,6 +76,22 @@ def test_load_ownership_map_rejects_non_list_docs_value(tmp_path):
         vdo.load_ownership_map(tmp_path)
 
 
+def test_load_ownership_map_rejects_non_string_path_element(tmp_path):
+    (tmp_path / "DOC_OWNERSHIP.yaml").write_text(
+        "- paths: [\"x\", 42]\n  docs: [\"doc.md\"]\n"
+    )
+    with pytest.raises(vdo.MapError, match="entry 0.*'paths' must be a list of strings"):
+        vdo.load_ownership_map(tmp_path)
+
+
+def test_load_ownership_map_rejects_non_string_docs_element(tmp_path):
+    (tmp_path / "DOC_OWNERSHIP.yaml").write_text(
+        "- paths: [\"x\"]\n  docs: [\"doc.md\", null]\n"
+    )
+    with pytest.raises(vdo.MapError, match="entry 0.*'docs' must be a list of strings"):
+        vdo.load_ownership_map(tmp_path)
+
+
 @pytest.mark.parametrize(
     "path",
     [
@@ -193,6 +209,21 @@ def test_has_docs_not_needed_trailer_true_when_present(tmp_path):
     _commit_all(repo, "tweak timing", trailer="Docs-not-needed: internal only")
     merge_base = vdo.resolve_merge_base(repo)
     assert vdo.has_docs_not_needed_trailer(repo, merge_base) is True
+
+
+def test_has_docs_not_needed_trailer_false_for_body_text_not_a_real_trailer(tmp_path):
+    """A line that happens to start with the trailer key, but isn't in a
+    real trailer block (e.g. prose wrapped mid-sentence), must not count --
+    regression test for false-positive line-prefix matching."""
+    repo = _init_repo_with_fake_origin_main(tmp_path)
+    (repo / "src.py").write_text("x = 1\n")
+    _commit_all(
+        repo,
+        "docs: explain the trailer mechanism\n\nThis PR implements the\n"
+        "Docs-not-needed: <reason> trailer mechanism described in the spec.",
+    )
+    merge_base = vdo.resolve_merge_base(repo)
+    assert vdo.has_docs_not_needed_trailer(repo, merge_base) is False
 
 
 def _write_map(repo: Path, entries_yaml: str) -> None:
