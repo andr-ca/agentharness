@@ -73,3 +73,45 @@ def test_load_ownership_map_rejects_non_list_docs_value(tmp_path):
     )
     with pytest.raises(vdo.MapError, match="entry 0.*'docs' must be a list"):
         vdo.load_ownership_map(tmp_path)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "tools/tests/harness-lifecycle.bats",
+        "tools/tests/helpers/make-runtime-fixtures.py",
+        "tests/unit/test_cli.py",
+        "docs/INTEGRATION.md",
+        "README.md",
+        "DOC_OWNERSHIP.yaml",
+    ],
+)
+def test_is_auto_exempt_true_for_test_and_doc_paths(path):
+    assert vdo.is_auto_exempt(path) is True
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["tools/setup/harness-link.sh", "src/agentharness/cli.py"],
+)
+def test_is_auto_exempt_false_for_code_paths(path):
+    assert vdo.is_auto_exempt(path) is False
+
+
+def test_required_docs_for_unmapped_path_returns_none():
+    entries = [vdo.OwnershipEntry(paths=("tools/setup/*.sh",), docs=("docs/INTEGRATION.md",))]
+    assert vdo.required_docs_for("src/other.py", entries) is None
+
+
+def test_required_docs_for_matches_glob():
+    entries = [vdo.OwnershipEntry(paths=("tools/setup/*.sh",), docs=("docs/INTEGRATION.md",))]
+    assert vdo.required_docs_for("tools/setup/harness-link.sh", entries) == {"docs/INTEGRATION.md"}
+
+
+def test_required_docs_for_unions_multiple_matching_entries():
+    entries = [
+        vdo.OwnershipEntry(paths=("tools/setup/*.sh",), docs=("docs/INTEGRATION.md",)),
+        vdo.OwnershipEntry(paths=("tools/setup/harness-link.sh",), docs=("MANIFEST.md",)),
+    ]
+    result = vdo.required_docs_for("tools/setup/harness-link.sh", entries)
+    assert result == {"docs/INTEGRATION.md", "MANIFEST.md"}

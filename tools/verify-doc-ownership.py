@@ -11,6 +11,7 @@ See docs/superpowers/specs/2026-09-06-doc-ownership-gate-design.md.
 
 from __future__ import annotations
 
+import fnmatch
 import sys
 from pathlib import Path
 from typing import NamedTuple
@@ -85,6 +86,21 @@ def load_ownership_map(repo_root: Path) -> list[OwnershipEntry]:
             )
         entries.append(OwnershipEntry(paths=paths, docs=docs))
     return entries
+
+
+def is_auto_exempt(path: str) -> bool:
+    return any(fnmatch.fnmatch(path, pattern) for pattern in AUTO_EXEMPT_GLOBS)
+
+
+def required_docs_for(path: str, entries: list[OwnershipEntry]) -> set[str] | None:
+    """Union of `docs` across every entry whose `paths` matches. None
+    means no entry matched at all (an unmapped path) -- distinct from a
+    matched entry, which always has at least one doc by construction."""
+    matched: set[str] | None = None
+    for entry in entries:
+        if any(fnmatch.fnmatch(path, pattern) for pattern in entry.paths):
+            matched = (matched or set()) | set(entry.docs)
+    return matched
 
 
 def main() -> int:  # placeholder, replaced in Task 4
