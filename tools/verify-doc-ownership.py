@@ -42,6 +42,11 @@ class MapError(Exception):
 
 
 def load_ownership_map(repo_root: Path) -> list[OwnershipEntry]:
+    """Load and validate DOC_OWNERSHIP.yaml from repo_root.
+
+    Returns an empty list if the file doesn't exist or is empty.
+    Raises MapError if the file is malformed or an entry is invalid.
+    """
     map_path = repo_root / MAP_FILENAME
     if not map_path.exists():
         return []
@@ -62,8 +67,18 @@ def load_ownership_map(repo_root: Path) -> list[OwnershipEntry]:
                 f"{MAP_FILENAME} entry {i} must be a mapping with 'paths' "
                 "and 'docs' keys"
             )
-        paths = tuple(item["paths"])
-        docs = tuple(item["docs"])
+        paths_val = item["paths"]
+        docs_val = item["docs"]
+        if not isinstance(paths_val, list):
+            raise MapError(
+                f"{MAP_FILENAME} entry {i}: 'paths' must be a list"
+            )
+        if not isinstance(docs_val, list):
+            raise MapError(
+                f"{MAP_FILENAME} entry {i}: 'docs' must be a list"
+            )
+        paths = tuple(paths_val)
+        docs = tuple(docs_val)
         if not paths or not docs:
             raise MapError(
                 f"{MAP_FILENAME} entry {i} must have at least one path and one doc"

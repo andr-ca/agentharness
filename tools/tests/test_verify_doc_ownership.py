@@ -57,3 +57,19 @@ def test_load_ownership_map_rejects_empty_docs_list(tmp_path):
     )
     with pytest.raises(vdo.MapError, match="entry 0"):
         vdo.load_ownership_map(tmp_path)
+
+
+def test_load_ownership_map_rejects_non_list_paths_value(tmp_path):
+    (tmp_path / "DOC_OWNERSHIP.yaml").write_text(
+        "- paths: \"tools/single.py\"\n  docs: [\"doc.md\"]\n"
+    )
+    with pytest.raises(vdo.MapError, match="entry 0.*'paths' must be a list"):
+        vdo.load_ownership_map(tmp_path)
+
+
+def test_load_ownership_map_rejects_non_list_docs_value(tmp_path):
+    (tmp_path / "DOC_OWNERSHIP.yaml").write_text(
+        "- paths: [\"x\"]\n  docs: \"doc.md\"\n"
+    )
+    with pytest.raises(vdo.MapError, match="entry 0.*'docs' must be a list"):
+        vdo.load_ownership_map(tmp_path)
