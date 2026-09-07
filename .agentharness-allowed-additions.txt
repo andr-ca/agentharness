@@ -9,6 +9,7 @@ docs/operational/harness-feedback.md
 tools/safe-pr-merge.sh
 tools/tests/safe-pr-merge.bats
 docs/superpowers/specs/2026-07-17-existing-surface-integration-design.md
+docs/superpowers/specs/2026-09-06-doc-ownership-gate-design.md
 docs/superpowers/plans/2026-07-17-existing-surface-integration.md
 tools/setup/block_installer.py
 tools/tests/test_block_installer.py
@@ -40,6 +41,7 @@ tools/eval/scenarios
 tools/eval/tests/test_journey_score.py
 docs/operational/eval-harness-observations-2026-07-23.md
 docs/operational/root-instruction-inventory-2026-07-28.md
+DOC_OWNERSHIP.yaml
 src/agentharness/bootstrap/discovery.py
 src/agentharness/bootstrap/plan.py
 tests/unit/bootstrap/test_discovery.py
@@ -75,3 +77,6 @@ tools/tests/generate-qwen-md.bats
 QWEN.md
 tools/generate-qwen-agents.sh
 tools/tests/generate-qwen-agents.bats
+tools/verify-doc-ownership.py
+tools/tests/test_verify_doc_ownership.py
+docs/superpowers/plans/2026-09-06-doc-ownership-gate.md

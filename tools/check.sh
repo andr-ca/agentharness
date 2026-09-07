@@ -98,6 +98,7 @@ ruff check --isolated \
     patterns/agentic-loops/agent_loop.py patterns/agentic-loops/test_agent_loop.py \
     tools/eval/score.py tools/eval/run.py \
     tools/verify-content-quality.py tools/tests/test_verify_content_quality.py \
+    tools/verify-doc-ownership.py tools/tests/test_verify_doc_ownership.py \
     tools/generate-manifest.py tools/release/materialize-skill-symlinks.py
 
 step "ruff: configured core surfaces"
@@ -108,8 +109,9 @@ step "mypy: legacy surfaces"
 mypy --config-file=/dev/null \
     patterns/logging/config_loader.py patterns/agentic-loops/agent_loop.py \
     tools/eval/score.py tools/eval/run.py tools/verify-content-quality.py \
-    tools/release/materialize-skill-symlinks.py \
-    tools/generate-manifest.py
+    tools/verify-doc-ownership.py \
+    tools/generate-manifest.py \
+    tools/release/materialize-skill-symlinks.py
 
 step "mypy: configured core surfaces"
 mypy --strict src tools/runtime tools/tests/helpers/make-runtime-fixtures.py
@@ -143,6 +145,9 @@ step "pytest: duplicate-policy detection (tools/tests/test_verify_content_qualit
 # that only exercise one function would either need a low, easily-stale
 # threshold or a much larger test-writing task than B7 asked for.
 python3 -m pytest tools/tests/test_verify_content_quality.py -q
+
+step "pytest: doc-ownership gate (tools/tests/test_verify_doc_ownership.py)"
+python3 -m pytest tools/tests/test_verify_doc_ownership.py -q
 
 step "pytest: bootstrap policy core (src/agentharness, >=65% coverage — experimental tier)"
 # Mirrors check-completion.sh's pytest-coverage gate so 'all checks passed'
