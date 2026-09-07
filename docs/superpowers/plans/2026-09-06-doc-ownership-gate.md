@@ -14,7 +14,7 @@
 
 ---
 
-### Task 1: Ownership-map data model and loader
+## Task 1: Ownership-map data model and loader
 
 **Files:**
 - Create: `tools/verify-doc-ownership.py`
@@ -191,7 +191,7 @@ git commit -m "feat(doc-ownership): add ownership-map loader"
 
 ---
 
-### Task 2: Path matching (auto-exempt + entry lookup)
+## Task 2: Path matching (auto-exempt + entry lookup)
 
 **Files:**
 - Modify: `tools/verify-doc-ownership.py`
@@ -283,7 +283,7 @@ git commit -m "feat(doc-ownership): add path matching and auto-exempt globs"
 
 ---
 
-### Task 3: Git helpers (merge-base, changed files, escape-hatch trailer)
+## Task 3: Git helpers (merge-base, changed files, escape-hatch trailer)
 
 **Files:**
 - Modify: `tools/verify-doc-ownership.py`
@@ -428,7 +428,7 @@ git commit -m "feat(doc-ownership): add merge-base, diff, and trailer git helper
 
 ---
 
-### Task 4: Orchestration and CLI entry point
+## Task 4: Orchestration and CLI entry point
 
 **Files:**
 - Modify: `tools/verify-doc-ownership.py`
@@ -616,7 +616,7 @@ git commit -m "feat(doc-ownership): add check orchestration and CLI entry point"
 
 ---
 
-### Task 5: Wire into the completion gate, lint/type/test targets, and CI
+## Task 5: Wire into the completion gate, lint/type/test targets, and CI
 
 **Files:**
 - Modify: `tools/check-completion.sh`
@@ -708,7 +708,7 @@ git commit -m "feat(doc-ownership): wire gate into completion gate, check.sh, an
 
 ---
 
-### Task 6: Seed the initial map and document the gate
+## Task 6: Seed the initial map and document the gate
 
 This is the bootstrapping step: once Task 5's gate is live, *this branch's own diff* is subject to it. `tools/verify-doc-ownership.py` and `tools/check-completion.sh` are new/changed code paths with no map entry yet — `DOC_OWNERSHIP.yaml` doesn't exist before this task, so an entry must be added for them in this same task, in this same branch, or the gate fails against its own introduction.
 
@@ -768,7 +768,7 @@ git commit -m "feat(doc-ownership): seed initial map and document the gate in CL
 
 ---
 
-### Task 7: Full verification and push
+## Task 7: Full verification and push
 
 **Files:** none (verification only)
 
