@@ -625,7 +625,7 @@ git commit -m "feat(doc-ownership): add check orchestration and CLI entry point"
 
 This mirrors exactly how `tools/verify-content-quality.py` and its test file are wired in each of these three places today.
 
-- [ ] **Step 1: Add the enforcement gate to `tools/check-completion.sh`**
+- [x] **Step 1: Add the enforcement gate to `tools/check-completion.sh`**
 
 Insert a new gate between the existing "Gate 6: Packaged runtime matches source" block and "Gate 7: Git status" (find the `run_gate "runtime-artifact"` block ending around line 269, insert right after its closing `fi`):
 
@@ -636,7 +636,7 @@ Insert a new gate between the existing "Gate 6: Packaged runtime matches source"
 run_gate "doc-ownership" python3 tools/verify-doc-ownership.py
 ```
 
-- [ ] **Step 2: Add the new files to `ruff-legacy`/`mypy-legacy` in `tools/check-completion.sh`**
+- [x] **Step 2: Add the new files to `ruff-legacy`/`mypy-legacy` in `tools/check-completion.sh`**
 
 In the `legacy_targets` loop (the one containing `tools/verify-content-quality.py` and `tools/tests/test_verify_content_quality.py`), add two lines right after the existing `tools/tests/test_verify_content_quality.py` line:
 
@@ -656,7 +656,7 @@ Do the same in the `legacy_mypy` loop (mypy doesn't type-check test files by con
         tools/generate-manifest.py \
 ```
 
-- [ ] **Step 3: Mirror the same two additions in `tools/check.sh`**
+- [x] **Step 3: Mirror the same two additions in `tools/check.sh`**
 
 In the `step "ruff: legacy surfaces"` block, add after the `tools/verify-content-quality.py tools/tests/test_verify_content_quality.py \` line:
 
@@ -675,7 +675,7 @@ step "pytest: doc-ownership gate (tools/tests/test_verify_doc_ownership.py)"
 python3 -m pytest tools/tests/test_verify_doc_ownership.py -q
 ```
 
-- [ ] **Step 4: Mirror the same three additions in `.github/workflows/ci.yml`**
+- [x] **Step 4: Mirror the same three additions in `.github/workflows/ci.yml`**
 
 Line ~260 (`Ruff (isolated legacy surfaces)`): add `tools/verify-doc-ownership.py tools/tests/test_verify_doc_ownership.py` to the space-separated file list, in the same position as `tools/check.sh`'s equivalent line.
 
@@ -688,7 +688,7 @@ After line ~292 (`run: pytest tools/tests/test_verify_content_quality.py -v`), a
         run: pytest tools/tests/test_verify_doc_ownership.py -v
 ```
 
-- [ ] **Step 5: Run the full local verification for this task**
+- [x] **Step 5: Run the full local verification for this task**
 
 Run: `ruff check --isolated tools/verify-doc-ownership.py tools/tests/test_verify_doc_ownership.py`
 Expected: no output (clean).
@@ -699,7 +699,7 @@ Expected: no output (clean). If mypy complains about missing type stubs for `yam
 Run: `python3 -m pytest tools/tests/test_verify_doc_ownership.py -v`
 Expected: all passing.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add tools/check-completion.sh tools/check.sh .github/workflows/ci.yml
