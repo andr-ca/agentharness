@@ -1873,6 +1873,8 @@ with open('$TEST_PROJECT/.agentharness-state.json') as f:
     [ -x "$TEST_PROJECT/.github/hooks/pre-push" ]
     grep -q "agentharness generated coverage hook" "$TEST_PROJECT/.github/hooks/pre-push"
     grep -q "enforce-profile" "$TEST_PROJECT/.github/hooks/pre-push"
+    # Issue #317: the generated hook must not silently enable --strict.
+    ! grep -q -- "--strict" "$TEST_PROJECT/.github/hooks/pre-push"
 
     run python3 -c "
 import json
@@ -1972,6 +1974,85 @@ PYEOF
 
     run git -C "$TEST_PROJECT" push origin feature/x
     [ "$status" -eq 0 ]
+
+    rm -rf "$remote"
+}
+
+@test "lifecycle: --mode copy --with-coverage-hook missing harness path fails clearly, not as a wrong-repo no-op (#317)" {
+    # Copy-mode still embeds the install-time harness-link.sh path (not a
+    # copy inside the consumer). If that checkout is gone, the generated
+    # hook must fail with a clear missing-path message — never fall
+    # through to the harness's own pre-push, whose consumer no-op exits 0
+    # and looks like "coverage is fine."
+    git -C "$TEST_PROJECT" init --quiet
+    run bash "$SCRIPT" init "$TEST_PROJECT" --mode copy --skills agentic-loops --with-coverage-hook
+    [ "$status" -eq 0 ]
+    [ -x "$TEST_PROJECT/.github/hooks/pre-push" ]
+    grep -q "enforce-profile" "$TEST_PROJECT/.github/hooks/pre-push"
+    ! grep -q -- "--strict" "$TEST_PROJECT/.github/hooks/pre-push"
+    ! grep -q "skipping agentharness's own test suite" "$TEST_PROJECT/.github/hooks/pre-push"
+
+    local missing="$TEST_PROJECT/missing-harness/tools/setup/harness-link.sh"
+    python3 -c "
+from pathlib import Path
+import re, sys
+p = Path(sys.argv[1])
+text = p.read_text()
+new, n = re.subn(r'^HARNESS_LINK=.*\$', 'HARNESS_LINK=' + sys.argv[2], text, count=1, flags=re.M)
+assert n == 1, n
+p.write_text(new)
+" "$TEST_PROJECT/.github/hooks/pre-push" "$missing"
+
+    run bash "$TEST_PROJECT/.github/hooks/pre-push"
+    [ "$status" -ne 0 ]
+    [[ "$output" =~ "harness-link.sh not found" ]]
+    [[ ! "$output" =~ "skipping agentharness" ]]
+}
+
+@test "lifecycle: --with-hook without --with-coverage-hook does not enforce coverage on push (#317)" {
+    # Same undercovered Python fixture as the coverage-hook acceptance
+    # test, but only --with-hook. Link mode borrows this repo's
+    # core.hooksPath; its pre-push no-ops for a consumer. That must stay
+    # true — do not silently start calling enforce-profile for installs
+    # that never asked for coverage enforcement.
+    local remote
+    remote=$(mktemp -d)
+    git init --bare --quiet "$remote"
+
+    git -C "$TEST_PROJECT" init --quiet
+    git -C "$TEST_PROJECT" remote add origin "$remote"
+    git -C "$TEST_PROJECT" -c user.email=t@e.com -c user.name=t commit --quiet --allow-empty -m init
+    git -C "$TEST_PROJECT" push --quiet origin HEAD:main
+    git -C "$TEST_PROJECT" checkout -b feature/x --quiet
+
+    touch "$TEST_PROJECT/requirements.txt"
+    cat > "$TEST_PROJECT/app.py" <<'PYEOF'
+def covered():
+    return 1
+
+def uncovered_one():
+    return 2
+
+def uncovered_two():
+    return 3
+PYEOF
+    cat > "$TEST_PROJECT/test_app.py" <<'PYEOF'
+from app import covered
+
+def test_covered():
+    assert covered() == 1
+PYEOF
+
+    run bash "$SCRIPT" init "$TEST_PROJECT" --mode link --skills agentic-loops --with-hook --profile production
+    [ "$status" -eq 0 ]
+    [ ! -e "$TEST_PROJECT/.github/hooks/pre-push" ]
+
+    git -C "$TEST_PROJECT" add -A
+    git -C "$TEST_PROJECT" -c user.email=t@e.com -c user.name=t commit --quiet -m "add undercovered app"
+
+    run git -C "$TEST_PROJECT" push origin feature/x
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "skipping agentharness" ]] || [[ "$output" =~ "not to agentharness" ]]
 
     rm -rf "$remote"
 }

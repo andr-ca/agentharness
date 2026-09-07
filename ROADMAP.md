@@ -304,12 +304,14 @@ label by the review filename cited next to it, never by number alone.
   **Jest** (both share the same Istanbul-based `coverage-summary.json`
   format, verified by hand against a real `npx jest` run), plus a
   **`--strict`** flag that turns an unsupported project/runner into a
-  failure instead of a non-blocking exit 0. Still open: a Mocha adapter
-  (no equivalent built-in machine-readable coverage format to parse —
-  would need a third-party reporter convention this repo would have to
-  pick and document) and wiring `enforce-profile` into
-  `.github/hooks/pre-push` (its own decision — see
-  `patterns/profiles/README.md`).
+  failure instead of a non-blocking exit 0. **Hook wiring done (issue
+  #317):** `--with-coverage-hook` generates a consumer-owned `pre-push`
+  that calls `enforce-profile` against the consumer project;
+  `--with-hook` alone is unchanged. The generated hook does not pass
+  `--strict` (unsupported runners stay advisory on push). Still open: a
+  Mocha adapter (no equivalent built-in machine-readable coverage
+  format to parse — would need a third-party reporter convention this
+  repo would have to pick and document).
 - **P1-03 — Fix profile/workflow documentation drift.** The four concrete
   contradictions are now **fixed** (verified by hand against ground truth
   — `package.json`/tags, `enforce-profile`,

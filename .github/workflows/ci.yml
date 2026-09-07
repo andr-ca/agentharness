@@ -461,15 +461,20 @@ jobs:
           # together — which needs the block surface, not codex's whole-file
           # one, to own AGENTS.md. Client generation itself is already
           # covered by harness-lifecycle.bats and the npm-package job below.
-          bash tools/setup/harness-link.sh init "$TMP" --mode "${{ matrix.mode }}" --with-hook --client none
+          bash tools/setup/harness-link.sh init "$TMP" --mode "${{ matrix.mode }}" --with-coverage-hook --client none
+          [ -x "$TMP/.github/hooks/pre-push" ]
+          grep -q "enforce-profile" "$TMP/.github/hooks/pre-push"
+          ! grep -q -- "--strict" "$TMP/.github/hooks/pre-push"
           (cd "$TMP" && bash verify.sh)
           bash tools/setup/harness-link.sh doctor "$TMP"
           bash tools/setup/harness-link.sh status "$TMP"
           bash tools/setup/harness-link.sh update "$TMP" --yes
           bash tools/setup/harness-link.sh uninstall "$TMP" --yes
-          # Uninstall must be complete: no state file, no lingering skills.
+          # Uninstall must be complete: no state file, no lingering skills,
+          # no leftover generated coverage hook.
           [ ! -f "$TMP/.agentharness-state.json" ]
           [ ! -e "$TMP/.claude/skills/committing" ]
+          [ ! -e "$TMP/.github/hooks/pre-push" ]
 
           if [ "${{ matrix.fixture }}" = "existing-surface-project" ]; then
             # Managed block removed, pre-existing content and the unrelated

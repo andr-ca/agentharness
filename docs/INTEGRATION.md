@@ -101,10 +101,21 @@ The generated script hardcodes the absolute path to the
 `harness-link.sh` this repo was installed *from* at generation time —
 for `--mode link`/`copy`, that's this harness checkout's own path, not
 a copy inside the project. If that checkout moves or is deleted,
-coverage enforcement fails on the next push. `update` never touches
-hooks (same convention as `--with-hook`), so recovering requires
-re-running `init --with-coverage-hook` to regenerate the script against
-a valid `harness-link.sh` path.
+coverage enforcement fails on the next push with a clear
+`harness-link.sh not found` message (not the harness self-test's
+wrong-repo no-op). `update` never touches hooks (same convention as
+`--with-hook`), so recovering requires re-running
+`init --with-coverage-hook` to regenerate the script against a valid
+`harness-link.sh` path.
+
+The generated hook invokes `enforce-profile` **without** `--strict`.
+Mocha and unrecognized project types therefore stay advisory on push
+(exit 0), the same default as a direct `enforce-profile` call. That is
+deliberate: `--with-coverage-hook` opted the project into a coverage
+floor for runners the harness actually understands, not into failing
+every push on an unsupported runner. To make unsupported runners fail,
+invoke `enforce-profile --strict` yourself (CI, or by hand). There is
+no install-time `--strict` flag on `--with-coverage-hook`.
 
 ### Statusline (`--with-statusline`)
 

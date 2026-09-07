@@ -138,6 +138,8 @@ init options:
   --with-coverage-hook          Like --with-hook, plus a generated
                                 pre-push hook that runs 'enforce-profile'
                                 against this project on every push
+                                (without --strict: unsupported runners
+                                stay advisory on push)
   --with-statusline             Install a statusline for the clients this
                                 run touches. Claude Code always gets one
                                 (.claude/statusline.sh) showing harness
@@ -923,6 +925,15 @@ with open(sys.argv[1] + '/package.json') as f:
 # A marker string ("agentharness generated coverage hook") lets doctor
 # confirm the file at $target/.github/hooks/pre-push is genuinely this
 # generated script and not something else that happens to share the name.
+#
+# The generated hook calls enforce-profile WITHOUT --strict (issue #317).
+# Unsupported project types and runners stay advisory on push — the same
+# default as a direct 'enforce-profile' invocation. --with-coverage-hook
+# opted the project into a coverage floor for runners this CLI actually
+# understands, not into failing every push on Mocha / unclassified
+# projects. --strict remains an explicit extra call (CI, or
+# 'enforce-profile --strict' by hand). There is no install-time flag
+# that selects strict for this hook.
 COVERAGE_HOOK_MARKER="# agentharness generated coverage hook — do not hand-edit, regenerate with 'init --with-coverage-hook'"
 
 generate_coverage_pre_push() {

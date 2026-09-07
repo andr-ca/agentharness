@@ -40,7 +40,7 @@ they drift (`check_manifest_md_sync()` in `tools/verify-content-quality.py`).
 | Asset | Path | Type | When to use |
 |---|---|---|---|
 | Rigor tiers | `.github/CODING_GUIDELINES.md#rigor-tiers` | policy | **Read first** — decides which mandates below actually apply to the code you're writing |
-| Rigor-tier profiles | `patterns/profiles/README.md` | guide | Selecting a tier via `.agentharness-profile`, precedence order, current enforcement state (Python, Go, and JS/TS `node --test`/Vitest via `enforce-profile`, advisory for other project types/runners) |
+| Rigor-tier profiles | `patterns/profiles/README.md` | guide | Selecting a tier via `.agentharness-profile`, precedence order, current enforcement state (Python, Go, and JS/TS `node --test`/Vitest/Jest via `enforce-profile`; opt-in on push via `--with-coverage-hook`; advisory for other project types/runners) |
 | Prototype profile | `patterns/profiles/prototype.yaml` | config | Machine-readable form of the Rigor Tiers table's Prototype column |
 | Internal profile | `patterns/profiles/internal.yaml` | config | Machine-readable form of the Rigor Tiers table's Internal Tool column |
 | Production profile | `patterns/profiles/production.yaml` | config | Machine-readable form of the Rigor Tiers table's Production Service column |

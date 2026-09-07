@@ -35,9 +35,10 @@ machine-readable YAML, how a project declares its tier via
 `.agentharness-profile`, the precedence order between an explicit
 request/repo-local override/profile/language add-on/generic default, and
 the current state of mechanical enforcement (enforced for Python, Go, and
-`node --test`/Vitest JS/TS projects via `harness-link.sh enforce-profile`,
-with a `--strict` mode; advisory for everything else — see that file for
-the exact boundary and what's planned).
+`node --test`/Vitest/Jest JS/TS projects via `harness-link.sh
+enforce-profile`, opt-in on every push with `--with-coverage-hook`;
+advisory for everything else, or fail under `--strict` — see that file
+for the exact boundary and what's planned).
 
 The minimalism principles elsewhere in this doc ("trust internal code,"
 "don't add error handling for scenarios that can't happen," "three
