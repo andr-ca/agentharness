@@ -434,7 +434,7 @@ git commit -m "feat(doc-ownership): add merge-base, diff, and trailer git helper
 - Modify: `tools/verify-doc-ownership.py`
 - Modify: `tools/tests/test_verify_doc_ownership.py`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `tools/tests/test_verify_doc_ownership.py`:
 
@@ -532,12 +532,12 @@ def test_main_returns_one_and_prints_errors(tmp_path, monkeypatch, capsys):
     assert "1 issue(s) found" in out
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `python3 -m pytest tools/tests/test_verify_doc_ownership.py -v -k "check_doc_ownership or main_returns"`
 Expected: `AttributeError: ... has no attribute 'check_doc_ownership'`.
 
-- [ ] **Step 3: Replace the placeholder `main()` with the real orchestration**
+- [x] **Step 3: Replace the placeholder `main()` with the real orchestration**
 
 In `tools/verify-doc-ownership.py`, replace the `def main() -> int: ...` placeholder from Task 1 with:
 
@@ -602,12 +602,12 @@ if __name__ == "__main__":
 
 Remove the old placeholder `main()`/`if __name__ == "__main__":` block from Task 1 (this replaces it).
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `python3 -m pytest tools/tests/test_verify_doc_ownership.py -v`
 Expected: all passing (26 total).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add tools/verify-doc-ownership.py tools/tests/test_verify_doc_ownership.py
