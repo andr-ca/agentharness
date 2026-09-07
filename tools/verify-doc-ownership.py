@@ -135,7 +135,57 @@ def has_docs_not_needed_trailer(repo_root: Path, merge_base: str) -> bool:
     return any(line.strip().lower().startswith(prefix) for line in output.splitlines())
 
 
-def main() -> int:  # placeholder, replaced in Task 4
+def check_doc_ownership(repo_root: Path, base_ref: str = "origin/main") -> list[str]:
+    try:
+        entries = load_ownership_map(repo_root)
+    except MapError as exc:
+        return [str(exc)]
+
+    try:
+        merge_base = resolve_merge_base(repo_root, base_ref)
+    except MapError as exc:
+        return [str(exc)]
+
+    all_changed = changed_files(repo_root, merge_base)
+    changed_set = set(all_changed)
+
+    errors: list[str] = []
+    unsatisfied: list[tuple[str, set[str]]] = []
+    for path in all_changed:
+        if is_auto_exempt(path):
+            continue
+        required = required_docs_for(path, entries)
+        if required is None:
+            errors.append(
+                f"{path}: no {MAP_FILENAME} entry -- add one before this can pass "
+                f"(see {SPEC_PATH})"
+            )
+            continue
+        if required & changed_set:
+            continue
+        unsatisfied.append((path, required))
+
+    if unsatisfied and not has_docs_not_needed_trailer(repo_root, merge_base):
+        for path, required in unsatisfied:
+            errors.append(
+                f"{path}: mapped to {sorted(required)}, but none were touched in "
+                f"this branch -- update one of them, or add a "
+                f"'{TRAILER_KEY}: <reason>' trailer to a commit"
+            )
+
+    return errors
+
+
+def main() -> int:
+    repo_root = Path.cwd()
+    errors = check_doc_ownership(repo_root)
+    if errors:
+        print("Doc-ownership check failed:\n")
+        for err in errors:
+            print(f"  ✗ {err}")
+        print(f"\n{len(errors)} issue(s) found.")
+        return 1
+    print("Doc-ownership check passed.")
     return 0
 
 

@@ -193,3 +193,102 @@ def test_has_docs_not_needed_trailer_true_when_present(tmp_path):
     _commit_all(repo, "tweak timing", trailer="Docs-not-needed: internal only")
     merge_base = vdo.resolve_merge_base(repo)
     assert vdo.has_docs_not_needed_trailer(repo, merge_base) is True
+
+
+def _write_map(repo: Path, entries_yaml: str) -> None:
+    (repo / "DOC_OWNERSHIP.yaml").write_text(entries_yaml)
+
+
+def test_check_doc_ownership_passes_when_doc_touched(tmp_path):
+    repo = _init_repo_with_fake_origin_main(tmp_path)
+    _write_map(repo, "- paths: [\"src.py\"]\n  docs: [\"docs.md\"]\n")
+    _commit_all(repo, "seed map")
+    (repo / "src.py").write_text("x = 1\n")
+    (repo / "docs.md").write_text("# doc\n")
+    _commit_all(repo, "change src and doc together")
+    assert vdo.check_doc_ownership(repo) == []
+
+
+def test_check_doc_ownership_fails_when_doc_not_touched(tmp_path):
+    repo = _init_repo_with_fake_origin_main(tmp_path)
+    _write_map(repo, "- paths: [\"src.py\"]\n  docs: [\"docs.md\"]\n")
+    (repo / "docs.md").write_text("# doc\n")
+    _commit_all(repo, "seed map and doc")
+    # Advance the fake origin/main past this seed commit so docs.md is NOT
+    # part of the branch's own diff -- only src.py (added next) is.
+    seed_sha = _run_git(repo, "rev-parse", "HEAD").strip()
+    _run_git(repo, "update-ref", "refs/remotes/origin/main", seed_sha)
+    (repo / "src.py").write_text("x = 1\n")
+    _commit_all(repo, "change src only")
+    errors = vdo.check_doc_ownership(repo)
+    assert len(errors) == 1
+    assert "src.py" in errors[0]
+    assert "docs.md" in errors[0]
+
+
+def test_check_doc_ownership_fails_on_unmapped_path(tmp_path):
+    repo = _init_repo_with_fake_origin_main(tmp_path)
+    (repo / "src.py").write_text("x = 1\n")
+    _commit_all(repo, "add unmapped src.py")
+    errors = vdo.check_doc_ownership(repo)
+    assert len(errors) == 1
+    assert "src.py" in errors[0]
+    assert "no DOC_OWNERSHIP.yaml entry" in errors[0]
+
+
+def test_check_doc_ownership_trailer_exempts_unsatisfied_mapped_path(tmp_path):
+    repo = _init_repo_with_fake_origin_main(tmp_path)
+    _write_map(repo, "- paths: [\"src.py\"]\n  docs: [\"docs.md\"]\n")
+    (repo / "docs.md").write_text("# doc\n")
+    _commit_all(repo, "seed map and doc")
+    seed_sha = _run_git(repo, "rev-parse", "HEAD").strip()
+    _run_git(repo, "update-ref", "refs/remotes/origin/main", seed_sha)
+    (repo / "src.py").write_text("x = 1\n")
+    _commit_all(repo, "tweak", trailer="Docs-not-needed: no behavior change")
+    assert vdo.check_doc_ownership(repo) == []
+
+
+def test_check_doc_ownership_trailer_does_not_exempt_unmapped_path(tmp_path):
+    repo = _init_repo_with_fake_origin_main(tmp_path)
+    (repo / "src.py").write_text("x = 1\n")
+    _commit_all(repo, "add unmapped", trailer="Docs-not-needed: not relevant here")
+    errors = vdo.check_doc_ownership(repo)
+    assert len(errors) == 1
+    assert "no DOC_OWNERSHIP.yaml entry" in errors[0]
+
+
+def test_check_doc_ownership_ignores_auto_exempt_paths(tmp_path):
+    repo = _init_repo_with_fake_origin_main(tmp_path)
+    (repo / "tools" / "tests").mkdir(parents=True)
+    (repo / "tools" / "tests" / "fixture.bats").write_text("# test\n")
+    _commit_all(repo, "add test-only fixture")
+    assert vdo.check_doc_ownership(repo) == []
+
+
+def test_check_doc_ownership_reports_malformed_map_as_single_error(tmp_path):
+    repo = _init_repo_with_fake_origin_main(tmp_path)
+    _write_map(repo, "not: [a, list\n")
+    _commit_all(repo, "add broken map")
+    errors = vdo.check_doc_ownership(repo)
+    assert len(errors) == 1
+    assert "not valid YAML" in errors[0]
+
+
+def test_main_returns_zero_on_clean_repo(tmp_path, monkeypatch, capsys):
+    repo = _init_repo_with_fake_origin_main(tmp_path)
+    (repo / "README.md").write_text("# fixture\nchanged\n")
+    _commit_all(repo, "doc-only change")
+    monkeypatch.chdir(repo)
+    assert vdo.main() == 0
+    assert "passed" in capsys.readouterr().out
+
+
+def test_main_returns_one_and_prints_errors(tmp_path, monkeypatch, capsys):
+    repo = _init_repo_with_fake_origin_main(tmp_path)
+    (repo / "src.py").write_text("x = 1\n")
+    _commit_all(repo, "add unmapped src.py")
+    monkeypatch.chdir(repo)
+    assert vdo.main() == 1
+    out = capsys.readouterr().out
+    assert "src.py" in out
+    assert "1 issue(s) found" in out
