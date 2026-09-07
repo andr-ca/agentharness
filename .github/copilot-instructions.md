@@ -326,6 +326,16 @@ The gate runs all quality gates in one shot and exits 1 if any fail:
 | `pytest-coverage` | Test suite + ≥65% branch coverage on `src/agentharness/` |
 | `shellcheck` | Changed `.sh` files have no issues |
 | `git-clean` | No uncommitted changes to tracked files |
+| `doc-ownership` | A changed path listed in `DOC_OWNERSHIP.yaml` must bring one of its owning docs along (or a `Docs-not-needed:` trailer) |
+
+**Doc-ownership map.** `DOC_OWNERSHIP.yaml` at the repo root lists code
+paths and the doc(s) that own them. Touching a mapped path without
+touching one of its docs fails the `doc-ownership` gate unless a commit
+in the branch carries a `Docs-not-needed: <reason>` trailer. Touching a
+path with **no** map entry at all also fails -- add an entry for it in
+the same branch rather than skipping past it. See
+`docs/superpowers/specs/2026-09-06-doc-ownership-gate-design.md` for the
+full design and `tools/verify-doc-ownership.py` for the implementation.
 
 The Stop hook in `.github/hooks/completion-gate.json` (Copilot) and
 `.claude/settings.json` (Claude Code) enforces this automatically —
