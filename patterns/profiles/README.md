@@ -65,9 +65,12 @@ this hook.
 
 This harness's own `.github/hooks/pre-push` is unchanged: it still only
 ever runs *this* repo's hardcoded suites and no-ops for a borrowed
-`core.hooksPath` (see the hook's own comments). A copy-mode install
-whose recorded `harness-link.sh` path is gone fails the next push with
-a clear missing-path message rather than that wrong-repo no-op.
+`core.hooksPath` (see the hook's own comments). By contrast, any
+`--with-coverage-hook` install's generated hook hardcodes its resolved
+`harness-link.sh` path at generation time (not just copy-mode — link
+and submodule installs record one too), so any install whose recorded
+path later goes missing fails the next push with a clear missing-path
+message rather than that wrong-repo no-op.
 
 A Mocha adapter remains unimplemented — tracked in `ROADMAP.md` as
 P1-02's remaining runner gap.
