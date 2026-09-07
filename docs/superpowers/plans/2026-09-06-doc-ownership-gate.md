@@ -716,7 +716,7 @@ This is the bootstrapping step: once Task 5's gate is live, *this branch's own d
 - Create: `DOC_OWNERSHIP.yaml`
 - Modify: `CLAUDE.md`
 
-- [ ] **Step 1: Create the initial `DOC_OWNERSHIP.yaml`**
+- [x] **Step 1: Create the initial `DOC_OWNERSHIP.yaml`**
 
 ```yaml
 # Doc-ownership map (issue #320): a PR touching a listed path must also
@@ -731,7 +731,7 @@ This is the bootstrapping step: once Task 5's gate is live, *this branch's own d
     - "CLAUDE.md"
 ```
 
-- [ ] **Step 2: Document the gate in `CLAUDE.md`'s Completion Gate table**
+- [x] **Step 2: Document the gate in `CLAUDE.md`'s Completion Gate table**
 
 Find the "📋 Completion Gate" section's table (the one listing `content-quality`, `ruff-lint`, `mypy`, `pytest-coverage`, `shellcheck`, `git-clean`). Add a row:
 
@@ -752,14 +752,14 @@ the same branch rather than skipping past it. See
 full design and `tools/verify-doc-ownership.py` for the implementation.
 ```
 
-- [ ] **Step 3: Verify the gate now passes against this branch's own diff**
+- [x] **Step 3: Verify the gate now passes against this branch's own diff**
 
 Run: `python3 tools/verify-doc-ownership.py`
 Expected: `Doc-ownership check passed.`, exit 0. (This works from a plain script invocation as long as `origin/main` is a valid ref in this checkout — it already is, since earlier steps in this session fetched/pulled `origin/main`.)
 
 If it instead reports `tools/tests/test_verify_doc_ownership.py`, `tools/check.sh`, or `.github/workflows/ci.yml` as unmapped: those are auto-exempt (`tools/tests/*`) or need their own entry. `tools/check.sh` and `ci.yml` changes in Task 5 are process/wiring changes to files that are not themselves documented by a specific owning doc in this repo's existing doc set — if the gate flags them, add a second entry mapping them to `CLAUDE.md` as well (it already documents the completion-gate/CI relationship), rather than leaving the gate unsatisfied.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add DOC_OWNERSHIP.yaml CLAUDE.md
