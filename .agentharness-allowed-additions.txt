@@ -76,3 +76,5 @@ tools/tests/generate-qwen-md.bats
 QWEN.md
 tools/generate-qwen-agents.sh
 tools/tests/generate-qwen-agents.bats
+tools/verify-doc-ownership.py
+tools/tests/test_verify_doc_ownership.py
