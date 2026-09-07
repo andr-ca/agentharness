@@ -197,7 +197,7 @@ git commit -m "feat(doc-ownership): add ownership-map loader"
 - Modify: `tools/verify-doc-ownership.py`
 - Modify: `tools/tests/test_verify_doc_ownership.py`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `tools/tests/test_verify_doc_ownership.py`:
 
@@ -244,12 +244,12 @@ def test_required_docs_for_unions_multiple_matching_entries():
     assert result == {"docs/INTEGRATION.md", "MANIFEST.md"}
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `python3 -m pytest tools/tests/test_verify_doc_ownership.py -v -k "auto_exempt or required_docs"`
 Expected: `AttributeError: module 'verify_doc_ownership' has no attribute 'is_auto_exempt'` (and similarly for `required_docs_for`).
 
-- [ ] **Step 3: Add the matching functions**
+- [x] **Step 3: Add the matching functions**
 
 Insert into `tools/verify-doc-ownership.py`, after `load_ownership_map`:
 
@@ -269,12 +269,12 @@ def required_docs_for(path: str, entries: list[OwnershipEntry]) -> set[str] | No
     return matched
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `python3 -m pytest tools/tests/test_verify_doc_ownership.py -v`
 Expected: all passing (12 total so far).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add tools/verify-doc-ownership.py tools/tests/test_verify_doc_ownership.py
