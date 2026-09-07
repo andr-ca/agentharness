@@ -291,7 +291,7 @@ git commit -m "feat(doc-ownership): add path matching and auto-exempt globs"
 
 These need a real git repo to run `git` against. Add a fixture helper that builds one deterministically, without a real network remote: it fakes `origin/main` with `git update-ref`, so `git merge-base origin/main HEAD` resolves the same way it would against a real fetched remote.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `tools/tests/test_verify_doc_ownership.py`:
 
@@ -373,12 +373,12 @@ def test_has_docs_not_needed_trailer_true_when_present(tmp_path):
     assert vdo.has_docs_not_needed_trailer(repo, merge_base) is True
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `python3 -m pytest tools/tests/test_verify_doc_ownership.py -v -k "merge_base or changed_files or trailer"`
 Expected: `AttributeError` — `resolve_merge_base`, `changed_files`, `has_docs_not_needed_trailer` don't exist yet.
 
-- [ ] **Step 3: Add the git helper functions**
+- [x] **Step 3: Add the git helper functions**
 
 Insert into `tools/verify-doc-ownership.py`, after `required_docs_for`:
 
@@ -414,12 +414,12 @@ def has_docs_not_needed_trailer(repo_root: Path, merge_base: str) -> bool:
     return any(line.strip().lower().startswith(prefix) for line in output.splitlines())
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `python3 -m pytest tools/tests/test_verify_doc_ownership.py -v`
 Expected: all passing (17 total so far).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add tools/verify-doc-ownership.py tools/tests/test_verify_doc_ownership.py
