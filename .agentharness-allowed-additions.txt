@@ -78,3 +78,4 @@ tools/generate-qwen-agents.sh
 tools/tests/generate-qwen-agents.bats
 tools/verify-doc-ownership.py
 tools/tests/test_verify_doc_ownership.py
+docs/superpowers/plans/2026-09-06-doc-ownership-gate.md
