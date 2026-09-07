@@ -1,0 +1,14 @@
+# Doc-ownership map (issue #320): a PR touching a listed path must also
+# touch one of its listed docs, or add a Docs-not-needed trailer. An
+# unmapped path fails the gate outright -- add an entry for it here.
+# See docs/superpowers/specs/2026-09-06-doc-ownership-gate-design.md.
+
+- paths:
+    - "tools/verify-doc-ownership.py"
+    - "tools/check-completion.sh"
+    - "tools/check.sh"
+    - ".github/workflows/ci.yml"
+    - ".agentharness-allowed-additions.txt"
+    - ".cursor/rules/agentharness-router.mdc"
+  docs:
+    - "CLAUDE.md"
