@@ -28,14 +28,13 @@ Planned-but-not-built: [ROADMAP.md](ROADMAP.md).
 **Default (no publish authority): verify and stage, then stop.**
 
 1. ✅ **Run the completion gate** — before declaring any work done, run
-   this project's completion gate. **This is `bash
-   tools/check-completion.sh` only in agentharness's own repo — a
-   project that installed this harness needs a different command; see
-   "📋 Completion Gate" below before assuming this one applies.** It
-   verifies lint, types, tests, coverage, and content quality in one
-   shot and exits non-zero if anything fails; the Stop hook in
-   `.github/hooks/completion-gate.json` and `.claude/settings.json`
-   enforces this automatically for Claude Code and GitHub Copilot.
+   this project's completion gate. **In agentharness's own repo, that
+   means `bash tools/check-completion.sh`, which verifies lint, types,
+   tests, coverage, and content quality in one shot and is enforced by
+   the Stop hook in `.github/hooks/completion-gate.json` and
+   `.claude/settings.json`. A project that only installed this harness
+   has none of those files — see "📋 Completion Gate" below for what
+   applies there instead.**
 2. ✅ **Create atomic commits locally** — one logical unit per commit, clear message explaining WHY
 3. 🛑 **Stop before pushing, opening a PR, or auto-implementing recommendations.** Present a summary of what's staged and ask the user to confirm before publishing anything.
 
