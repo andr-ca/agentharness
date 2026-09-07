@@ -9,11 +9,14 @@ Planned-but-not-built: [ROADMAP.md](ROADMAP.md).
 **Default (no publish authority): verify and stage, then stop.**
 
 1. ✅ **Run the completion gate** — before declaring any work done, run
-   `bash tools/check-completion.sh`. This script verifies lint, types,
-   tests, coverage, and content quality in one shot and exits non-zero if
-   anything fails. The Stop hook in `.github/hooks/completion-gate.json`
-   and `.claude/settings.json` enforces this automatically for Claude Code
-   and GitHub Copilot — the agent cannot stop until all gates pass.
+   this project's completion gate. **This is `bash
+   tools/check-completion.sh` only in agentharness's own repo — a
+   project that installed this harness needs a different command; see
+   "📋 Completion Gate" below before assuming this one applies.** It
+   verifies lint, types, tests, coverage, and content quality in one
+   shot and exits non-zero if anything fails; the Stop hook in
+   `.github/hooks/completion-gate.json` and `.claude/settings.json`
+   enforces this automatically for Claude Code and GitHub Copilot.
 2. ✅ **Create atomic commits locally** — one logical unit per commit, clear message explaining WHY
 3. 🛑 **Stop before pushing, opening a PR, or auto-implementing recommendations.** Present a summary of what's staged and ask the user to confirm before publishing anything.
 
@@ -290,7 +293,8 @@ not inherit silently from a template — see "Publish authority" above.
 
 ## 📋 Completion Gate
 
-**Run `bash tools/check-completion.sh` before declaring any work done.**
+**In this repo (agentharness itself): run `bash tools/check-completion.sh`
+before declaring any work done.**
 
 The gate runs all quality gates in one shot and exits 1 if any fail:
 
@@ -307,9 +311,17 @@ The Stop hook in `.github/hooks/completion-gate.json` (Copilot) and
 `.claude/settings.json` (Claude Code) enforces this automatically —
 the agent cannot stop until `tools/check-completion.sh` exits 0.
 
-For projects consuming this harness via `harness-link.sh init`, install
-the completion gate with: `harness-link.sh init --with-hook` (the hook
-is bundled alongside trunk protection in `.github/hooks/`).
+**This command and table are specific to agentharness's own source
+tree — not to a project that installed this harness.** `--with-hook`
+installs trunk-protection only, not this gate. `link`/`submodule`/`npm`
+installs get a consumer-local wrapper at `.agentharness-bin/check`
+(from `init`/`update`) that runs `enforce-profile` against *that*
+project instead — use `bash .agentharness-bin/check` there. `--mode
+copy` gets no wrapper at all. Run `harness-link.sh audit --json` and
+check `can_mechanically_enforce` before assuming any of these commands
+exists, and fall back to the project's own lint/test commands
+otherwise — see `docs/INTEGRATION.md`'s "Consumer-local completion
+gate" section for the full picture.
 
 ---
 

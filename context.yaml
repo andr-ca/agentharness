@@ -20,7 +20,7 @@ entries:
   loading: always-on
   provenance: verified
   freshness:
-    last_verified: '2026-08-07'
+    last_verified: '2026-09-07'
     invalidate_on:
     - CLAUDE.md
 - id: codex-router
@@ -31,7 +31,7 @@ entries:
   loading: always-on
   provenance: verified
   freshness:
-    last_verified: '2026-08-07'
+    last_verified: '2026-09-07'
     invalidate_on:
     - AGENTS.md
     - CLAUDE.md
@@ -43,7 +43,7 @@ entries:
   loading: always-on
   provenance: verified
   freshness:
-    last_verified: '2026-08-07'
+    last_verified: '2026-09-07'
     invalidate_on:
     - GEMINI.md
     - CLAUDE.md
@@ -55,7 +55,7 @@ entries:
   loading: always-on
   provenance: verified
   freshness:
-    last_verified: '2026-08-07'
+    last_verified: '2026-09-07'
     invalidate_on:
     - .github/copilot-instructions.md
     - CLAUDE.md
@@ -67,7 +67,7 @@ entries:
   loading: always-on
   provenance: verified
   freshness:
-    last_verified: '2026-08-07'
+    last_verified: '2026-09-07'
     invalidate_on:
     - .kilo/rules/agentharness.md
     - CLAUDE.md
@@ -79,7 +79,7 @@ entries:
   loading: always-on
   provenance: verified
   freshness:
-    last_verified: '2026-08-07'
+    last_verified: '2026-09-07'
     invalidate_on:
     - .cursor/rules/agentharness-router.mdc
     - CLAUDE.md
