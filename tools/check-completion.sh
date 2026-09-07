@@ -74,6 +74,8 @@ if command -v ruff >/dev/null 2>&1; then
         tools/eval/run.py \
         tools/verify-content-quality.py \
         tools/tests/test_verify_content_quality.py \
+        tools/verify-doc-ownership.py \
+        tools/tests/test_verify_doc_ownership.py \
         tools/generate-manifest.py \
         tools/release/materialize-skill-symlinks.py \
         tools/analyze_structure.py \
@@ -109,6 +111,7 @@ if command -v mypy >/dev/null 2>&1; then
         tools/eval/score.py \
         tools/eval/run.py \
         tools/verify-content-quality.py \
+        tools/verify-doc-ownership.py \
         tools/generate-manifest.py \
         tools/release/materialize-skill-symlinks.py \
         tools/analyze_structure.py \
@@ -268,6 +271,11 @@ if [ -f dist/agentharness.pyz.sha512 ] && [ -f tools/runtime/build-zipapp.py ]; 
     run_gate "runtime-artifact" \
         python3 tools/runtime/build-zipapp.py --check-reproducible
 fi
+
+# ---------------------------------------------------------------------------
+# Gate 6b: Doc ownership -- a mapped code path must bring its doc along
+# ---------------------------------------------------------------------------
+run_gate "doc-ownership" python3 tools/verify-doc-ownership.py
 
 # ---------------------------------------------------------------------------
 # Gate 7: Git status — no uncommitted or untracked changes
