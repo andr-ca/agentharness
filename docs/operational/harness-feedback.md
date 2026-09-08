@@ -1117,7 +1117,7 @@ runs the full suite."
 **Corrective action taken:** added a SCOPE NOTE to
 `tools/check-completion.sh`'s header comment naming the omission
 explicitly, why it exists (speed), and what to run instead
-(`tools/check.sh`, or `grep -l <keyword> tools/tests/*.bats
+(`tools/check.sh`, or `grep -l -- KEYWORD tools/tests/*.bats
 .github/hooks/tests/*.bats` + running the matching files directly)
 before pushing a change with bats coverage. Not filed as a separate
 upstream issue: this is the upstream repo and the fix lands in the same

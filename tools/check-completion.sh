@@ -20,7 +20,7 @@
 # on every Stop event. A change to tools/setup/harness-link.sh (or
 # anything else with bats coverage) passing this gate is NOT evidence
 # the bats suites still pass — only tools/check.sh and the pre-push git
-# hook run them. Before pushing such a change, `grep -l <keyword>
+# hook run them. Before pushing such a change, `grep -l -- KEYWORD
 # tools/tests/*.bats .github/hooks/tests/*.bats` and run the matching
 # files directly, or expect the pre-push hook to catch it the slow way.
 # (Friction logged 2026-09-08 in docs/operational/harness-feedback.md
