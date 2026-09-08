@@ -14,6 +14,19 @@
 #   stdout — JSON only: {"can_declare_complete":bool,"gates_passed":[...],"gates_failed":[...]}
 #   stderr — human-readable progress and error messages
 #
+# SCOPE NOTE: this gate does NOT run any of the .bats suites under
+# tools/tests/ or .github/hooks/tests/ — those are slow (the full set
+# takes ~13-14 minutes) and this gate is meant to be fast enough to run
+# on every Stop event. A change to tools/setup/harness-link.sh (or
+# anything else with bats coverage) passing this gate is NOT evidence
+# the bats suites still pass — only tools/check.sh and the pre-push git
+# hook run them. Before pushing such a change, `grep -l -- KEYWORD
+# tools/tests/*.bats .github/hooks/tests/*.bats` and run the matching
+# files directly, or expect the pre-push hook to catch it the slow way.
+# (Friction logged 2026-09-08 in docs/operational/harness-feedback.md
+# after this gap let two outdated bats assertions reach a push attempt
+# undetected.)
+#
 # Usage:
 #   bash tools/check-completion.sh          # from repo root
 set -euo pipefail

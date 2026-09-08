@@ -1068,3 +1068,60 @@ and linked `docs/COMPARE.md` from `docs/README.md` (the other #242
 success criterion that #252 left undone). Not filed as a separate
 upstream issue: this is the upstream repo and the fix lands in the
 same PR.
+
+## 2026-09-08 – `tools/check-completion.sh` passing gave false confidence that a `harness-link.sh` change had no regressions
+
+**Recurrence key:** `completion-gate-omits-bats`
+
+**Harness version:** c388fc2
+
+**Event class:** tool-output-mismatch
+
+**Observed vs. inferred:** Directly observed — a real `git push` failure log.
+
+**What happened:** Fixed issue #319 (relative `core.hooksPath`) in
+`tools/setup/harness-link.sh`, ran the full `tools/tests/harness-lifecycle.bats`
+suite plus `bash tools/check-completion.sh` (all green), committed, and
+pushed. The pre-push git hook's own, separately-run bats pass then
+failed two tests in `tools/tests/harness-link.bats` — a file
+`check-completion.sh` never runs at all. Both failures were pre-existing
+tests whose hardcoded absolute-path assertions were superseded by this
+fix's own intentional behavior change; real bugs, just not ones
+`check-completion.sh` could have caught regardless of which file I'd
+remembered to run manually.
+
+**Root cause:** `check-completion.sh`'s gate list (`content-quality`,
+`ruff-*`, `mypy-*`, `pytest-coverage`, `shellcheck`, `context-budget`,
+`runtime-artifact`, `git-clean`) omits every `.bats` suite by design —
+it's meant to be fast enough for a Stop hook, and the full bats set
+takes ~13-14 minutes (confirmed via the pre-push run and CI's
+`hook-tests` job). `tools/check.sh` and the pre-push hook both run bats;
+`check-completion.sh` doesn't, and nothing in its own header or
+CLAUDE.md's Completion Gate section disclosed that distinction before
+this fix — a reader who only knows "run check-completion.sh" reasonably
+assumes a green result means no regressions in `harness-link.sh`'s
+tested behavior, which isn't true for anything bats covers.
+
+**Impact:** Two failed push attempts before the branch went green,
+purely from a coverage gap in local verification rather than the fix
+itself being wrong — costly in wall-clock time given the ~13-14 minute
+pre-push suite, and a plausible source of the same mistake for any
+future session working on `harness-link.sh` or its bats-covered
+siblings without already knowing this gap exists.
+
+**What agentharness should change:** disclose the scope boundary where
+an agent debugging exactly this gap would look first — the script's own
+header — rather than relying on tribal knowledge that "only pre-push
+runs the full suite."
+
+**Corrective action taken:** added a SCOPE NOTE to
+`tools/check-completion.sh`'s header comment naming the omission
+explicitly, why it exists (speed), and what to run instead
+(`tools/check.sh`, or `grep -l -- KEYWORD tools/tests/*.bats
+.github/hooks/tests/*.bats` + running the matching files directly)
+before pushing a change with bats coverage. Not filed as a separate
+upstream issue: this is the upstream repo and the fix lands in the same
+PR (docs-only, no gate behavior changed — adding the full bats suite to
+`check-completion.sh` itself would trade away the speed the gate is
+designed for, which is a separate, larger tradeoff this entry
+deliberately doesn't make on its own).
